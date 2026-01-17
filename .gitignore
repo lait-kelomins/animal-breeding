@@ -14,6 +14,7 @@ build/
 # Documentation and notes (local dev only)
 *.md
 !README.md
+!.github/**/*.md
 docs/
 
 # Scripts (local dev only)
