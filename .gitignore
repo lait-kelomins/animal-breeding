@@ -14,9 +14,14 @@ build/
 # Documentation and notes (local dev only)
 *.md
 !README.md
+!CHANGELOG.md
 !CONTRIBUTING.md
 !.github/**/*.md
 docs/
+!docs/VERSION_BUMP.md
+!docs/PRE_PUBLISH_CHECKLIST.md
+!docs/GAME_ASSETS_REFERENCE.md
+!docs/API_REFERENCE.md
 
 # Scripts (local dev only)
 *.ps1
