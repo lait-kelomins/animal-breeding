@@ -1,0 +1,39 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Claude Code (local AI assistant config)
+.claude/
+
+# Documentation and notes (local dev only)
+*.md
+docs/
+
+# Scripts (local dev only)
+*.ps1
+*.sh
+!gradlew
+
+# Deploy version tracking
+.deploy-version
+
+# Sensitive/auth files
+*.enc
+auth.enc
+
+# Local dependencies (not redistributable)
+libs/
+
+# Root-level built JARs
+laits-animal-breeding-*.jar
+
+# Compiled class files (outside build/)
+*.class
+/com/
+/temp_class/

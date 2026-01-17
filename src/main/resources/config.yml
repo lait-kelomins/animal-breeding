@@ -1,0 +1,34 @@
+# Lait's Animal Breeding Configuration
+
+breeding:
+  # Cooldown in minutes before an animal can breed again
+  cooldown_minutes:
+    cow: 5
+    pig: 5
+    chicken: 3
+    sheep: 5
+
+  # Gestation/pregnancy period in minutes
+  gestation_minutes:
+    cow: 2
+    pig: 2
+    chicken: 0.5
+    sheep: 2
+
+growth:
+  # Time in minutes for each growth stage
+  stage_minutes:
+    baby: 3
+    juvenile: 3
+
+# Enable debug logging
+debug: false
+
+# Customizable messages (supports color codes with &)
+messages:
+  breeding_started: "&aBreeding started!"
+  on_cooldown: "&cThis animal needs to rest before breeding again."
+  not_adult: "&cThis animal is not old enough to breed."
+  wrong_food: "&cThis animal doesn't want that food."
+  birth: "&bA baby {animal} was born!"
+  growth_stage: "&e{animal} has grown to {stage}!"

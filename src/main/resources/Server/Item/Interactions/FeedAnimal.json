@@ -1,0 +1,7 @@
+{
+    "Type": "FeedAnimal",
+    "Effects": {
+        "ItemAnimationId": "Eat",
+        "WaitForAnimationToFinish": true
+    }
+}
