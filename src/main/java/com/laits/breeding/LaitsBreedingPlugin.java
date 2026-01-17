@@ -21,7 +21,9 @@ import com.hypixel.hytale.server.core.inventory.Inventory;
 import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
 import com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent;
 import com.hypixel.hytale.server.core.universe.world.SoundUtil;
+import com.hypixel.hytale.server.core.universe.world.ParticleUtil;
 import com.hypixel.hytale.protocol.SoundCategory;
+import com.hypixel.hytale.protocol.InteractionType;
 import com.hypixel.hytale.server.core.asset.type.item.config.Item;
 import com.hypixel.hytale.protocol.MouseButtonType;
 import com.hypixel.hytale.server.core.HytaleServer;
@@ -33,6 +35,17 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.component.AddReason;
+import com.hypixel.hytale.component.RemoveReason;
+import com.hypixel.hytale.component.ComponentType;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
+import com.hypixel.hytale.server.core.modules.entity.component.Interactable;
+import com.hypixel.hytale.server.core.modules.interaction.Interactions;
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
+import com.hypixel.hytale.server.npc.NPCPlugin;
+import com.hypixel.hytale.server.core.asset.type.model.config.Model;
+import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
 
 import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.GrowthManager;
@@ -58,7 +71,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class LaitsBreedingPlugin extends JavaPlugin {
 
-    public static final String VERSION = "1.0.0";
+    public static final String VERSION = "1.2.0";
 
     private static LaitsBreedingPlugin instance;
 
@@ -75,11 +88,41 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private GrowthManager growthManager;
     private ScheduledExecutorService tickScheduler;
 
-    // Cached reflection objects for performance
-    private Class<?> cachedTransformClass;
-    private Object cachedTransformComponentType;
-    private java.lang.reflect.Method cachedGetPosition;
-    private boolean reflectionCacheInitialized = false;
+    // Getter for tick scheduler (used by commands)
+    ScheduledExecutorService getTickScheduler() {
+        return tickScheduler;
+    }
+
+    // Cached ECS component types for performance
+    private static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE = TransformComponent.getComponentType();
+    private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
+    private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
+
+    // These are initialized at runtime since their getComponentType() may not be public
+    private static Object INTERACTIONS_COMP_TYPE = null;
+    private static Object INTERACTABLE_COMP_TYPE = null;
+
+    private static Object getInteractionsComponentType() {
+        if (INTERACTIONS_COMP_TYPE == null) {
+            try {
+                INTERACTIONS_COMP_TYPE = Interactions.class.getMethod("getComponentType").invoke(null);
+            } catch (Exception e) {
+                // Silent
+            }
+        }
+        return INTERACTIONS_COMP_TYPE;
+    }
+
+    private static Object getInteractableComponentType() {
+        if (INTERACTABLE_COMP_TYPE == null) {
+            try {
+                INTERACTABLE_COMP_TYPE = Interactable.class.getMethod("getComponentType").invoke(null);
+            } catch (Exception e) {
+                // Silent
+            }
+        }
+        return INTERACTABLE_COMP_TYPE;
+    }
 
     // Event counters for diagnostics
     private static int playerReadyCount = 0;
@@ -91,13 +134,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     public static int getUseBlockPreCount() { return useBlockPreCount; }
     public static int getUseBlockPostCount() { return useBlockPostCount; }
 
-    // Cached reflection objects for entity interaction setup (initialized in start())
-    private Object cachedInteractionsCompType;
-    private Object cachedInteractableCompType;
-    private Object cachedInteractionTypeUse;
-    private Class<?> cachedRefClass;
-    private Class<?> cachedComponentTypeClass;
-    private boolean interactionCacheInitialized = false;
+    // Interaction cache is now typed via static final fields above
+    private boolean interactionCacheInitialized = true; // Always true with direct imports
 
     // Verbose logging toggle (controlled by /breedlogs command)
     private static boolean verboseLogging = false;
@@ -119,27 +157,20 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Used by FeedAnimalInteraction to fall back to default behavior (e.g., mounting).
      */
     public static String getOriginalInteractionId(Object entityRef) {
-        try {
-            java.lang.reflect.Method getIndex = entityRef.getClass().getMethod("getIndex");
-            Integer index = (Integer) getIndex.invoke(entityRef);
+        if (entityRef instanceof Ref) {
+            int index = ((Ref<?>) entityRef).getIndex();
             return originalInteractions.get(index);
-        } catch (Exception e) {
-            return null;
         }
+        return null;
     }
 
     /**
      * Store the original interaction ID for an entity.
      */
-    private static void storeOriginalInteractionId(Object entityRef, String interactionId) {
-        try {
-            java.lang.reflect.Method getIndex = entityRef.getClass().getMethod("getIndex");
-            Integer index = (Integer) getIndex.invoke(entityRef);
-            if (index != null) {
-                originalInteractions.put(index, interactionId);
-            }
-        } catch (Exception e) {
-            // Silent
+    private static void storeOriginalInteractionId(Ref<EntityStore> entityRef, String interactionId) {
+        if (entityRef != null) {
+            int index = entityRef.getIndex();
+            originalInteractions.put(index, interactionId);
         }
     }
 
@@ -291,6 +322,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         getCommandRegistry().registerCommand(new BreedingDevCommand());
         getCommandRegistry().registerCommand(new BreedingHintCommand());
         getCommandRegistry().registerCommand(new BreedingConfigCommand());
+        getCommandRegistry().registerCommand(new BreedingScanCommand());
+        getCommandRegistry().registerCommand(new BreedingGrowthCommand());
     }
 
     @Override
@@ -338,49 +371,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Initialize cached reflection objects for frequently used classes/methods.
-     * This avoids repeated Class.forName() and getMethod() calls in tick loops.
+     * Initialize cached objects - now mostly done via static final fields.
+     * This method is kept for any remaining runtime initialization.
      */
     private void initReflectionCache() {
-        try {
-            cachedTransformClass = Class.forName(
-                "com.hypixel.hytale.server.core.modules.entity.component.TransformComponent");
-            java.lang.reflect.Method getComponentType = cachedTransformClass.getMethod("getComponentType");
-            cachedTransformComponentType = getComponentType.invoke(null);
-            cachedGetPosition = cachedTransformClass.getMethod("getPosition");
-            reflectionCacheInitialized = true;
-        } catch (Exception e) {
-            reflectionCacheInitialized = false;
-            logWarning("Reflection cache init failed (distance breeding may not work): " + e.getMessage());
-        }
-
-        // Initialize interaction setup cache
-        try {
-            Class<?> interactionsClass = Class.forName(
-                "com.hypixel.hytale.server.core.modules.interaction.Interactions");
-            cachedInteractionsCompType = interactionsClass.getMethod("getComponentType").invoke(null);
-
-            Class<?> interactableClass = Class.forName(
-                "com.hypixel.hytale.server.core.modules.entity.component.Interactable");
-            cachedInteractableCompType = interactableClass.getMethod("getComponentType").invoke(null);
-
-            Class<?> interactionTypeClass = Class.forName("com.hypixel.hytale.protocol.InteractionType");
-            for (Object enumConst : interactionTypeClass.getEnumConstants()) {
-                if (enumConst.toString().equals("Use")) {
-                    cachedInteractionTypeUse = enumConst;
-                    break;
-                }
-            }
-
-            cachedRefClass = Class.forName("com.hypixel.hytale.component.Ref");
-            cachedComponentTypeClass = Class.forName("com.hypixel.hytale.component.ComponentType");
-
-            interactionCacheInitialized = true;
-            logVerbose("Interaction cache initialized successfully");
-        } catch (Exception e) {
-            interactionCacheInitialized = false;
-            logWarning("Interaction cache init failed: " + e.getMessage());
-        }
+        // Component types are now static final fields using direct imports
+        // No reflection needed - all types are initialized at class load time
+        logVerbose("ECS component types initialized via direct imports");
     }
 
     /**
@@ -415,14 +412,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Must be called from the world thread.
      *
      * @param world The world containing the entity
-     * @param entityRef The entity reference (Ref<EntityStore>)
+     * @param entityRef The entity reference
      */
-    private void setupSingleEntity(World world, Object entityRef) {
-        if (!interactionCacheInitialized) return;
-
+    private void setupSingleEntity(World world, Ref<EntityStore> entityRef) {
         try {
-            Object entityStore = world.getClass().getMethod("getEntityStore").invoke(world);
-            Object store = entityStore.getClass().getMethod("getStore").invoke(entityStore);
+            Store<EntityStore> store = world.getEntityStore().getStore();
 
             // Get the model asset ID to identify the animal type
             String modelAssetId = getEntityModelAssetId(store, entityRef);
@@ -453,18 +447,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 setupEntityInteractions(store, entityRef, animalType);
             }
 
-        } catch (Exception e) {
+        } catch (IllegalStateException e) {
             // Check for stale ref error
-            Throwable cause = e;
-            if (e instanceof java.lang.reflect.InvocationTargetException) {
-                cause = ((java.lang.reflect.InvocationTargetException) e).getTargetException();
-            }
-            if (cause instanceof IllegalStateException &&
-                cause.getMessage() != null &&
-                cause.getMessage().contains("Invalid entity")) {
+            if (e.getMessage() != null && e.getMessage().contains("Invalid entity")) {
                 // Entity was despawned - ignore
                 return;
             }
+            logVerbose("setupSingleEntity error: " + e.getMessage());
+        } catch (Exception e) {
             logVerbose("setupSingleEntity error: " + e.getMessage());
         }
     }
@@ -472,18 +462,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     /**
      * Get the model asset ID from an entity reference.
      */
-    private String getEntityModelAssetId(Object store, Object entityRef) {
+    private String getEntityModelAssetId(Store<EntityStore> store, Ref<EntityStore> entityRef) {
         try {
-            Class<?> modelCompClass = Class.forName(
-                "com.hypixel.hytale.server.core.modules.entity.component.ModelComponent");
-            Object modelCompType = modelCompClass.getMethod("getComponentType").invoke(null);
-
-            java.lang.reflect.Method getCompMethod = store.getClass().getMethod(
-                "getComponent", cachedRefClass, cachedComponentTypeClass);
-            Object modelComp = getCompMethod.invoke(store, entityRef, modelCompType);
+            ModelComponent modelComp = store.getComponent(entityRef, MODEL_TYPE);
             if (modelComp == null) return null;
 
-            java.lang.reflect.Field modelField = modelCompClass.getDeclaredField("model");
+            // Extract modelAssetId from the model field using reflection (field is not public)
+            java.lang.reflect.Field modelField = ModelComponent.class.getDeclaredField("model");
             modelField.setAccessible(true);
             Object model = modelField.get(modelComp);
             if (model == null) return null;
@@ -504,29 +489,53 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     /**
      * Set up breeding interactions on a single entity.
+     * Note: Interactions methods are not public, so we must use reflection.
      */
-    private void setupEntityInteractions(Object store, Object entityRef, AnimalType animalType) {
+    private void setupEntityInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef, AnimalType animalType) {
         try {
-            java.lang.reflect.Method ensureMethod = store.getClass().getMethod(
-                "ensureAndGetComponent", cachedRefClass, cachedComponentTypeClass);
+            // Get component types via reflection
+            Object interactableType = getInteractableComponentType();
+            Object interactionsType = getInteractionsComponentType();
+            if (interactionsType == null) return;
+
+            // Find ensureAndGetComponent method
+            java.lang.reflect.Method ensureMethod = null;
+            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
+                if (m.getName().equals("ensureAndGetComponent") && m.getParameterCount() == 2) {
+                    ensureMethod = m;
+                    break;
+                }
+            }
+            if (ensureMethod == null) return;
 
             // Ensure entity has Interactable component (required for hints to show)
-            try {
-                ensureMethod.invoke(store, entityRef, cachedInteractableCompType);
-            } catch (Exception e) {
-                // Silently continue - component may already exist
+            if (interactableType != null) {
+                try {
+                    ensureMethod.invoke(store, entityRef, interactableType);
+                } catch (Exception e) {
+                    // Silent
+                }
             }
 
-            Object interactions = ensureMethod.invoke(store, entityRef, cachedInteractionsCompType);
+            // Ensure entity has Interactions component
+            Object interactions = ensureMethod.invoke(store, entityRef, interactionsType);
             if (interactions == null) return;
 
             String feedInteractionId = "Root_FeedAnimal";
 
-            java.lang.reflect.Method getIntId = interactions.getClass().getMethod(
-                "getInteractionId",
-                Class.forName("com.hypixel.hytale.protocol.InteractionType"));
+            // Use reflection for non-public methods - use Class.forName to avoid classloader issues
+            Class<?> interactionTypeClass = Class.forName("com.hypixel.hytale.protocol.InteractionType");
+            Object useType = null;
+            for (Object enumConst : interactionTypeClass.getEnumConstants()) {
+                if (enumConst.toString().equals("Use")) {
+                    useType = enumConst;
+                    break;
+                }
+            }
 
-            String currentUse = (String) getIntId.invoke(interactions, cachedInteractionTypeUse);
+            java.lang.reflect.Method getIntId = interactions.getClass().getMethod(
+                "getInteractionId", interactionTypeClass);
+            String currentUse = (String) getIntId.invoke(interactions, useType);
 
             if (currentUse == null || !currentUse.equals(feedInteractionId)) {
                 // Save original interaction ID for fallback (e.g., horse mounting)
@@ -536,11 +545,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 }
 
                 java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
-                    "setInteractionId",
-                    Class.forName("com.hypixel.hytale.protocol.InteractionType"),
-                    String.class);
-
-                setIntId.invoke(interactions, cachedInteractionTypeUse, feedInteractionId);
+                    "setInteractionId", interactionTypeClass, String.class);
+                setIntId.invoke(interactions, useType, feedInteractionId);
             }
 
             // Set the interaction hint
@@ -581,54 +587,85 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     /**
      * Automatically set up interactions on all farm animals in all worlds.
+     * Package-private so it can be called from the BreedingScanCommand.
      */
-    private void autoSetupNearbyAnimals() {
+    void autoSetupNearbyAnimals() {
         try {
             World world = Universe.get().getDefaultWorld();
             if (world == null) return;
 
-            // Get the Interactions component type
+            // Get the Interactions component type via reflection
             Class<?> interactionsClass = Class.forName("com.hypixel.hytale.server.core.modules.interaction.Interactions");
             java.lang.reflect.Method getCompType = interactionsClass.getMethod("getComponentType");
             Object interactionsCompType = getCompType.invoke(null);
 
+            // Get Interactable component type
+            Class<?> interactableClass = Class.forName("com.hypixel.hytale.server.core.modules.entity.component.Interactable");
+            Object interactableCompType = interactableClass.getMethod("getComponentType").invoke(null);
+
             // Get InteractionType enum values
             Class<?> interactionTypeClass = Class.forName("com.hypixel.hytale.protocol.InteractionType");
             Object useType = null;
-            Object secondaryType = null;
             for (Object enumConst : interactionTypeClass.getEnumConstants()) {
-                String name = enumConst.toString();
-                if (name.equals("Use")) useType = enumConst;
-                if (name.equals("Secondary")) secondaryType = enumConst;
+                if (enumConst.toString().equals("Use")) {
+                    useType = enumConst;
+                    break;
+                }
             }
 
             final Object compType = interactionsCompType;
+            final Object intCompType = interactableCompType;
             final Object intTypeUse = useType;
-            final Object intTypeSecondary = secondaryType;
+            final Class<?> intTypeClass = interactionTypeClass;
 
             // Find all farm animals (including babies)
+            logVerbose("Starting animal scan...");
             AnimalFinder.findAnimals(world, false, animals -> {
                 try {
+                    logVerbose("Found " + animals.size() + " animals total");
                     if (animals.isEmpty()) return;
 
                     Object entityStore = world.getClass().getMethod("getEntityStore").invoke(world);
                     Object store = entityStore.getClass().getMethod("getStore").invoke(entityStore);
+                    logVerbose("Got store: " + store.getClass().getSimpleName());
 
-                    java.lang.reflect.Method ensureMethod = store.getClass().getMethod("ensureAndGetComponent",
-                        Class.forName("com.hypixel.hytale.component.Ref"),
-                        Class.forName("com.hypixel.hytale.component.ComponentType"));
+                    // Find ensureAndGetComponent method - use iteration pattern for robustness
+                    java.lang.reflect.Method ensureMethod = null;
+                    for (java.lang.reflect.Method m : store.getClass().getMethods()) {
+                        if (m.getName().equals("ensureAndGetComponent") && m.getParameterCount() == 2) {
+                            ensureMethod = m;
+                            break;
+                        }
+                    }
+                    if (ensureMethod == null) {
+                        logWarning("Could not find ensureAndGetComponent method on store");
+                        return;
+                    }
+                    logVerbose("Found ensureAndGetComponent method");
 
                     String feedInteractionId = "Root_FeedAnimal";
+
+                    int processedCount = 0;
+                    int skippedNull = 0;
+                    int skippedDisabled = 0;
+                    int skippedBaby = 0;
 
                     for (AnimalFinder.FoundAnimal animal : animals) {
                         Object entityRef = animal.getEntityRef();
                         AnimalType animalType = animal.getAnimalType();
 
                         // Skip if not a recognized farm animal
-                        if (animalType == null) continue;
+                        if (animalType == null) {
+                            skippedNull++;
+                            continue;
+                        }
 
                         // Skip if breeding is disabled for this animal type
-                        if (!configManager.isAnimalEnabled(animalType)) continue;
+                        if (!configManager.isAnimalEnabled(animalType)) {
+                            skippedDisabled++;
+                            logVerbose("Skipping disabled animal: " + animalType);
+                            continue;
+                        }
 
                         // Check if this is a baby that needs growth tracking
                         if (animal.isBaby()) {
@@ -640,56 +677,67 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                         // Set up interactions for adults (babies can't breed)
                         if (!animal.isBaby()) {
+                            logVerbose("Setting up interactions for adult: " + animal.getModelAssetId() + " (type: " + animalType + ")");
+
                             // Ensure entity has Interactable component (required for hints to show)
                             try {
-                                Class<?> interactableClass = Class.forName(
-                                    "com.hypixel.hytale.server.core.modules.entity.component.Interactable");
-                                Object interactableType = interactableClass.getMethod("getComponentType").invoke(null);
-                                ensureMethod.invoke(store, entityRef, interactableType);
+                                ensureMethod.invoke(store, entityRef, intCompType);
+                                logVerbose("  Ensured Interactable component");
                             } catch (Exception e) {
-                                // Silently continue - Interactable component may already exist
+                                logVerbose("  Failed to ensure Interactable: " + e.getMessage());
                             }
 
                             Object interactions = ensureMethod.invoke(store, entityRef, compType);
+                            logVerbose("  Got Interactions component: " + (interactions != null));
 
                             if (interactions != null) {
                                 java.lang.reflect.Method getIntId = interactions.getClass().getMethod(
-                                    "getInteractionId",
-                                    Class.forName("com.hypixel.hytale.protocol.InteractionType"));
-
+                                    "getInteractionId", intTypeClass);
                                 String currentUse = (String) getIntId.invoke(interactions, intTypeUse);
 
                                 if (currentUse == null || !currentUse.equals(feedInteractionId)) {
                                     // Save original interaction ID for fallback (e.g., horse mounting)
                                     if (currentUse != null && !currentUse.isEmpty()) {
-                                        storeOriginalInteractionId(entityRef, currentUse);
+                                        // Store with Ref cast
+                                        if (entityRef instanceof Ref) {
+                                            storeOriginalInteractionId((Ref<EntityStore>) entityRef, currentUse);
+                                        }
                                         logVerbose("Saved original interaction for entity: " + currentUse);
                                     }
 
                                     java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
-                                        "setInteractionId",
-                                        Class.forName("com.hypixel.hytale.protocol.InteractionType"),
-                                        String.class);
-
+                                        "setInteractionId", intTypeClass, String.class);
                                     setIntId.invoke(interactions, intTypeUse, feedInteractionId);
+                                    logVerbose("  Set interaction ID to: " + feedInteractionId);
                                 }
 
                                 // Set the interaction hint
                                 java.lang.reflect.Method setHint = interactions.getClass().getMethod(
                                     "setInteractionHint", String.class);
-                                // Use our custom localization key (defined in Server/Languages/en-US/server.lang)
                                 setHint.invoke(interactions, "server.interactionHints.feed");
-                                logVerbose("Set hint: server.interactionHints.feed");
+                                logVerbose("  Set hint to: server.interactionHints.feed");
+                                processedCount++;
                             }
+                        } else {
+                            skippedBaby++;
                         }
                     }
+                    logVerbose("Animal scan complete: processed=" + processedCount +
+                               ", skippedNull=" + skippedNull +
+                               ", skippedDisabled=" + skippedDisabled +
+                               ", skippedBaby=" + skippedBaby);
                 } catch (Exception e) {
-                    // Silent
+                    // Log errors from animal processing
+                    logWarning("autoSetupNearbyAnimals callback error: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+                    if (verboseLogging && e.getCause() != null) {
+                        logWarning("  Caused by: " + e.getCause().getMessage());
+                    }
                 }
             });
 
         } catch (Exception e) {
-            // Silent - this runs frequently
+            // Log errors from initial setup
+            logWarning("autoSetupNearbyAnimals setup error: " + e.getClass().getSimpleName() + ": " + e.getMessage());
         }
     }
 
@@ -1114,38 +1162,20 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Get UUID for an entity using ECS UUIDComponent (avoids deprecated getUuid()).
      * Falls back to generating a consistent UUID from entity ref.
      */
+    @SuppressWarnings("unchecked")
     private UUID getEntityUUID(Entity entity) {
         try {
             // Try to get from UUIDComponent via ECS
             Object entityRef = getEntityRef(entity);
-            if (entityRef != null) {
+            if (entityRef != null && entityRef instanceof Ref) {
                 World world = entity.getWorld();
                 if (world != null) {
                     Store<EntityStore> store = world.getEntityStore().getStore();
-
-                    Class<?> uuidCompClass = Class.forName("com.hypixel.hytale.server.core.entity.UUIDComponent");
-                    java.lang.reflect.Method getComponentType = uuidCompClass.getMethod("getComponentType");
-                    Object componentType = getComponentType.invoke(null);
-
-                    java.lang.reflect.Method getComponent = null;
-                    for (java.lang.reflect.Method m : store.getClass().getMethods()) {
-                        if (m.getName().equals("getComponent") && m.getParameterCount() == 2) {
-                            Class<?>[] params = m.getParameterTypes();
-                            if (params[0].isAssignableFrom(entityRef.getClass())) {
-                                getComponent = m;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (getComponent != null) {
-                        Object uuidComp = getComponent.invoke(store, entityRef, componentType);
-                        if (uuidComp != null) {
-                            java.lang.reflect.Method getUuid = uuidComp.getClass().getMethod("getUuid");
-                            Object uuid = getUuid.invoke(uuidComp);
-                            if (uuid instanceof UUID) {
-                                return (UUID) uuid;
-                            }
+                    UUIDComponent uuidComp = store.getComponent((Ref<EntityStore>) entityRef, UUID_TYPE);
+                    if (uuidComp != null) {
+                        UUID uuid = uuidComp.getUuid();
+                        if (uuid != null) {
+                            return uuid;
                         }
                     }
                 }
@@ -1168,41 +1198,25 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Get model asset ID for an entity using ECS ModelComponent (avoids deprecated getLegacyDisplayName()).
      * This is used to determine the animal type.
      */
+    @SuppressWarnings("unchecked")
     private String getEntityModelId(Entity entity) {
         try {
             Object entityRef = getEntityRef(entity);
-            if (entityRef != null) {
+            if (entityRef != null && entityRef instanceof Ref) {
                 World world = entity.getWorld();
                 if (world != null) {
                     Store<EntityStore> store = world.getEntityStore().getStore();
+                    ModelComponent modelComp = store.getComponent((Ref<EntityStore>) entityRef, MODEL_TYPE);
+                    if (modelComp != null) {
+                        // Extract modelAssetId from the model field using reflection (field is not public)
+                        java.lang.reflect.Field modelField = ModelComponent.class.getDeclaredField("model");
+                        modelField.setAccessible(true);
+                        Object model = modelField.get(modelComp);
 
-                    Class<?> modelCompClass = Class.forName("com.hypixel.hytale.server.core.modules.entity.component.ModelComponent");
-                    java.lang.reflect.Method getComponentType = modelCompClass.getMethod("getComponentType");
-                    Object componentType = getComponentType.invoke(null);
-
-                    java.lang.reflect.Method getComponent = null;
-                    for (java.lang.reflect.Method m : store.getClass().getMethods()) {
-                        if (m.getName().equals("getComponent") && m.getParameterCount() == 2) {
-                            Class<?>[] params = m.getParameterTypes();
-                            if (params[0].isAssignableFrom(entityRef.getClass())) {
-                                getComponent = m;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (getComponent != null) {
-                        Object modelComp = getComponent.invoke(store, entityRef, componentType);
-                        if (modelComp != null) {
-                            java.lang.reflect.Field modelField = modelCompClass.getDeclaredField("model");
-                            modelField.setAccessible(true);
-                            Object model = modelField.get(modelComp);
-
-                            if (model != null) {
-                                java.lang.reflect.Field assetIdField = model.getClass().getDeclaredField("modelAssetId");
-                                assetIdField.setAccessible(true);
-                                return (String) assetIdField.get(model);
-                            }
+                        if (model != null) {
+                            java.lang.reflect.Field assetIdField = model.getClass().getDeclaredField("modelAssetId");
+                            assetIdField.setAccessible(true);
+                            return (String) assetIdField.get(model);
                         }
                     }
                 }
@@ -1295,27 +1309,16 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Get position on world thread using cached reflection objects.
+     * Get position on world thread using typed component access.
      */
+    @SuppressWarnings("unchecked")
     private Vector3d getPositionOnWorldThread(Store<EntityStore> store, Object entityRef) {
-        if (!reflectionCacheInitialized) return null;
         try {
-            // Find compatible getComponent method dynamically
-            java.lang.reflect.Method getComponent = null;
-            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
-                if (m.getName().equals("getComponent") && m.getParameterCount() == 2) {
-                    Class<?>[] params = m.getParameterTypes();
-                    if (params[0].isAssignableFrom(entityRef.getClass())) {
-                        getComponent = m;
-                        break;
-                    }
+            if (entityRef instanceof Ref) {
+                TransformComponent transform = store.getComponent((Ref<EntityStore>) entityRef, TRANSFORM_TYPE);
+                if (transform != null) {
+                    return transform.getPosition();
                 }
-            }
-            if (getComponent == null) return null;
-
-            Object transform = getComponent.invoke(store, entityRef, cachedTransformComponentType);
-            if (transform != null) {
-                return (Vector3d) cachedGetPosition.invoke(transform);
             }
         } catch (Exception e) {
             // Entity removed or invalid
@@ -1326,29 +1329,20 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     /**
      * Get position from BreedingData's entityRef.
      */
+    @SuppressWarnings("unchecked")
     private Vector3d getPositionFromBreedingData(BreedingData data) {
         Object entityRef = data.getEntityRef();
-        if (entityRef == null) return null;
+        if (entityRef == null || !(entityRef instanceof Ref)) return null;
 
         try {
             World world = Universe.get().getDefaultWorld();
             if (world == null) return null;
 
             Store<EntityStore> store = world.getEntityStore().getStore();
-
-            Class<?> transformClass = Class.forName("com.hypixel.hytale.server.core.modules.entity.component.TransformComponent");
-            java.lang.reflect.Method getComponentType = transformClass.getMethod("getComponentType");
-            Object componentType = getComponentType.invoke(null);
-
-            Class<?> refClass = Class.forName("com.hypixel.hytale.component.Ref");
-            Class<?> componentTypeClass = Class.forName("com.hypixel.hytale.component.ComponentType");
-
-            java.lang.reflect.Method getComponent = store.getClass().getMethod("getComponent", refClass, componentTypeClass);
-            Object transform = getComponent.invoke(store, entityRef, componentType);
+            TransformComponent transform = store.getComponent((Ref<EntityStore>) entityRef, TRANSFORM_TYPE);
 
             if (transform != null) {
-                java.lang.reflect.Method getPosition = transform.getClass().getMethod("getPosition");
-                return (Vector3d) getPosition.invoke(transform);
+                return transform.getPosition();
             }
         } catch (Exception e) {
             // Silent
@@ -2191,6 +2185,86 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
+     * Toggle baby growth on/off.
+     * Usage: /breedgrowth
+     */
+    public static class BreedingGrowthCommand extends AbstractCommand {
+
+        public BreedingGrowthCommand() {
+            super("breedgrowth", "Toggle baby animal growth on/off");
+        }
+
+        @Override
+        protected CompletableFuture<Void> execute(CommandContext ctx) {
+            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+            if (plugin == null || plugin.configManager == null) {
+                ctx.sendMessage(Message.raw("Plugin not initialized").color("#FF5555"));
+                return CompletableFuture.completedFuture(null);
+            }
+
+            boolean newState = !plugin.configManager.isGrowthEnabled();
+            plugin.configManager.setGrowthEnabled(newState);
+
+            String statusColor = newState ? "#55FF55" : "#FF5555";
+            String statusText = newState ? "ENABLED" : "DISABLED";
+            ctx.sendMessage(Message.raw("Baby growth ").color("#AAAAAA")
+                .insert(Message.raw(statusText).color(statusColor)));
+
+            if (!newState) {
+                ctx.sendMessage(Message.raw("Babies will not grow into adults until re-enabled.").color("#AAAAAA"));
+            }
+
+            // Save config to persist the setting
+            plugin.configManager.saveToFile();
+
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    /**
+     * Manually trigger animal scan for debugging.
+     * Usage: /breedscan
+     */
+    public static class BreedingScanCommand extends AbstractCommand {
+
+        public BreedingScanCommand() {
+            super("breedscan", "Manually trigger animal scan for breeding interactions");
+        }
+
+        @Override
+        protected CompletableFuture<Void> execute(CommandContext ctx) {
+            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+            if (plugin == null) {
+                ctx.sendMessage(Message.raw("Plugin not initialized").color("#FF5555"));
+                return CompletableFuture.completedFuture(null);
+            }
+
+            // Enable verbose logging for this scan
+            boolean wasVerbose = LaitsBreedingPlugin.isVerboseLogging();
+            LaitsBreedingPlugin.setVerboseLogging(true);
+
+            ctx.sendMessage(Message.raw("Starting manual animal scan...").color("#FFFF55"));
+            ctx.sendMessage(Message.raw("Check server logs for details (verbose logging enabled)").color("#AAAAAA"));
+
+            try {
+                plugin.autoSetupNearbyAnimals();
+                ctx.sendMessage(Message.raw("Scan triggered successfully").color("#55FF55"));
+            } catch (Exception e) {
+                ctx.sendMessage(Message.raw("Scan error: " + e.getMessage()).color("#FF5555"));
+            }
+
+            // Restore verbose logging state after a delay
+            if (!wasVerbose) {
+                plugin.getTickScheduler().schedule(() -> {
+                    LaitsBreedingPlugin.setVerboseLogging(false);
+                }, 5, TimeUnit.SECONDS);
+            }
+
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    /**
      * Toggle development debug mode - broadcasts debug messages to all players in-game.
      * Usage: /breeddev
      */
@@ -2804,13 +2878,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
         }
 
-        /** /breedconfig preset - with list, apply, and save sub-commands */
+        /** /breedconfig preset - with list, apply, save, and restore sub-commands */
         public static class PresetSubCommand extends AbstractCommand {
             public PresetSubCommand() {
                 super("preset", "Manage configuration presets");
                 addSubCommand(new PresetListSubCommand());
                 addSubCommand(new PresetApplySubCommand());
                 addSubCommand(new PresetSaveSubCommand());
+                addSubCommand(new PresetRestoreSubCommand());
             }
 
             @Override
@@ -2823,6 +2898,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     .insert(Message.raw("- Apply a preset").color("#AAAAAA")));
                 ctx.sendMessage(Message.raw("/breedconfig preset save <name> ").color("#FFFFFF")
                     .insert(Message.raw("- Save current config as preset").color("#AAAAAA")));
+                ctx.sendMessage(Message.raw("/breedconfig preset restore <name> ").color("#FFFFFF")
+                    .insert(Message.raw("- Reset built-in preset to defaults").color("#AAAAAA")));
                 return CompletableFuture.completedFuture(null);
             }
         }
@@ -2846,11 +2923,18 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     .insert(Message.raw(config.getActivePreset()).color("#FFFFFF")));
                 for (String preset : config.getAvailablePresets()) {
                     boolean isCurrent = preset.equals(config.getActivePreset());
-                    String desc = preset.equals("default") ? "Streamlined, livestock only"
-                        : preset.equals("lait_curated") ? "Organic experience, multiple foods"
-                        : preset.equals("zoo") ? "All real animals, no mythic creatures"
-                        : "(custom)";
-                    Message line = Message.raw(isCurrent ? "* " : "  ").color(isCurrent ? "#55FF55" : "#AAAAAA")
+                    boolean isBuiltin = config.isBuiltinPreset(preset);
+                    String desc;
+                    switch (preset) {
+                        case "default": desc = "Original values, livestock only"; break;
+                        case "default_extended": desc = "Default timings + multiple foods"; break;
+                        case "lait_curated": desc = "Balanced timings, multiple foods"; break;
+                        case "zoo": desc = "Real animals (no mythic/vermin/boss)"; break;
+                        case "all": desc = "All 119 animals enabled"; break;
+                        default: desc = "(custom)"; break;
+                    }
+                    String marker = isCurrent ? "* " : (isBuiltin ? "  " : "  ");
+                    Message line = Message.raw(marker).color(isCurrent ? "#55FF55" : "#AAAAAA")
                         .insert(Message.raw(preset).color("#FFFFFF"))
                         .insert(Message.raw(" - " + desc).color("#555555"));
                     ctx.sendMessage(line);
@@ -2925,6 +3009,43 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
         }
 
+        /** /breedconfig preset restore <name> - Reset a built-in preset to default values */
+        public static class PresetRestoreSubCommand extends AbstractCommand {
+            private final RequiredArg<String> presetArg;
+
+            public PresetRestoreSubCommand() {
+                super("restore", "Reset a built-in preset to its default values");
+                presetArg = withRequiredArg("preset", "Preset name (default, lait_curated, zoo, all)",
+                    ArgTypes.STRING);
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                ConfigManager config = getConfig();
+                if (config == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String presetName = ctx.get(presetArg).toLowerCase();
+
+                if (!config.isBuiltinPreset(presetName)) {
+                    ctx.sendMessage(Message.raw("Can only restore built-in presets: ").color("#FF5555")
+                        .insert(Message.raw("default, default_extended, lait_curated, zoo, all").color("#FFFFFF")));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                if (config.restorePreset(presetName)) {
+                    ctx.sendMessage(Message.raw("Restored preset to defaults: ").color("#55FF55")
+                        .insert(Message.raw(presetName).color("#FFFFFF")));
+                    ctx.sendMessage(Message.raw("All customizations have been reset.").color("#AAAAAA"));
+                } else {
+                    ctx.sendMessage(Message.raw("Failed to restore preset!").color("#FF5555"));
+                }
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
         // ==================== Food Shortcut Resolver ====================
 
         /**
@@ -2950,14 +3071,20 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
             // Fruits
             FOOD_SHORTCUTS.put("apple", "Plant_Fruit_Apple");
-            FOOD_SHORTCUTS.put("cactus_fruit", "Plant_Crop_Cactus_Fruit");
+            FOOD_SHORTCUTS.put("berries", "Plant_Fruit_Berries_Red");
+            FOOD_SHORTCUTS.put("red_berries", "Plant_Fruit_Berries_Red");
+            FOOD_SHORTCUTS.put("cactus_flower", "Plant_Cactus_Flower");
 
-            // Meat (raw)
+            // Meat (raw and cooked)
             FOOD_SHORTCUTS.put("wildmeat", "Food_Wildmeat_Raw");
             FOOD_SHORTCUTS.put("wildmeat_raw", "Food_Wildmeat_Raw");
+            FOOD_SHORTCUTS.put("wildmeat_cooked", "Food_Wildmeat_Cooked");
+            FOOD_SHORTCUTS.put("cooked_wildmeat", "Food_Wildmeat_Cooked");
             FOOD_SHORTCUTS.put("meat", "Food_Wildmeat_Raw");
             FOOD_SHORTCUTS.put("meat_raw", "Food_Wildmeat_Raw");
             FOOD_SHORTCUTS.put("raw_meat", "Food_Wildmeat_Raw");
+            FOOD_SHORTCUTS.put("meat_cooked", "Food_Wildmeat_Cooked");
+            FOOD_SHORTCUTS.put("cooked_meat", "Food_Wildmeat_Cooked");
             FOOD_SHORTCUTS.put("beef", "Food_Beef_Raw");
             FOOD_SHORTCUTS.put("beef_raw", "Food_Beef_Raw");
             FOOD_SHORTCUTS.put("pork", "Food_Pork_Raw");
@@ -2969,10 +3096,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             FOOD_SHORTCUTS.put("fish", "Food_Fish_Raw");
             FOOD_SHORTCUTS.put("fish_raw", "Food_Fish_Raw");
             FOOD_SHORTCUTS.put("raw_fish", "Food_Fish_Raw");
-
-            // Other
-            FOOD_SHORTCUTS.put("insect", "Food_Insect");
-            FOOD_SHORTCUTS.put("bug", "Food_Insect");
+            FOOD_SHORTCUTS.put("fish_grilled", "Food_Fish_Grilled");
+            FOOD_SHORTCUTS.put("grilled_fish", "Food_Fish_Grilled");
+            FOOD_SHORTCUTS.put("fish_cooked", "Food_Fish_Grilled");
+            FOOD_SHORTCUTS.put("cooked_fish", "Food_Fish_Grilled");
         }
 
         /**

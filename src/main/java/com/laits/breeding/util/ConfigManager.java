@@ -28,7 +28,8 @@ public class ConfigManager {
     private double defaultGrowthTimeMinutes = 30.0;
     private double defaultBreedCooldownMinutes = 5.0;
     private boolean debugMode = false;
-    private String activePreset = "default";
+    private boolean growthEnabled = true;  // Can be disabled to freeze baby growth
+    private String activePreset = "default_extended";
 
     // File path for persistence
     private Path configFilePath;
@@ -128,7 +129,7 @@ public class ConfigManager {
     }
 
     /**
-     * Initialize the presets directory and create default preset files if they don't exist.
+     * Initialize the presets directory, create missing preset files, and update existing ones with new animals.
      */
     private void initializePresets() {
         try {
@@ -137,29 +138,157 @@ public class ConfigManager {
                 log("Created presets directory: " + presetsDirectory);
             }
 
-            // Create default preset file if it doesn't exist
-            Path defaultPreset = presetsDirectory.resolve("default.json");
-            if (!Files.exists(defaultPreset)) {
-                saveBuiltinPresetToFile("default", defaultPreset);
-                log("Created default preset file: " + defaultPreset);
-            }
+            // Built-in presets to manage
+            String[] builtinPresets = {"default", "default_extended", "lait_curated", "zoo", "all"};
 
-            // Create lait_curated preset file if it doesn't exist
-            Path laitPreset = presetsDirectory.resolve("lait_curated.json");
-            if (!Files.exists(laitPreset)) {
-                saveBuiltinPresetToFile("lait_curated", laitPreset);
-                log("Created lait_curated preset file: " + laitPreset);
-            }
-
-            // Create zoo preset file if it doesn't exist
-            Path zooPreset = presetsDirectory.resolve("zoo.json");
-            if (!Files.exists(zooPreset)) {
-                saveBuiltinPresetToFile("zoo", zooPreset);
-                log("Created zoo preset file: " + zooPreset);
+            for (String presetName : builtinPresets) {
+                Path presetFile = presetsDirectory.resolve(presetName + ".json");
+                if (!Files.exists(presetFile)) {
+                    // Create new preset file
+                    saveBuiltinPresetToFile(presetName, presetFile);
+                    log("Created " + presetName + " preset file: " + presetFile);
+                } else {
+                    // Update existing preset with any missing animals
+                    int added = updatePresetWithMissingAnimals(presetName, presetFile);
+                    if (added > 0) {
+                        log("Updated " + presetName + " preset: added " + added + " new animals");
+                    }
+                }
             }
         } catch (Exception e) {
             log("Error initializing presets: " + e.getMessage());
         }
+    }
+
+    /**
+     * Update an existing preset file with any missing animals using the preset's default values.
+     * @return number of animals added
+     */
+    private int updatePresetWithMissingAnimals(String presetName, Path presetFile) {
+        try {
+            // Read existing preset
+            String json = Files.readString(presetFile);
+            JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+            JsonObject animals = root.has("animals") ? root.getAsJsonObject("animals") : new JsonObject();
+
+            // Get the preset's default values for missing animals
+            Map<AnimalType, AnimalConfig> presetDefaults = getBuiltinPresetConfigs(presetName);
+
+            int addedCount = 0;
+            for (AnimalType type : AnimalType.values()) {
+                String key = type.name();
+                if (!animals.has(key)) {
+                    // Animal is missing - add it with preset defaults
+                    AnimalConfig defaultConfig = presetDefaults.get(type);
+                    if (defaultConfig != null) {
+                        JsonObject animalJson = new JsonObject();
+                        animalJson.addProperty("enabled", defaultConfig.enabled);
+
+                        JsonArray foodsArray = new JsonArray();
+                        for (String food : defaultConfig.breedingFoods) {
+                            foodsArray.add(food);
+                        }
+                        animalJson.add("breedingFoods", foodsArray);
+
+                        animalJson.addProperty("growthTimeMinutes", defaultConfig.growthTimeMinutes);
+                        animalJson.addProperty("breedCooldownMinutes", defaultConfig.breedCooldownMinutes);
+
+                        animals.add(key, animalJson);
+                        addedCount++;
+                    }
+                }
+            }
+
+            if (addedCount > 0) {
+                // Save updated preset
+                root.add("animals", animals);
+                Files.writeString(presetFile, GSON.toJson(root));
+            }
+
+            return addedCount;
+        } catch (Exception e) {
+            log("Error updating preset " + presetName + ": " + e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Get the built-in preset configurations for all animals.
+     */
+    private Map<AnimalType, AnimalConfig> getBuiltinPresetConfigs(String presetName) {
+        // Save current state
+        Map<AnimalType, AnimalConfig> originalConfigs = new EnumMap<>(AnimalType.class);
+        for (Map.Entry<AnimalType, AnimalConfig> entry : animalConfigs.entrySet()) {
+            AnimalConfig copy = new AnimalConfig();
+            copy.enabled = entry.getValue().enabled;
+            copy.breedingFoods = new ArrayList<>(entry.getValue().breedingFoods);
+            copy.growthTimeMinutes = entry.getValue().growthTimeMinutes;
+            copy.breedCooldownMinutes = entry.getValue().breedCooldownMinutes;
+            originalConfigs.put(entry.getKey(), copy);
+        }
+        double originalGrowth = defaultGrowthTimeMinutes;
+        double originalCooldown = defaultBreedCooldownMinutes;
+
+        // Apply the preset to get its values
+        switch (presetName) {
+            case "default": applyBuiltinDefaultPreset(); break;
+            case "default_extended": applyBuiltinDefaultExtendedPreset(); break;
+            case "lait_curated": applyBuiltinLaitCuratedPreset(); break;
+            case "zoo": applyBuiltinZooPreset(); break;
+            case "all": applyBuiltinAllPreset(); break;
+        }
+
+        // Copy the preset configs
+        Map<AnimalType, AnimalConfig> presetConfigs = new EnumMap<>(AnimalType.class);
+        for (Map.Entry<AnimalType, AnimalConfig> entry : animalConfigs.entrySet()) {
+            AnimalConfig copy = new AnimalConfig();
+            copy.enabled = entry.getValue().enabled;
+            copy.breedingFoods = new ArrayList<>(entry.getValue().breedingFoods);
+            copy.growthTimeMinutes = entry.getValue().growthTimeMinutes;
+            copy.breedCooldownMinutes = entry.getValue().breedCooldownMinutes;
+            presetConfigs.put(entry.getKey(), copy);
+        }
+
+        // Restore original state
+        animalConfigs.clear();
+        animalConfigs.putAll(originalConfigs);
+        defaultGrowthTimeMinutes = originalGrowth;
+        defaultBreedCooldownMinutes = originalCooldown;
+
+        return presetConfigs;
+    }
+
+    /**
+     * Restore a built-in preset to its default values (overwrites the preset file).
+     * @param presetName The preset name to restore
+     * @return true if restored successfully
+     */
+    public boolean restorePreset(String presetName) {
+        if (!isBuiltinPreset(presetName)) {
+            log("Cannot restore non-builtin preset: " + presetName);
+            return false;
+        }
+
+        try {
+            Path presetFile = presetsDirectory.resolve(presetName + ".json");
+            saveBuiltinPresetToFile(presetName, presetFile);
+            log("Restored " + presetName + " preset to default values");
+            return true;
+        } catch (Exception e) {
+            log("Error restoring preset: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Check if a preset name is a built-in preset.
+     */
+    public boolean isBuiltinPreset(String presetName) {
+        return presetName.equals("default") ||
+               presetName.equals("default_extended") ||
+               presetName.equals("lait_curated") ||
+               presetName.equals("zoo") ||
+               presetName.equals("all");
     }
 
     /**
@@ -182,10 +311,14 @@ public class ConfigManager {
         // Apply the built-in preset
         if (presetName.equals("default")) {
             applyBuiltinDefaultPreset();
+        } else if (presetName.equals("default_extended")) {
+            applyBuiltinDefaultExtendedPreset();
         } else if (presetName.equals("lait_curated")) {
             applyBuiltinLaitCuratedPreset();
         } else if (presetName.equals("zoo")) {
             applyBuiltinZooPreset();
+        } else if (presetName.equals("all")) {
+            applyBuiltinAllPreset();
         }
 
         // Generate JSON and save
@@ -237,6 +370,9 @@ public class ConfigManager {
                 }
                 if (defaults.has("breedCooldownMinutes")) {
                     defaultBreedCooldownMinutes = defaults.get("breedCooldownMinutes").getAsDouble();
+                }
+                if (defaults.has("growthEnabled")) {
+                    growthEnabled = defaults.get("growthEnabled").getAsBoolean();
                 }
             }
 
@@ -316,6 +452,7 @@ public class ConfigManager {
         JsonObject defaults = new JsonObject();
         defaults.addProperty("growthTimeMinutes", defaultGrowthTimeMinutes);
         defaults.addProperty("breedCooldownMinutes", defaultBreedCooldownMinutes);
+        defaults.addProperty("growthEnabled", growthEnabled);
         root.add("defaults", defaults);
 
         // Animals (grouped by category)
@@ -366,8 +503,11 @@ public class ConfigManager {
             }
         }
         // Ensure default presets are always available
+        if (!presets.contains("all")) presets.add("all");
         if (!presets.contains("default")) presets.add("default");
+        if (!presets.contains("default_extended")) presets.add("default_extended");
         if (!presets.contains("lait_curated")) presets.add("lait_curated");
+        if (!presets.contains("zoo")) presets.add("zoo");
         Collections.sort(presets);
         return presets;
     }
@@ -408,6 +548,10 @@ public class ConfigManager {
                 applyBuiltinDefaultPreset();
                 activePreset = "default";
                 return true;
+            case "default_extended":
+                applyBuiltinDefaultExtendedPreset();
+                activePreset = "default_extended";
+                return true;
             case "lait_curated":
                 applyBuiltinLaitCuratedPreset();
                 activePreset = "lait_curated";
@@ -415,6 +559,10 @@ public class ConfigManager {
             case "zoo":
                 applyBuiltinZooPreset();
                 activePreset = "zoo";
+                return true;
+            case "all":
+                applyBuiltinAllPreset();
+                activePreset = "all";
                 return true;
             default:
                 log("Preset not found: " + presetName);
@@ -474,6 +622,34 @@ public class ConfigManager {
 
             config.growthTimeMinutes = defaultGrowthTimeMinutes;
             config.breedCooldownMinutes = defaultBreedCooldownMinutes;
+        }
+    }
+
+    /**
+     * Apply the default_extended preset - default timings with lait_curated foods.
+     * This is the recommended preset for most players.
+     */
+    private void applyBuiltinDefaultExtendedPreset() {
+        // Use default timings
+        defaultGrowthTimeMinutes = 30.0;
+        defaultBreedCooldownMinutes = 5.0;
+
+        // First apply lait_curated foods
+        applyBuiltinLaitCuratedPreset();
+
+        // Then override with default timings
+        defaultGrowthTimeMinutes = 30.0;
+        defaultBreedCooldownMinutes = 5.0;
+
+        for (AnimalType type : AnimalType.values()) {
+            AnimalConfig config = animalConfigs.get(type);
+            if (config != null) {
+                // Only livestock enabled
+                config.enabled = type.isLivestock();
+                // Default timings
+                config.growthTimeMinutes = defaultGrowthTimeMinutes;
+                config.breedCooldownMinutes = defaultBreedCooldownMinutes;
+            }
         }
     }
 
@@ -574,7 +750,7 @@ public class ConfigManager {
                 case CAMEL:
                     config.breedingFoods.addAll(Arrays.asList(
                         "Plant_Crop_Wheat_Item",   // Original
-                        "Plant_Crop_Cactus_Fruit"  // Desert fruit
+                        "Plant_Cactus_Flower"      // Desert plant
                     ));
                     config.growthTimeMinutes = 35.0;  // Large animal, slow growth
                     break;
@@ -620,7 +796,7 @@ public class ConfigManager {
                 case WOLF:
                 case WOLF_WHITE:
                     config.breedingFoods.addAll(Arrays.asList(
-                        "Food_Meat_Cooked",
+                        "Food_Wildmeat_Cooked",
                         "Food_Wildmeat_Raw"
                     ));
                     config.growthTimeMinutes = 25.0;
@@ -645,7 +821,7 @@ public class ConfigManager {
 
                 case BEAR_POLAR:
                     config.breedingFoods.addAll(Arrays.asList(
-                        "Food_Fish_Cooked",
+                        "Food_Fish_Grilled",
                         "Food_Fish_Raw",
                         "Food_Wildmeat_Raw"
                     ));
@@ -676,10 +852,14 @@ public class ConfigManager {
                 case FROG_GREEN:
                 case FROG_ORANGE:
                 case GECKO:
-                case MEERKAT:
                 case LIZARD_SAND:
-                    config.breedingFoods.add("Food_Insect");
+                    config.breedingFoods.add("Plant_Fruit_Berries_Red");
                     config.growthTimeMinutes = 5.0;  // Small, fast growth
+                    break;
+
+                case MEERKAT:
+                    config.breedingFoods.add("Food_Wildmeat_Raw");  // Meerkats eat small prey
+                    config.growthTimeMinutes = 5.0;
                     break;
 
                 case MOUSE:
@@ -764,7 +944,7 @@ public class ConfigManager {
                 // === MYTHIC ===
                 case EMBERWULF:
                     config.breedingFoods.addAll(Arrays.asList(
-                        "Food_Meat_Cooked",
+                        "Food_Wildmeat_Cooked",
                         "Food_Wildmeat_Raw"
                     ));
                     config.growthTimeMinutes = 40.0;
@@ -774,6 +954,303 @@ public class ConfigManager {
                 case FEN_STALKER:
                     config.breedingFoods.add("Food_Wildmeat_Raw");
                     config.growthTimeMinutes = 50.0;
+                    break;
+
+                // === DINOSAURS ===
+                case RAPTOR_CAVE:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Food_Wildmeat_Cooked",
+                        "Food_Wildmeat_Raw"
+                    ));
+                    config.growthTimeMinutes = 35.0;  // Medium predator
+                    break;
+
+                case REX_CAVE:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Food_Wildmeat_Cooked",
+                        "Food_Wildmeat_Raw"
+                    ));
+                    config.growthTimeMinutes = 60.0;  // Large dinosaur, slow growth
+                    config.breedCooldownMinutes = 10.0;  // Long breeding cooldown
+                    break;
+
+                case ARCHAEOPTERYX:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Food_Wildmeat_Raw",
+                        "Plant_Fruit_Berries_Red"  // Small bird/dino eats berries and small prey
+                    ));
+                    config.growthTimeMinutes = 20.0;  // Small flying dino
+                    break;
+
+                case PTERODACTYL:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Food_Fish_Raw",
+                        "Food_Fish_Grilled",
+                        "Food_Wildmeat_Raw"
+                    ));
+                    config.growthTimeMinutes = 40.0;  // Large flying dinosaur
+                    break;
+
+                // === NEW MAMMALS (v1.2.0) ===
+                case HYENA:
+                    config.breedingFoods.add("Food_Wildmeat_Raw");
+                    config.growthTimeMinutes = 20.0;
+                    break;
+
+                case ANTELOPE:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Plant_Crop_Wheat_Item",
+                        "Plant_Crop_Lettuce_Item"
+                    ));
+                    config.growthTimeMinutes = 20.0;
+                    break;
+
+                case ARMADILLO:
+                    config.breedingFoods.add("Plant_Fruit_Berries_Red");
+                    config.growthTimeMinutes = 15.0;
+                    break;
+
+                case LEOPARD_SNOW:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Food_Wildmeat_Raw",
+                        "Food_Wildmeat_Cooked"
+                    ));
+                    config.growthTimeMinutes = 35.0;
+                    break;
+
+                case MOSSHORN:
+                case MOSSHORN_PLAIN:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Plant_Crop_Wheat_Item",
+                        "Plant_Crop_Lettuce_Item"
+                    ));
+                    config.growthTimeMinutes = 40.0;  // Large creature
+                    break;
+
+                case TIGER_SABERTOOTH:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Food_Wildmeat_Raw",
+                        "Food_Wildmeat_Cooked"
+                    ));
+                    config.growthTimeMinutes = 45.0;  // Apex predator
+                    break;
+
+                // === NEW BIRDS (v1.2.0) ===
+                case BAT:
+                case BAT_ICE:
+                    config.breedingFoods.add("Plant_Fruit_Berries_Red");
+                    config.growthTimeMinutes = 8.0;
+                    break;
+
+                case BLUEBIRD:
+                case FINCH_GREEN:
+                case SPARROW:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Plant_Crop_Wheat_Item",
+                        "Plant_Fruit_Berries_Red"
+                    ));
+                    config.growthTimeMinutes = 8.0;  // Small birds
+                    break;
+
+                case WOODPECKER:
+                    config.breedingFoods.add("Plant_Fruit_Berries_Red");
+                    config.growthTimeMinutes = 10.0;
+                    break;
+
+                case HAWK:
+                case VULTURE:
+                    config.breedingFoods.add("Food_Wildmeat_Raw");
+                    config.growthTimeMinutes = 20.0;
+                    break;
+
+                case TETRABIRD:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Food_Wildmeat_Raw",
+                        "Food_Fish_Raw"
+                    ));
+                    config.growthTimeMinutes = 25.0;
+                    break;
+
+                // === NEW REPTILES (v1.2.0) ===
+                case TOAD_RHINO:
+                    config.breedingFoods.add("Plant_Fruit_Berries_Red");
+                    config.growthTimeMinutes = 30.0;
+                    break;
+
+                case TOAD_RHINO_MAGMA:
+                    config.breedingFoods.add("Food_Wildmeat_Cooked");
+                    config.growthTimeMinutes = 35.0;
+                    break;
+
+                // === NEW MYTHIC (v1.2.0) ===
+                case CACTEE:
+                    config.breedingFoods.add("Plant_Cactus_Flower");
+                    config.growthTimeMinutes = 20.0;
+                    break;
+
+                case HATWORM:
+                    config.breedingFoods.add("Plant_Crop_Mushroom_Cap_Brown");
+                    config.growthTimeMinutes = 15.0;
+                    break;
+
+                case SNAPDRAGON:
+                    config.breedingFoods.add("Food_Wildmeat_Raw");
+                    config.growthTimeMinutes = 25.0;
+                    break;
+
+                case SPARK_LIVING:
+                    config.breedingFoods.add("Plant_Crop_Corn_Item");
+                    config.growthTimeMinutes = 10.0;
+                    break;
+
+                case TRILLODON:
+                    config.breedingFoods.add("Food_Wildmeat_Raw");
+                    config.growthTimeMinutes = 40.0;
+                    break;
+
+                // === VERMIN (v1.2.0) ===
+                case RAT:
+                case MOLERAT:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Plant_Crop_Wheat_Item",
+                        "Plant_Crop_Corn_Item"
+                    ));
+                    config.growthTimeMinutes = 3.0;
+                    config.breedCooldownMinutes = 0.5;  // Fast breeders
+                    break;
+
+                case LARVA_SILK:
+                    config.breedingFoods.add("Plant_Crop_Lettuce_Item");
+                    config.growthTimeMinutes = 5.0;
+                    break;
+
+                case SCORPION:
+                    config.breedingFoods.add("Food_Wildmeat_Raw");
+                    config.growthTimeMinutes = 10.0;
+                    break;
+
+                case SLUG_MAGMA:
+                case SNAIL_MAGMA:
+                    config.breedingFoods.add("Food_Wildmeat_Cooked");
+                    config.growthTimeMinutes = 8.0;
+                    break;
+
+                case SNAIL_FROST:
+                    config.breedingFoods.add("Plant_Crop_Lettuce_Item");
+                    config.growthTimeMinutes = 8.0;
+                    break;
+
+                case SNAKE_COBRA:
+                case SNAKE_MARSH:
+                case SNAKE_RATTLE:
+                    config.breedingFoods.add("Food_Wildmeat_Raw");
+                    config.growthTimeMinutes = 12.0;
+                    break;
+
+                case SPIDER:
+                case SPIDER_CAVE:
+                    config.breedingFoods.add("Food_Wildmeat_Raw");
+                    config.growthTimeMinutes = 10.0;
+                    break;
+
+                // === AQUATIC (v1.2.0) ===
+                // Freshwater fish
+                case BLUEGILL:
+                case CATFISH:
+                case FROSTGILL:
+                case MINNOW:
+                case PIKE:
+                case SALMON:
+                case SNAPJAW:
+                case TROUT_RAINBOW:
+                    config.breedingFoods.add("Food_Fish_Raw");
+                    config.growthTimeMinutes = 10.0;
+                    break;
+
+                case PIRANHA:
+                case PIRANHA_BLACK:
+                    config.breedingFoods.add("Food_Wildmeat_Raw");
+                    config.growthTimeMinutes = 8.0;
+                    break;
+
+                // Marine fish
+                case CLOWNFISH:
+                case TANG_BLUE:
+                case TANG_CHEVRON:
+                case TANG_LEMON_PEEL:
+                case TANG_SAILFIN:
+                case PUFFERFISH:
+                    config.breedingFoods.add("Food_Fish_Raw");
+                    config.growthTimeMinutes = 12.0;
+                    break;
+
+                // Crustaceans
+                case CRAB:
+                case LOBSTER:
+                    config.breedingFoods.add("Food_Fish_Raw");
+                    config.growthTimeMinutes = 15.0;
+                    break;
+
+                // Jellyfish
+                case JELLYFISH_BLUE:
+                case JELLYFISH_CYAN:
+                case JELLYFISH_GREEN:
+                case JELLYFISH_RED:
+                case JELLYFISH_YELLOW:
+                case JELLYFISH_MAN_OF_WAR:
+                    config.breedingFoods.add("Food_Fish_Raw");
+                    config.growthTimeMinutes = 10.0;
+                    break;
+
+                // Deep sea / Abyssal
+                case EEL_MORAY:
+                    config.breedingFoods.add("Food_Fish_Raw");
+                    config.growthTimeMinutes = 20.0;
+                    break;
+
+                case SHARK_HAMMERHEAD:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Food_Fish_Raw",
+                        "Food_Wildmeat_Raw"
+                    ));
+                    config.growthTimeMinutes = 60.0;  // Large predator
+                    config.breedCooldownMinutes = 10.0;
+                    break;
+
+                case SHELLFISH_LAVA:
+                    config.breedingFoods.add("Food_Wildmeat_Cooked");
+                    config.growthTimeMinutes = 15.0;
+                    break;
+
+                case TRILOBITE:
+                case TRILOBITE_BLACK:
+                    config.breedingFoods.add("Food_Fish_Raw");
+                    config.growthTimeMinutes = 20.0;
+                    break;
+
+                case WHALE_HUMPBACK:
+                    config.breedingFoods.add("Food_Fish_Raw");
+                    config.growthTimeMinutes = 120.0;  // Massive creature
+                    config.breedCooldownMinutes = 30.0;
+                    break;
+
+                // === BOSSES (v1.2.0) ===
+                case DRAGON_FIRE:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Food_Wildmeat_Cooked",
+                        "Food_Wildmeat_Raw"
+                    ));
+                    config.growthTimeMinutes = 180.0;  // Epic creature
+                    config.breedCooldownMinutes = 60.0;
+                    break;
+
+                case DRAGON_FROST:
+                    config.breedingFoods.addAll(Arrays.asList(
+                        "Food_Fish_Raw",
+                        "Food_Wildmeat_Raw"
+                    ));
+                    config.growthTimeMinutes = 180.0;  // Epic creature
+                    config.breedCooldownMinutes = 60.0;
                     break;
 
                 default:
@@ -791,19 +1268,43 @@ public class ConfigManager {
     }
 
     /**
-     * Apply zoo preset - all real animals enabled, mythic creatures disabled.
-     * Uses lait_curated food/timing values but enables wild animals for a zoo experience.
+     * Apply zoo preset - real animals enabled for a zoo experience.
+     * Uses lait_curated food/timing values but enables wild animals.
+     * Includes: LIVESTOCK, MAMMAL, CRITTER, AVIAN, REPTILE, DINOSAUR, AQUATIC
+     * Excludes: MYTHIC (fantasy), VERMIN (pests), BOSS (epic creatures)
      */
     private void applyBuiltinZooPreset() {
         // Start with lait_curated values for foods and timing
         applyBuiltinLaitCuratedPreset();
 
-        // Enable all animals EXCEPT mythic creatures
+        // Enable animals appropriate for a zoo
         for (AnimalType type : AnimalType.values()) {
             AnimalConfig config = animalConfigs.get(type);
             if (config != null) {
-                // Enable everything except MYTHIC (Emberwulf, Yeti, Fen Stalker)
-                config.enabled = type.getCategory() != AnimalType.Category.MYTHIC;
+                AnimalType.Category category = type.getCategory();
+                // Enable real animals, exclude fantasy/dangerous/pests
+                config.enabled = category != AnimalType.Category.MYTHIC &&
+                                 category != AnimalType.Category.VERMIN &&
+                                 category != AnimalType.Category.BOSS;
+            }
+        }
+    }
+
+    /**
+     * Apply all preset - EVERYTHING enabled.
+     * Uses lait_curated food/timing values and enables all 119 animals.
+     * Includes: All categories (LIVESTOCK, MAMMAL, CRITTER, AVIAN, REPTILE,
+     *           VERMIN, AQUATIC, MYTHIC, DINOSAUR, BOSS)
+     */
+    private void applyBuiltinAllPreset() {
+        // Start with lait_curated values for foods and timing
+        applyBuiltinLaitCuratedPreset();
+
+        // Enable ALL animals
+        for (AnimalType type : AnimalType.values()) {
+            AnimalConfig config = animalConfigs.get(type);
+            if (config != null) {
+                config.enabled = true;
             }
         }
     }
@@ -910,6 +1411,21 @@ public class ConfigManager {
 
     public void setDebugMode(boolean debugMode) {
         this.debugMode = debugMode;
+    }
+
+    /**
+     * Check if baby growth is enabled.
+     */
+    public boolean isGrowthEnabled() {
+        return growthEnabled;
+    }
+
+    /**
+     * Enable or disable baby growth globally.
+     * When disabled, babies will not age and grow into adults.
+     */
+    public void setGrowthEnabled(boolean enabled) {
+        this.growthEnabled = enabled;
     }
 
     // ===========================================

@@ -10,13 +10,19 @@
 
 ***
 
-## What's New in v1.1.0
+## What's New in v1.2.0
 
-*   **49 animals** - Breed wolves, bears, foxes, birds, and more (enable via config)
-*   **Picky eaters** - Animals only accept their favorite foods, not just anything
-*   **Presets** - Three built-in presets (`default`, `lait_curated`, `zoo`) plus create your own with `/breedconfig preset save <name>`
-*   **External config** - Edit preset files directly in `mods/presets/*.json`
-*   **Horse fix** - You can now mount horses if you're empty handed or holding something other than food (sometimes it doesn't work, still working on it)
+*   **119 animals** - Every creature in Hytale is now configurable for breeding
+*   **10 categories** - LIVESTOCK, MAMMAL, CRITTER, AVIAN, REPTILE, VERMIN, AQUATIC, MYTHIC, DINOSAUR, BOSS
+*   **3 new categories** - Vermin (spiders, snakes, rats), Aquatic (fish, jellyfish, crabs), Boss (dragons)
+*   **30 aquatic creatures** - Fish, jellyfish, crabs, sharks, whales, and more
+*   **New `all` preset** - Enable all 119 animals at once with `/breedconfig preset apply all`
+*   **Auto-update presets** - Existing preset files automatically gain new animals on startup
+*   **Restore command** - Reset built-in presets to defaults with `/breedconfig preset restore <name>`
+*   **Fixed food items** - Removed wrong item IDs that didn't exist in the game
+*   **Boss** - Added Bosses
+*   **Dinosaurs!** - 4 prehistoric creatures: Raptor, T-Rex, Archaeopteryx, Pterodactyl
+*   **Disable baby growth** - Use `/breedgrowth` to freeze babies so they never grow up
 
 ***
 
@@ -27,7 +33,8 @@
 *   **Baby animals** - Breeding produces baby animals that grow into adults over time
 *   **Wild baby growth** - Wild baby animals found in the world also grow into adults
 *   **Breeding cooldown** - Parents need time to rest before breeding again
-*   **49 animal types** - All livestock plus wild animals (wolves, bears, deer, birds, etc.)
+*   **119 animal types** - Livestock, wild animals, fish, vermin, dinosaurs, dragons, and more
+*   **10 categories** - LIVESTOCK, MAMMAL, CRITTER, AVIAN, REPTILE, VERMIN, AQUATIC, MYTHIC, DINOSAUR, BOSS
 *   **Multiple breeding foods** - Each animal can accept multiple food items
 *   **Preset system** - Quick configuration with built-in presets
 *   **Fully configurable** - Customize everything via JSON config or in-game commands
@@ -38,13 +45,13 @@
 
 ### Livestock (Enabled by Default)
 
-<div class="spoiler"><p><strong>Cow</strong> - Cauliflower (or Wheat, Lettuce in curated preset)<br><strong>Pig</strong> - Brown Mushroom (or Carrot, Potato, Apple)<br><strong>Chicken</strong> - Corn (or Wheat, Rice)<br><strong>Sheep</strong> - Lettuce (or Wheat, Cauliflower)<br><strong>Goat</strong> - Apple (or Wheat, Carrot)<br><strong>Horse</strong> - Carrot (or Apple, Wheat)<br><strong>Camel</strong> - Wheat (or Cactus Fruit)<br><strong>Ram</strong> - Apple (or Wheat)<br><strong>Turkey</strong> - Corn (or Wheat)<br><strong>Boar</strong> - Red Mushroom (or Brown Mushroom, Apple)<br><strong>Rabbit</strong> - Carrot (or Lettuce, Apple)<br><strong>Bison</strong> - Wheat (or Corn)<br></p><p>Plus variants: Desert Chicken, Mouflon, Wild Pig, Skrill, Warthog</p></div>
+<div class="spoiler"><p><strong>Cow</strong> - Cauliflower (or Wheat, Lettuce in curated preset)<br><strong>Pig</strong> - Brown Mushroom (or Carrot, Potato, Apple)<br><strong>Chicken</strong> - Corn (or Wheat, Rice)<br><strong>Sheep</strong> - Lettuce (or Wheat, Cauliflower)<br><strong>Goat</strong> - Apple (or Wheat, Carrot)<br><strong>Horse</strong> - Carrot (or Apple, Wheat)<br><strong>Camel</strong> - Wheat (or Cactus Flower)<br><strong>Ram</strong> - Apple (or Wheat)<br><strong>Turkey</strong> - Corn (or Wheat)<br><strong>Boar</strong> - Red Mushroom (or Brown Mushroom, Apple)<br><strong>Rabbit</strong> - Carrot (or Lettuce, Apple)<br><strong>Bison</strong> - Wheat (or Corn)<br></p><p>Plus variants: Desert Chicken, Mouflon, Wild Pig, Skrill, Warthog</p></div>
 
 ### Wild Animals (Disabled by Default)
 
 Can be enabled via config or the `zoo` preset. These spawn as small adults and grow to full size.
 
-<div class="spoiler"><p><strong>Mammals</strong> - Wolf, Fox, Bear (Grizzly &amp; Polar), Deer, Moose, Hyena<br><strong>Birds</strong> - Duck, Pigeon, Parrot, Owl, Crow, Raven, Penguin, Flamingo<br><strong>Critters</strong> - Frog (Blue, Green, Orange), Gecko, Mouse, Squirrel, Meerkat<br><strong>Reptiles</strong> - Tortoise, Crocodile, Sand Lizard<br><strong>Mythic</strong> - Emberwulf, Yeti, Fen Stalker<br></p></div>
+<div class="spoiler"><p><strong>Mammals</strong> - Wolf, Fox, Bear (Grizzly &amp; Polar), Deer, Moose, Hyena, Antelope, Armadillo, Snow Leopard, Mosshorn, Sabertooth Tiger<br><strong>Birds</strong> - Duck, Pigeon, Parrot, Owl, Crow, Raven, Penguin, Flamingo, Bat, Bluebird, Finch, Sparrow, Woodpecker, Hawk, Vulture, Tetrabird<br><strong>Critters</strong> - Frog (Blue, Green, Orange), Gecko, Mouse, Squirrel, Meerkat<br><strong>Reptiles</strong> - Tortoise, Crocodile, Sand Lizard, Rhino Toad<br><strong>Dinosaurs</strong> - Raptor (Cave), Rex (T-Rex), Archaeopteryx, Pterodactyl<br><strong>Mythic</strong> - Emberwulf, Yeti, Fen Stalker, Cactee, Hatworm, Snapdragon, Trillodon<br><strong>Vermin</strong> - Rat, Molerat, Scorpion, Spider, Cobra, Rattlesnake, Marsh Snake<br><strong>Aquatic</strong> - Salmon, Catfish, Piranha, Clownfish, Crab, Lobster, Jellyfish, Pufferfish, Shark, Whale, and more<br><strong>Bosses</strong> - Fire Dragon, Frost Dragon<br></p></div>
 
 ***
 
@@ -52,19 +59,26 @@ Can be enabled via config or the `zoo` preset. These spawn as small adults and g
 
 Presets are editable JSON files stored in `%AppData%/Roaming/Hytale/UserData/Saves/{YourSaveName}/mods/presets/`.
 
-**`default`** - Streamlined experience with original game values. Single food per animal, 30 min growth, 5 min cooldown. Only livestock enabled.
+**`default_extended`** (NEW DEFAULT) - Best of both worlds. Default timings (30 min growth, 5 min cooldown) with multiple food options from `lait_curated`. Recommended for most players.
+
+**`default`** - Original game values. Single food per animal, 30 min growth, 5 min cooldown. Only livestock enabled.
 
 **`lait_curated`** - Organic, natural experience. Multiple foods per animal, logical growth times (chickens 10 min, horses 30 min), balanced cooldowns. Rabbits breed fast (1 min cooldown), large animals need more rest.
 
-**`zoo`** - All real-world animals enabled. Includes livestock, mammals, critters, birds, and reptiles. Excludes mythic creatures. Uses lait\_curated values.
+**`zoo`** - All real-world animals enabled. Includes livestock, mammals, critters, birds, reptiles, dinosaurs, and aquatic. Excludes mythic, vermin, and bosses. Uses lait\_curated values.
+
+**`all`** - EVERYTHING enabled. All 119 animals across all 10 categories including mythic creatures, vermin, aquatic, and boss dragons. Uses lait\_curated values. For the ultimate breeding experience.
 
 ### Preset Commands
 
 ```
 /breedconfig preset list              Show available presets
 /breedconfig preset apply <name>      Apply a preset
-/breedconfig preset save <name>       Save current config as preset (⚠️ This will override the previous preset values and they can't be recovered)
+/breedconfig preset save <name>       Save current config as preset
+/breedconfig preset restore <name>    Reset built-in preset to defaults
 ```
+
+**Note:** Built-in presets (default, default\_extended, lait\_curated, zoo, all) are automatically updated with new animals on startup. Use `restore` to reset a preset to factory defaults if you've modified it.
 
 ### Creating Custom Presets
 
@@ -86,6 +100,7 @@ Configure animals with `/breedconfig` commands, then run `/breedconfig preset sa
 ```
 /laitsbreeding                        Show help and breeding foods
 /breedstatus                          View tracked animals and stats
+/breedgrowth                          Toggle baby growth on/off
 ```
 
 ### Configuration
@@ -118,17 +133,18 @@ Config file: `mods/laits-breeding-config.json`
 
 ```
 {
-  "activePreset": "lait_curated",
+  "activePreset": "default_extended",
   "defaults": {
-    "growthTimeMinutes": 20.0,
-    "breedCooldownMinutes": 3.0
+    "growthTimeMinutes": 30.0,
+    "breedCooldownMinutes": 5.0,
+    "growthEnabled": true
   },
   "animals": {
     "COW": {
       "enabled": true,
       "breedingFoods": ["Plant_Crop_Wheat_Item", "Plant_Crop_Cauliflower_Item"],
-      "growthTimeMinutes": 25.0,
-      "breedCooldownMinutes": 3.0
+      "growthTimeMinutes": 30.0,
+      "breedCooldownMinutes": 5.0
     }
   }
 }
@@ -219,21 +235,21 @@ This mod is actively being developed. For issues or suggestions, add me on Disco
 
 | Animal | Category | Food | Growth | Cooldown |
 |--------|----------|------|--------|----------|
-| Wolf | Mammal | Cooked Meat | 30 min | 5 min |
-| White Wolf | Mammal | Cooked Meat | 30 min | 5 min |
+| Wolf | Mammal | Cooked Wildmeat | 30 min | 5 min |
+| White Wolf | Mammal | Cooked Wildmeat | 30 min | 5 min |
 | Fox | Mammal | Raw Wildmeat | 30 min | 5 min |
 | Grizzly Bear | Mammal | Apple | 30 min | 5 min |
-| Polar Bear | Mammal | Cooked Fish | 30 min | 5 min |
+| Polar Bear | Mammal | Grilled Fish | 30 min | 5 min |
 | Deer (Doe) | Mammal | Carrot | 30 min | 5 min |
 | Deer (Stag) | Mammal | Carrot | 30 min | 5 min |
 | Moose (Bull) | Mammal | Wheat | 30 min | 5 min |
 | Moose (Cow) | Mammal | Wheat | 30 min | 5 min |
 | Hyena | Mammal | Raw Wildmeat | 30 min | 5 min |
-| Blue Frog | Critter | Insect | 30 min | 5 min |
-| Green Frog | Critter | Insect | 30 min | 5 min |
-| Orange Frog | Critter | Insect | 30 min | 5 min |
-| Gecko | Critter | Insect | 30 min | 5 min |
-| Meerkat | Critter | Insect | 30 min | 5 min |
+| Blue Frog | Critter | Red Berries | 30 min | 5 min |
+| Green Frog | Critter | Red Berries | 30 min | 5 min |
+| Orange Frog | Critter | Red Berries | 30 min | 5 min |
+| Gecko | Critter | Red Berries | 30 min | 5 min |
+| Meerkat | Critter | Red Berries | 30 min | 5 min |
 | Mouse | Critter | Wheat | 30 min | 5 min |
 | Squirrel | Critter | Apple | 30 min | 5 min |
 | Duck | Bird | Corn | 30 min | 5 min |
@@ -247,10 +263,14 @@ This mod is actively being developed. For issues or suggestions, add me on Disco
 | Penguin | Bird | Raw Fish | 30 min | 5 min |
 | Tortoise | Reptile | Lettuce | 30 min | 5 min |
 | Crocodile | Reptile | Raw Wildmeat | 30 min | 5 min |
-| Sand Lizard | Reptile | Insect | 30 min | 5 min |
-| Emberwulf | Mythic | Cooked Meat | 30 min | 5 min |
+| Sand Lizard | Reptile | Red Berries | 30 min | 5 min |
+| Emberwulf | Mythic | Cooked Wildmeat | 30 min | 5 min |
 | Yeti | Mythic | Raw Wildmeat | 30 min | 5 min |
 | Fen Stalker | Mythic | Raw Wildmeat | 30 min | 5 min |
+| Raptor (Cave) | Dinosaur | Cooked Wildmeat | 30 min | 5 min |
+| Rex (T-Rex) | Dinosaur | Cooked Wildmeat | 30 min | 5 min |
+| Archaeopteryx | Dinosaur | Red Berries | 30 min | 5 min |
+| Pterodactyl | Dinosaur | Raw Fish | 30 min | 5 min |
 
 ***
 
@@ -270,7 +290,7 @@ Organic, natural experience with multiple food options and realistic growth time
 | Sheep | Wheat, Lettuce, Cauliflower | 20 min | 3 min |
 | Goat | Apple, Wheat, Carrot | 18 min | 3 min |
 | Horse | Carrot, Apple, Wheat | 30 min | 3 min |
-| Camel | Wheat, Cactus Fruit | 35 min | 3 min |
+| Camel | Wheat, Cactus Flower | 35 min | 3 min |
 | Ram | Wheat, Apple | 20 min | 3 min |
 | Turkey | Corn, Wheat | 15 min | 3 min |
 | Boar | Red Mushroom, Brown Mushroom, Apple | 18 min | 3 min |
@@ -286,21 +306,21 @@ Organic, natural experience with multiple food options and realistic growth time
 
 | Animal | Category | Foods | Growth | Cooldown |
 |--------|----------|-------|--------|----------|
-| Wolf | Mammal | Cooked Meat, Raw Wildmeat | 25 min | 3 min |
-| White Wolf | Mammal | Cooked Meat, Raw Wildmeat | 25 min | 3 min |
+| Wolf | Mammal | Cooked Wildmeat, Raw Wildmeat | 25 min | 3 min |
+| White Wolf | Mammal | Cooked Wildmeat, Raw Wildmeat | 25 min | 3 min |
 | Fox | Mammal | Raw Wildmeat, Raw Fish | 15 min | 3 min |
 | Grizzly Bear | Mammal | Apple, Raw Fish, Raw Wildmeat | 45 min | 3 min |
-| Polar Bear | Mammal | Cooked Fish, Raw Fish, Raw Wildmeat | 45 min | 3 min |
+| Polar Bear | Mammal | Grilled Fish, Raw Fish, Raw Wildmeat | 45 min | 3 min |
 | Deer (Doe) | Mammal | Carrot, Apple, Wheat | 25 min | 3 min |
 | Deer (Stag) | Mammal | Carrot, Apple, Wheat | 25 min | 3 min |
 | Moose (Bull) | Mammal | Wheat, Lettuce | 40 min | 3 min |
 | Moose (Cow) | Mammal | Wheat, Lettuce | 40 min | 3 min |
 | Hyena | Mammal | Raw Wildmeat | 20 min | 3 min |
-| Blue Frog | Critter | Insect | 5 min | 3 min |
-| Green Frog | Critter | Insect | 5 min | 3 min |
-| Orange Frog | Critter | Insect | 5 min | 3 min |
-| Gecko | Critter | Insect | 5 min | 3 min |
-| Meerkat | Critter | Insect | 5 min | 3 min |
+| Blue Frog | Critter | Red Berries | 5 min | 3 min |
+| Green Frog | Critter | Red Berries | 5 min | 3 min |
+| Orange Frog | Critter | Red Berries | 5 min | 3 min |
+| Gecko | Critter | Red Berries | 5 min | 3 min |
+| Meerkat | Critter | Red Berries | 5 min | 3 min |
 | Mouse | Critter | Wheat, Corn | 3 min | **0.5 min** |
 | Squirrel | Critter | Apple, Corn | 5 min | 3 min |
 | Duck | Bird | Corn, Wheat | 12 min | 3 min |
@@ -314,7 +334,11 @@ Organic, natural experience with multiple food options and realistic growth time
 | Penguin | Bird | Raw Fish | 20 min | 3 min |
 | Tortoise | Reptile | Lettuce, Cauliflower | 60 min | 3 min |
 | Crocodile | Reptile | Raw Wildmeat | 50 min | 3 min |
-| Sand Lizard | Reptile | Insect | 5 min | 3 min |
-| Emberwulf | Mythic | Cooked Meat, Raw Wildmeat | 40 min | 3 min |
+| Sand Lizard | Reptile | Red Berries | 5 min | 3 min |
+| Emberwulf | Mythic | Cooked Wildmeat, Raw Wildmeat | 40 min | 3 min |
 | Yeti | Mythic | Raw Wildmeat | 50 min | 3 min |
 | Fen Stalker | Mythic | Raw Wildmeat | 50 min | 3 min |
+| Raptor (Cave) | Dinosaur | Cooked Wildmeat, Raw Wildmeat | 35 min | 3 min |
+| Rex (T-Rex) | Dinosaur | Cooked Wildmeat, Raw Wildmeat | 60 min | **10 min** |
+| Archaeopteryx | Dinosaur | Insect, Raw Wildmeat | 20 min | 3 min |
+| Pterodactyl | Dinosaur | Raw Fish, Grilled Fish, Raw Wildmeat | 40 min | 3 min |

@@ -37,56 +37,148 @@ public enum AnimalType {
     WARTHOG(           Category.LIVESTOCK,  "Warthog",          "Plant_Crop_Mushroom_Cap_Red",      "Warthog_Piglet",       "Warthog_Piglet"),
 
     // ===========================================
-    // MAMMALS - No baby variants (spawn adult at small scale, scale up when grown)
+    // MAMMALS - Wild mammals, use scaling
     // ===========================================
-    WOLF(              Category.MAMMAL,     "Wolf_Black",       "Food_Meat_Cooked",                 null,                   null),
-    WOLF_WHITE(        Category.MAMMAL,     "Wolf_White",       "Food_Meat_Cooked",                 null,                   null),
+    WOLF(              Category.MAMMAL,     "Wolf_Black",       "Food_Wildmeat_Cooked",             null,                   null),
+    WOLF_WHITE(        Category.MAMMAL,     "Wolf_White",       "Food_Wildmeat_Cooked",             null,                   null),
     FOX(               Category.MAMMAL,     "Fox",              "Food_Wildmeat_Raw",                null,                   null),
     BEAR_GRIZZLY(      Category.MAMMAL,     "Bear_Grizzly",     "Plant_Fruit_Apple",                null,                   null),
-    BEAR_POLAR(        Category.MAMMAL,     "Bear_Polar",       "Food_Fish_Cooked",                 null,                   null),
+    BEAR_POLAR(        Category.MAMMAL,     "Bear_Polar",       "Food_Fish_Grilled",                null,                   null),
     DEER_DOE(          Category.MAMMAL,     "Deer_Doe",         "Plant_Crop_Carrot_Item",           null,                   null),
     DEER_STAG(         Category.MAMMAL,     "Deer_Stag",        "Plant_Crop_Carrot_Item",           null,                   null),
     MOOSE_BULL(        Category.MAMMAL,     "Moose_Bull",       "Plant_Crop_Wheat_Item",            null,                   null),
     MOOSE_COW(         Category.MAMMAL,     "Moose_Cow",        "Plant_Crop_Wheat_Item",            null,                   null),
-    HYENA(             Category.MAMMAL,     "Hyena",            "Food_Wildmeat_Raw",                    null,                   null),
+    HYENA(             Category.MAMMAL,     "Hyena",            "Food_Wildmeat_Raw",                null,                   null),
+    ANTELOPE(          Category.MAMMAL,     "Antelope",         "Plant_Crop_Wheat_Item",            null,                   null),
+    ARMADILLO(         Category.MAMMAL,     "Armadillo",        "Plant_Fruit_Berries_Red",          null,                   null),
+    LEOPARD_SNOW(      Category.MAMMAL,     "Leopard_Snow",     "Food_Wildmeat_Raw",                null,                   null),
+    MOSSHORN(          Category.MAMMAL,     "Mosshorn",         "Plant_Crop_Lettuce_Item",          null,                   null),
+    MOSSHORN_PLAIN(    Category.MAMMAL,     "Mosshorn_Plain",   "Plant_Crop_Lettuce_Item",          null,                   null),
+    TIGER_SABERTOOTH(  Category.MAMMAL,     "Tiger_Sabertooth", "Food_Wildmeat_Raw",                null,                   null),
 
     // ===========================================
     // CRITTERS - Small creatures, use scaling
     // ===========================================
-    FROG_BLUE(         Category.CRITTER,    "Frog_Blue",        "Food_Insect",                      null,                   null),
-    FROG_GREEN(        Category.CRITTER,    "Frog_Green",       "Food_Insect",                      null,                   null),
-    FROG_ORANGE(       Category.CRITTER,    "Frog_Orange",      "Food_Insect",                      null,                   null),
-    GECKO(             Category.CRITTER,    "Gecko",            "Food_Insect",                      null,                   null),
-    MEERKAT(           Category.CRITTER,    "Meerkat",          "Food_Insect",                      null,                   null),
+    FROG_BLUE(         Category.CRITTER,    "Frog_Blue",        "Plant_Fruit_Berries_Red",          null,                   null),
+    FROG_GREEN(        Category.CRITTER,    "Frog_Green",       "Plant_Fruit_Berries_Red",          null,                   null),
+    FROG_ORANGE(       Category.CRITTER,    "Frog_Orange",      "Plant_Fruit_Berries_Red",          null,                   null),
+    GECKO(             Category.CRITTER,    "Gecko",            "Plant_Fruit_Berries_Red",          null,                   null),
+    MEERKAT(           Category.CRITTER,    "Meerkat",          "Food_Wildmeat_Raw",                null,                   null),
     MOUSE(             Category.CRITTER,    "Mouse",            "Plant_Crop_Wheat_Item",            null,                   null),
     SQUIRREL(          Category.CRITTER,    "Squirrel",         "Plant_Fruit_Apple",                null,                   null),
 
     // ===========================================
     // AVIAN - Birds, use scaling
     // ===========================================
+    // Ground birds (Fowl)
     DUCK(              Category.AVIAN,      "Duck",             "Plant_Crop_Corn_Item",             null,                   null),
     PIGEON(            Category.AVIAN,      "Pigeon",           "Plant_Crop_Wheat_Item",            null,                   null),
-    PARROT(            Category.AVIAN,      "Parrot",           "Plant_Crop_Corn_Item",             null,                   null),
+    // Flying birds (Aerial)
+    BAT(               Category.AVIAN,      "Bat",              "Plant_Fruit_Berries_Red",          null,                   null),
+    BAT_ICE(           Category.AVIAN,      "Bat_Ice",          "Plant_Fruit_Berries_Red",          null,                   null),
+    BLUEBIRD(          Category.AVIAN,      "Bluebird",         "Plant_Crop_Wheat_Item",            null,                   null),
     CROW(              Category.AVIAN,      "Crow",             "Plant_Crop_Corn_Item",             null,                   null),
-    RAVEN(             Category.AVIAN,      "Raven",            "Plant_Crop_Corn_Item",             null,                   null),
-    OWL_BROWN(         Category.AVIAN,      "Owl_Brown",        "Food_Wildmeat_Raw",                    null,                   null),
-    OWL_SNOW(          Category.AVIAN,      "Owl_Snow",         "Food_Wildmeat_Raw",                    null,                   null),
+    FINCH_GREEN(       Category.AVIAN,      "Finch_Green",      "Plant_Crop_Wheat_Item",            null,                   null),
     FLAMINGO(          Category.AVIAN,      "Flamingo",         "Food_Fish_Raw",                    null,                   null),
+    OWL_BROWN(         Category.AVIAN,      "Owl_Brown",        "Food_Wildmeat_Raw",                null,                   null),
+    OWL_SNOW(          Category.AVIAN,      "Owl_Snow",         "Food_Wildmeat_Raw",                null,                   null),
+    PARROT(            Category.AVIAN,      "Parrot",           "Plant_Crop_Corn_Item",             null,                   null),
     PENGUIN(           Category.AVIAN,      "Penguin",          "Food_Fish_Raw",                    null,                   null),
+    RAVEN(             Category.AVIAN,      "Raven",            "Plant_Crop_Corn_Item",             null,                   null),
+    SPARROW(           Category.AVIAN,      "Sparrow",          "Plant_Crop_Wheat_Item",            null,                   null),
+    WOODPECKER(        Category.AVIAN,      "Woodpecker",       "Plant_Fruit_Berries_Red",          null,                   null),
+    // Raptors (Birds of Prey)
+    HAWK(              Category.AVIAN,      "Hawk",             "Food_Wildmeat_Raw",                null,                   null),
+    VULTURE(           Category.AVIAN,      "Vulture",          "Food_Wildmeat_Raw",                null,                   null),
+    TETRABIRD(         Category.AVIAN,      "Tetrabird",        "Food_Wildmeat_Raw",                null,                   null),
 
     // ===========================================
     // REPTILES - Reptiles, use scaling
     // ===========================================
     TORTOISE(          Category.REPTILE,    "Tortoise",         "Plant_Crop_Lettuce_Item",          null,                   null),
-    CROCODILE(         Category.REPTILE,    "Crocodile",        "Food_Wildmeat_Raw",                    null,                   null),
-    LIZARD_SAND(       Category.REPTILE,    "Lizard_Sand",      "Food_Insect",                      null,                   null),
+    CROCODILE(         Category.REPTILE,    "Crocodile",        "Food_Wildmeat_Raw",                null,                   null),
+    LIZARD_SAND(       Category.REPTILE,    "Lizard_Sand",      "Plant_Fruit_Berries_Red",          null,                   null),
+    TOAD_RHINO(        Category.REPTILE,    "Toad_Rhino",       "Plant_Fruit_Berries_Red",          null,                   null),
+    TOAD_RHINO_MAGMA(  Category.REPTILE,    "Toad_Rhino_Magma", "Plant_Fruit_Berries_Red",          null,                   null),
 
     // ===========================================
-    // MYTHIC - Mythical creatures, use scaling
+    // VERMIN - Creepy crawlies, use scaling
     // ===========================================
-    EMBERWULF(         Category.MYTHIC,     "Emberwulf",        "Food_Meat_Cooked",                 null,                   null),
-    YETI(              Category.MYTHIC,     "Yeti",             "Food_Wildmeat_Raw",                    null,                   null),
-    FEN_STALKER(       Category.MYTHIC,     "Fen_Stalker",      "Food_Wildmeat_Raw",                    null,                   null);
+    RAT(               Category.VERMIN,     "Rat",              "Plant_Crop_Wheat_Item",            null,                   null),
+    MOLERAT(           Category.VERMIN,     "Molerat",          "Plant_Crop_Carrot_Item",           null,                   null),
+    LARVA_SILK(        Category.VERMIN,     "Larva_Silk",       "Plant_Crop_Lettuce_Item",          null,                   null),
+    SCORPION(          Category.VERMIN,     "Scorpion",         "Food_Wildmeat_Raw",                null,                   null),
+    SLUG_MAGMA(        Category.VERMIN,     "Slug_Magma",       "Plant_Crop_Mushroom_Cap_Red",      null,                   null),
+    SNAIL_FROST(       Category.VERMIN,     "Snail_Frost",      "Plant_Crop_Lettuce_Item",          null,                   null),
+    SNAIL_MAGMA(       Category.VERMIN,     "Snail_Magma",      "Plant_Crop_Mushroom_Cap_Red",      null,                   null),
+    SNAKE_COBRA(       Category.VERMIN,     "Snake_Cobra",      "Food_Wildmeat_Raw",                null,                   null),
+    SNAKE_MARSH(       Category.VERMIN,     "Snake_Marsh",      "Food_Wildmeat_Raw",                null,                   null),
+    SNAKE_RATTLE(      Category.VERMIN,     "Snake_Rattle",     "Food_Wildmeat_Raw",                null,                   null),
+    SPIDER(            Category.VERMIN,     "Spider",           "Food_Wildmeat_Raw",                null,                   null),
+    SPIDER_CAVE(       Category.VERMIN,     "Spider_Cave",      "Food_Wildmeat_Raw",                null,                   null),
+
+    // ===========================================
+    // AQUATIC - Fish and sea creatures, use scaling
+    // ===========================================
+    // Abyssal
+    EEL_MORAY(         Category.AQUATIC,    "Eel_Moray",        "Food_Fish_Raw",                    null,                   null),
+    SHARK_HAMMERHEAD(  Category.AQUATIC,    "Shark_Hammerhead", "Food_Fish_Raw",                    null,                   null),
+    SHELLFISH_LAVA(    Category.AQUATIC,    "Shellfish_Lava",   "Food_Fish_Raw",                    null,                   null),
+    TRILOBITE(         Category.AQUATIC,    "Trilobite",        "Food_Fish_Raw",                    null,                   null),
+    TRILOBITE_BLACK(   Category.AQUATIC,    "Trilobite_Black",  "Food_Fish_Raw",                    null,                   null),
+    WHALE_HUMPBACK(    Category.AQUATIC,    "Whale_Humpback",   "Food_Fish_Raw",                    null,                   null),
+    // Freshwater
+    BLUEGILL(          Category.AQUATIC,    "Bluegill",         "Food_Fish_Raw",                    null,                   null),
+    CATFISH(           Category.AQUATIC,    "Catfish",          "Food_Fish_Raw",                    null,                   null),
+    FROSTGILL(         Category.AQUATIC,    "Frostgill",        "Food_Fish_Raw",                    null,                   null),
+    MINNOW(            Category.AQUATIC,    "Minnow",           "Food_Fish_Raw",                    null,                   null),
+    PIKE(              Category.AQUATIC,    "Pike",             "Food_Fish_Raw",                    null,                   null),
+    PIRANHA(           Category.AQUATIC,    "Piranha",          "Food_Fish_Raw",                    null,                   null),
+    PIRANHA_BLACK(     Category.AQUATIC,    "Piranha_Black",    "Food_Fish_Raw",                    null,                   null),
+    SALMON(            Category.AQUATIC,    "Salmon",           "Food_Fish_Raw",                    null,                   null),
+    SNAPJAW(           Category.AQUATIC,    "Snapjaw",          "Food_Fish_Raw",                    null,                   null),
+    TROUT_RAINBOW(     Category.AQUATIC,    "Trout_Rainbow",    "Food_Fish_Raw",                    null,                   null),
+    // Marine
+    CLOWNFISH(         Category.AQUATIC,    "Clownfish",        "Food_Fish_Raw",                    null,                   null),
+    CRAB(              Category.AQUATIC,    "Crab",             "Food_Fish_Raw",                    null,                   null),
+    JELLYFISH_BLUE(    Category.AQUATIC,    "Jellyfish_Blue",   "Food_Fish_Raw",                    null,                   null),
+    JELLYFISH_CYAN(    Category.AQUATIC,    "Jellyfish_Cyan",   "Food_Fish_Raw",                    null,                   null),
+    JELLYFISH_GREEN(   Category.AQUATIC,    "Jellyfish_Green",  "Food_Fish_Raw",                    null,                   null),
+    JELLYFISH_MAN_OF_WAR(Category.AQUATIC,  "Jellyfish_Man_Of_War", "Food_Fish_Raw",                null,                   null),
+    JELLYFISH_RED(     Category.AQUATIC,    "Jellyfish_Red",    "Food_Fish_Raw",                    null,                   null),
+    JELLYFISH_YELLOW(  Category.AQUATIC,    "Jellyfish_Yellow", "Food_Fish_Raw",                    null,                   null),
+    LOBSTER(           Category.AQUATIC,    "Lobster",          "Food_Fish_Raw",                    null,                   null),
+    PUFFERFISH(        Category.AQUATIC,    "Pufferfish",       "Food_Fish_Raw",                    null,                   null),
+    TANG_BLUE(         Category.AQUATIC,    "Tang_Blue",        "Food_Fish_Raw",                    null,                   null),
+    TANG_CHEVRON(      Category.AQUATIC,    "Tang_Chevron",     "Food_Fish_Raw",                    null,                   null),
+    TANG_LEMON_PEEL(   Category.AQUATIC,    "Tang_Lemon_Peel",  "Food_Fish_Raw",                    null,                   null),
+    TANG_SAILFIN(      Category.AQUATIC,    "Tang_Sailfin",     "Food_Fish_Raw",                    null,                   null),
+
+    // ===========================================
+    // MYTHIC - Mythical/fantasy creatures, use scaling
+    // ===========================================
+    EMBERWULF(         Category.MYTHIC,     "Emberwulf",        "Food_Wildmeat_Cooked",             null,                   null),
+    YETI(              Category.MYTHIC,     "Yeti",             "Food_Wildmeat_Raw",                null,                   null),
+    FEN_STALKER(       Category.MYTHIC,     "Fen_Stalker",      "Food_Wildmeat_Raw",                null,                   null),
+    CACTEE(            Category.MYTHIC,     "Cactee",           "Plant_Cactus_Flower",              null,                   null),
+    HATWORM(           Category.MYTHIC,     "Hatworm",          "Plant_Crop_Mushroom_Cap_Brown",    null,                   null),
+    SNAPDRAGON(        Category.MYTHIC,     "Snapdragon",       "Food_Wildmeat_Raw",                null,                   null),
+    SPARK_LIVING(      Category.MYTHIC,     "Spark_Living",     "Plant_Crop_Chilli_Item",           null,                   null),
+    TRILLODON(         Category.MYTHIC,     "Trillodon",        "Food_Wildmeat_Raw",                null,                   null),
+
+    // ===========================================
+    // DINOSAUR - Prehistoric creatures, use scaling
+    // ===========================================
+    RAPTOR_CAVE(       Category.DINOSAUR,   "Raptor_Cave",      "Food_Wildmeat_Cooked",             null,                   null),
+    REX_CAVE(          Category.DINOSAUR,   "Rex_Cave",         "Food_Wildmeat_Cooked",             null,                   null),
+    ARCHAEOPTERYX(     Category.DINOSAUR,   "Archaeopteryx",    "Food_Wildmeat_Raw",                null,                   null),
+    PTERODACTYL(       Category.DINOSAUR,   "Pterodactyl",      "Food_Fish_Raw",                    null,                   null),
+
+    // ===========================================
+    // BOSS - Boss creatures (may be too powerful to breed!)
+    // ===========================================
+    DRAGON_FIRE(       Category.BOSS,       "Dragon_Fire",      "Food_Wildmeat_Cooked",             null,                   null),
+    DRAGON_FROST(      Category.BOSS,       "Dragon_Frost",     "Food_Fish_Raw",                    null,                   null);
 
     /**
      * Animal categories for organization and filtering.
@@ -95,9 +187,13 @@ public enum AnimalType {
         LIVESTOCK,  // Farm animals with baby NPC variants
         MAMMAL,     // Wild mammals (wolves, bears, deer, etc.)
         CRITTER,    // Small creatures (frogs, mice, etc.)
-        AVIAN,      // Birds
-        REPTILE,    // Reptiles
-        MYTHIC      // Mythical creatures (emberwulf, yeti, etc.)
+        AVIAN,      // Birds (flying and ground)
+        REPTILE,    // Reptiles (tortoises, crocodiles, etc.)
+        VERMIN,     // Creepy crawlies (spiders, snakes, rats, etc.)
+        AQUATIC,    // Fish and sea creatures
+        MYTHIC,     // Mythical/fantasy creatures
+        DINOSAUR,   // Prehistoric creatures
+        BOSS        // Boss creatures
     }
 
     private final Category category;
