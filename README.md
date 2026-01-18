@@ -10,19 +10,17 @@
 
 ***
 
-## What's New in v1.2.0
+## What's New in v1.3.0
 
-*   **119 animals** - Every creature in Hytale is now configurable for breeding
-*   **10 categories** - LIVESTOCK, MAMMAL, CRITTER, AVIAN, REPTILE, VERMIN, AQUATIC, MYTHIC, DINOSAUR, BOSS
-*   **3 new categories** - Vermin (spiders, snakes, rats), Aquatic (fish, jellyfish, crabs), Boss (dragons)
-*   **30 aquatic creatures** - Fish, jellyfish, crabs, sharks, whales, and more
-*   **New `all` preset** - Enable all 119 animals at once with `/breedconfig preset apply all`
-*   **Auto-update presets** - Existing preset files automatically gain new animals on startup
-*   **Restore command** - Reset built-in presets to defaults with `/breedconfig preset restore <name>`
-*   **Fixed food items** - Removed wrong item IDs that didn't exist in the game
-*   **Boss** - Added Bosses
-*   **Dinosaurs!** - 4 prehistoric creatures: Raptor, T-Rex, Archaeopteryx, Pterodactyl
-*   **Disable baby growth** - Use `/breedgrowth` to freeze babies so they never grow up
+*   **Heart particles** - Pink hearts now appear above animals when they're in love mode
+*   **Instant spawn detection** - Animals are detected immediately when spawned (no more 30-second wait)
+*   **Debug mode** - Use `/breeddev` to see all debug logs directly in game chat
+*   **Bug fixes** - Fixed breeding cooldown bypass, horse interaction hints, spawn detector timing
+
+### Previous: v1.2.0
+*   **119 animals** across 10 categories (LIVESTOCK, MAMMAL, CRITTER, AVIAN, REPTILE, VERMIN, AQUATIC, MYTHIC, DINOSAUR, BOSS)
+*   **New `all` preset** - Enable everything with `/breedconfig preset apply all`
+*   **Dinosaurs & Dragons** - Raptor, T-Rex, Archaeopteryx, Pterodactyl, Fire Dragon, Frost Dragon
 
 ***
 
@@ -173,12 +171,10 @@ Config file: `mods/laits-breeding-config.json`
 
 ## Roadmap
 
-**Done:** Configurable timing, multiple breeding foods, external preset files, wild animal breeding
+**Done:** Configurable timing, multiple breeding foods, external preset files, wild animal breeding, heart particles, instant spawn detection, debug mode
 
 **Planned:**
 
-*   Instead of scanning once at startup and every 30 seconds, detect when entities are spawned
-*   Heart particles when animal is in love
 *   Feed babies to make them grow faster
 *   Taming to make domesticated animals follow you
 *   Advanced config (custom scales per growth stage, baby models/NPCs, offsprings count)
@@ -190,12 +186,10 @@ Config file: `mods/laits-breeding-config.json`
 
 ## Known Issues
 
-*   **Feeding sometimes doesn't work** - Try waiting 30 seconds before retrying
 *   **Animations don't interrupt** - Feeding while an animal is fleeing or sleeping won't interrupt them
-*   **Cooldown glitch** - Animals on cooldown may still produce babies in some cases
 *   **Growth time setting** - May not work reliably in all cases (investigating)
 *   **Wild baby animals** - May sometimes not grow into adults
-*   **N World not handled** - Only works in single world servers
+*   **Single world only** - Only works with the default world (multi-world not supported)
 
 ***
 

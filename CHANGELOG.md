@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.3.0 - Heart Particles & Spawn Detection
+
+### New Features
+- **Heart particles** - Pink hearts now appear above animals when they're in love mode
+- **Instant spawn detection** - Animals are detected immediately when they spawn using EntityTickingSystem (no more waiting for periodic scans)
+- **Debug mode command** - Use `/breeddev` to toggle in-game chat logging for easier debugging
+
+### Fixed
+- **Breeding cooldown bypass** - Fixed bug where feeding during cooldown could still trigger breeding
+- **Horse interaction** - Fixed interaction hints not showing on horses in some cases
+- **Spawn detector timing** - Moved ECS system registration to proper lifecycle phase
+
+### Changed
+- Periodic animal scan reduced to safety net only (30 seconds) - primary detection is now instant
+- Debug logs now broadcast to all players when dev mode is enabled
+
+---
+
 ## v1.2.0 - Complete Creature Expansion
 
 ### New Features
