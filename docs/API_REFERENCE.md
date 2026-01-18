@@ -481,19 +481,29 @@ for (Method method : ParticleUtil.class.getMethods()) {
 **ParticleSystem:** `Server/Particles/BreedingHearts.particlesystem`
 ```json
 {
-  "SpawnerId": "BreedingHearts"
+  "Spawners": [
+    {
+      "SpawnerId": "BreedingHearts",
+      "PositionOffset": { "X": 0, "Y": 0.4, "Z": -0.1 },
+      "FixedRotation": false
+    }
+  ],
+  "LifeSpan": 1
 }
 ```
 
 **ParticleSpawner:** `Server/Particles/Spawners/BreedingHearts.particlespawner`
 ```json
 {
+  "ParticleLifeSpan": { "Min": 0.8, "Max": 1 },
+  "SpawnRate": { "Min": 5, "Max": 10 },
+  "MaxConcurrentParticles": 5,
   "Particle": {
     "Texture": "Particles/Textures/Shapes/Hearts_HiRes.png",
-    "Color": "#fbbbfc"
-  },
-  "SpawnRate": { "Min": 5, "Max": 10 },
-  "ParticleLifeSpan": { "Min": 0.8, "Max": 1 }
+    "Animation": {
+      "0": { "Color": "#fbbbfc", "Opacity": 1 }
+    }
+  }
 }
 ```
 
