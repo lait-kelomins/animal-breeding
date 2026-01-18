@@ -407,15 +407,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Silent
         }
 
-        // Register ECS system for detecting new animal spawns (immediate detection)
-        try {
-            spawnDetector = new NewAnimalSpawnDetector();
-            getEntityStoreRegistry().registerSystem(spawnDetector);
-            logVerbose("NewAnimalSpawnDetector system registered");
-        } catch (Exception e) {
-            logWarning("NewAnimalSpawnDetector registration failed: " + e.getMessage());
-            spawnDetector = null;
-        }
+        // NOTE: NewAnimalSpawnDetector is registered in start() after world is ready
 
         // Register commands
         getCommandRegistry().registerCommand(new BreedingHelpCommand());
@@ -471,6 +463,16 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         // Register entity removal listener to clean up breeding data when animals die
         registerEntityRemovalListener();
 
+        // Register ECS system for detecting new animal spawns (must be in start() after world is ready)
+        try {
+            spawnDetector = new NewAnimalSpawnDetector();
+            getEntityStoreRegistry().registerSystem(spawnDetector);
+            logVerbose("NewAnimalSpawnDetector system registered in start()");
+        } catch (Exception e) {
+            logWarning("NewAnimalSpawnDetector registration failed: " + e.getMessage());
+            spawnDetector = null;
+        }
+
         getLogger().atInfo().log("[Lait:AnimalBreeding] Plugin started! Commands: /laitsbreeding, /breedstatus");
     }
 
@@ -507,14 +509,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }, 5, TimeUnit.SECONDS);
         });
 
-        // Primary: Periodic scan every 10 seconds for animals (reduced from 30s)
+        // Safety net: Periodic scan every 30 seconds (primary detection via NewAnimalSpawnDetector)
         tickScheduler.scheduleAtFixedRate(() -> {
             try {
                 autoSetupNearbyAnimals();
             } catch (Exception e) {
                 // Silent
             }
-        }, 10, 10, TimeUnit.SECONDS);
+        }, 30, 30, TimeUnit.SECONDS);
     }
 
     /**
