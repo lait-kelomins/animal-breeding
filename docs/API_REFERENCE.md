@@ -2,6 +2,8 @@
 
 Detailed API patterns discovered through reverse-engineering HytaleServer.jar.
 
+**Note:** Most classes can be imported and used directly - avoid reflection unless necessary.
+
 ---
 
 ## Table of Contents
@@ -16,6 +18,7 @@ Detailed API patterns discovered through reverse-engineering HytaleServer.jar.
 - [NPC Spawning](#npc-spawning)
 - [Inventory Management](#inventory-management)
 - [Sound System](#sound-system)
+- [Particles](#particles)
 - [Entity Detection](#entity-detection)
 - [Stale Entity Refs](#stale-entity-refs)
 - [Asset Pack Structure](#asset-pack-structure)
@@ -70,19 +73,6 @@ getLogger().atWarning().log("Warning message");
 getLogger().atSevere().log("Error message");
 ```
 
-### Verbose Logging Pattern
-```java
-private static boolean verboseLogging = false;
-public static boolean isVerboseLogging() { return verboseLogging; }
-public static void setVerboseLogging(boolean enabled) { verboseLogging = enabled; }
-
-private void logVerbose(String message) {
-    if (verboseLogging) {
-        getLogger().atInfo().log("[MyPlugin] " + message);
-    }
-}
-```
-
 ---
 
 ## Commands
@@ -109,7 +99,7 @@ import com.hypixel.hytale.server.core.Message;
 | `ArgTypes.ITEM_ASSET` | Item asset |
 | `ArgTypes.forEnum("name", MyEnum.class)` | Enum with tab completion |
 
-### Required Arguments
+### Command Example
 ```java
 public class SetGrowthCommand extends AbstractCommand {
     private final RequiredArg<String> animalArg;
@@ -125,49 +115,7 @@ public class SetGrowthCommand extends AbstractCommand {
     protected CompletableFuture<Void> execute(CommandContext ctx) {
         String animal = ctx.get(animalArg);
         Double minutes = ctx.get(minutesArg);
-        return CompletableFuture.completedFuture(null);
-    }
-}
-```
-
-### Optional Arguments
-```java
-private final OptionalArg<String> categoryArg;
-
-public ListCommand() {
-    super("list", "List animals");
-    categoryArg = withOptionalArg("category", "Filter by category", ArgTypes.STRING);
-}
-
-@Override
-protected CompletableFuture<Void> execute(CommandContext ctx) {
-    String category = ctx.get(categoryArg);  // null if not provided
-}
-```
-
-### Enum Arguments (with Tab Completion)
-```java
-private final RequiredArg<AnimalType> animalArg;
-
-public MyCommand() {
-    super("mycommand", "Description");
-    animalArg = withRequiredArg("animal", "Animal type",
-        ArgTypes.forEnum("animal", AnimalType.class));
-}
-```
-
-### Sub-Commands Pattern
-```java
-public class ConfigCommand extends AbstractCommand {
-    public ConfigCommand() {
-        super("config", "Manage configuration");
-        addSubCommand(new ReloadSubCommand());
-        addSubCommand(new SaveSubCommand());
-    }
-
-    @Override
-    protected CompletableFuture<Void> execute(CommandContext ctx) {
-        showHelp(ctx);
+        ctx.sendMessage(Message.raw("Set!").color("#55FF55"));
         return CompletableFuture.completedFuture(null);
     }
 }
@@ -177,19 +125,9 @@ public class ConfigCommand extends AbstractCommand {
 ```java
 ctx.get(argument)           // Get parsed argument value
 ctx.provided(argument)      // Check if optional arg was provided
-ctx.getInputString()        // Raw input (avoid - use typed args instead)
 ctx.sendMessage(Message)    // Send message to sender
 ctx.isPlayer()              // Check if sender is a player
 ctx.senderAsPlayerRef()     // Get player entity ref
-ctx.sender()                // Get CommandSender
-```
-
-### Aliases
-```java
-public MyCommand() {
-    super("mycommand", "Description");
-    addAliases("mc", "mycmd");
-}
 ```
 
 ---
@@ -205,11 +143,6 @@ ctx.sendMessage(Message.raw("Success!").color("#55FF55"));
 // Multiple colors using insert()
 ctx.sendMessage(Message.raw("Label: ").color("#AAAAAA")
     .insert(Message.raw("value").color("#FFFFFF")));
-
-// Complex formatting
-Message msg = Message.raw("Prefix: ").color("#AAAAAA")
-    .insert(Message.raw("Middle").color("#FFFFFF"))
-    .insert(Message.raw(" - Suffix").color("#AAAAAA"));
 ```
 
 ### Common Hex Colors
@@ -220,14 +153,22 @@ Message msg = Message.raw("Prefix: ").color("#AAAAAA")
 | Red | `#FF5555` | Error, disabled |
 | Gray | `#AAAAAA` | Labels, descriptions |
 | White | `#FFFFFF` | Values, emphasis |
-| Yellow | `#FFFF55` | Warnings, highlights |
-| Aqua | `#55FFFF` | Info, special |
 
 ---
 
 ## Events
 
-### PlayerMouseButtonEvent (RECOMMENDED for click handling)
+### Imports
+```java
+import com.hypixel.hytale.server.core.event.events.player.PlayerMouseButtonEvent;
+import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent;
+import com.hypixel.hytale.server.core.event.events.player.PlayerInteractEvent;
+import com.hypixel.hytale.server.core.event.events.entity.EntityRemoveEvent;
+import com.hypixel.hytale.server.core.event.events.ecs.UseBlockEvent;
+import com.hypixel.hytale.protocol.MouseButtonType;
+```
+
+### PlayerMouseButtonEvent
 ```java
 getEventRegistry().register(PlayerMouseButtonEvent.class, event -> {
     Player player = event.getPlayer();
@@ -241,350 +182,244 @@ getEventRegistry().register(PlayerMouseButtonEvent.class, event -> {
 });
 ```
 
-### MouseButtonType Values
-- `MouseButtonType.Left` - Left click
-- `MouseButtonType.Right` - Right click
-- `MouseButtonType.Middle` - Middle click
-- `MouseButtonType.X1`, `MouseButtonType.X2` - Extra buttons
-
 ### Event Registration
 ```java
 // Simple events
 getEventRegistry().register(SomeEvent.class, event -> { ... });
 
-// Global events (with String key)
+// Global events
 getEventRegistry().registerGlobal(PlayerInteractEvent.class, event -> { ... });
-
-// Priority-based
-getEventRegistry().register(EventPriority.EARLY, SomeEvent.class, this::handler);
 ```
-
-### Event Priority Values
-- `EventPriority.FIRST` (-21844): Security checks
-- `EventPriority.EARLY` (-10922): Data transformation
-- `EventPriority.NORMAL` (0): Default
-- `EventPriority.LATE` (10922): Logging
-- `EventPriority.LAST` (21844): Cleanup
-
-### Available Events
-
-**Player Events** (`com.hypixel.hytale.server.core.event.events.player`):
-- `PlayerMouseButtonEvent` - Mouse clicks (RECOMMENDED)
-- `PlayerInteractEvent` - DEPRECATED for entity clicks
-- `PlayerConnectEvent` / `PlayerDisconnectEvent`
-- `PlayerChatEvent`
-
-**ECS Events** (`com.hypixel.hytale.server.core.event.events.ecs`):
-- `BreakBlockEvent` / `PlaceBlockEvent`
-- `UseBlockEvent` / `UseBlockEvent.Pre` / `UseBlockEvent.Post`
-- `DropItemEvent` / `InteractivelyPickupItemEvent`
-
-**Entity Events** (`com.hypixel.hytale.server.core.event.events.entity`):
-- `EntityEvent` / `EntityRemoveEvent`
-- `LivingEntityInventoryChangeEvent`
-
-### Events That DON'T Work for Animal Spawns
-- `PrefabPlaceEntityEvent` - Only fires for structure prefabs
-- `LoadedNPCEvent` - Does not fire for animal spawns
-
-**Workaround:** Use periodic scanning (every 30 seconds).
 
 ---
 
 ## ECS (Entity Component System)
 
-### EntityEventSystem Pattern
+### Imports
 ```java
-import com.hypixel.hytale.component.system.EntityEventSystem;
-import com.hypixel.hytale.component.ArchetypeChunk;
-import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Store;
-import com.hypixel.hytale.component.query.Query;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import com.hypixel.hytale.server.core.universe.PlayerRef;
-
-public class MyEventHandler extends EntityEventSystem<EntityStore, SomeEvent> {
-    public MyEventHandler() {
-        super(SomeEvent.class);
-    }
-
-    @Override
-    public void handle(
-        int entityIndex,
-        ArchetypeChunk<EntityStore> chunk,
-        Store<EntityStore> store,
-        CommandBuffer<EntityStore> buffer,
-        SomeEvent event
-    ) {
-        PlayerRef player = chunk.getComponent(entityIndex, PlayerRef.getComponentType());
-    }
-
-    @Override
-    public Query<EntityStore> getQuery() {
-        return PlayerRef.getComponentType();
-    }
-}
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
 ```
 
-### NewSpawnComponent (UNTESTED)
-The ECS has a `NewSpawnComponent` that marks newly spawned entities:
-```
-com.hypixel.hytale.server.core.modules.entity.component.NewSpawnComponent
+### Component Types (Direct Usage)
+These components support direct `getComponentType()` calls. Cache as static fields:
+```java
+private static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE =
+    TransformComponent.getComponentType();
+private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE =
+    ModelComponent.getComponentType();
+private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE =
+    UUIDComponent.getComponentType();
 ```
 
-Related systems:
-- `EntitySystems$NewSpawnTick`
-- `EntitySystems$NewSpawnEntityTrackerUpdate`
-- `NewSpawnStartTickingSystem`
+### Getting Components
+```java
+// Get the store from world
+Store<EntityStore> store = world.getEntityStore().getStore();
+
+// Get component directly using cached type
+TransformComponent transform = store.getComponent(entityRef, TRANSFORM_TYPE);
+Vector3d position = transform.getPosition();
+
+// Get UUID from entity
+UUIDComponent uuidComp = store.getComponent(entityRef, UUID_TYPE);
+UUID entityUuid = uuidComp.getUuid();
+```
+
+### Getting Store from World
+```java
+import com.hypixel.hytale.server.core.universe.Universe;
+import com.hypixel.hytale.server.core.universe.world.World;
+
+World world = Universe.get().getDefaultWorld();
+Store<EntityStore> store = world.getEntityStore().getStore();
+```
+
+### Deferred Entity Operations
+Use `world.execute()` when modifying entities outside of ECS tick:
+```java
+world.execute(() -> {
+    Store<EntityStore> store = world.getEntityStore().getStore();
+    // Safe to modify entity components here
+});
+```
 
 ---
 
 ## Entity Interactions
 
-### Architecture
-```
-Item (interactions Map<InteractionType, String>)
-  └── RootInteraction (referenced by String ID)
-       ├── interactionIds: String[] (Interaction asset IDs)
-       └── operations: Operation[] (execution steps)
-```
-
-### InteractionType Enum
-- `Primary` - Left click
-- `Secondary` - Right click
-- `Use` - E key
-- `Pick` - F key
-
-### Setting Up Entity Interactions
+### Imports
 ```java
-Object interactions = store.ensureAndGetComponent(entityRef, interactionsCompType);
+import com.hypixel.hytale.protocol.InteractionType;
+import com.hypixel.hytale.server.core.modules.interaction.Interactions;
+import com.hypixel.hytale.server.core.modules.entity.component.Interactable;
+```
 
-Class<?> interactionTypeClass = Class.forName("com.hypixel.hytale.protocol.InteractionType");
-Object useType = null;
-for (Object enumConst : interactionTypeClass.getEnumConstants()) {
-    if (enumConst.toString().equals("Use")) useType = enumConst;
-}
+### InteractionType Values
+```java
+InteractionType.Primary   // Left click
+InteractionType.Secondary // Right click
+InteractionType.Use       // E key (default interact)
+InteractionType.Pick      // F key
+```
 
-Method setIntId = interactions.getClass().getMethod("setInteractionId", interactionTypeClass, String.class);
-setIntId.invoke(interactions, useType, "Root_FeedAnimal");
+### Setting Entity Interactions
+**Note:** Component type access and Interactions methods require reflection:
+```java
+// Get component types via reflection
+Object interactableType = Interactable.class.getMethod("getComponentType").invoke(null);
+Object interactionsType = Interactions.class.getMethod("getComponentType").invoke(null);
 
+// Ensure entity has Interactable component (required for hints)
+store.ensureAndGetComponent(entityRef, interactableType);
+
+// Get Interactions component
+Object interactions = store.ensureAndGetComponent(entityRef, interactionsType);
+
+// Set interaction ID (reflection needed - methods not public)
+Method setIntId = interactions.getClass().getMethod(
+    "setInteractionId", InteractionType.class, String.class);
+setIntId.invoke(interactions, InteractionType.Use, "Root_FeedAnimal");
+
+// Set hint
 Method setHint = interactions.getClass().getMethod("setInteractionHint", String.class);
 setHint.invoke(interactions, "server.interactionHints.feed");
 ```
 
-### Modifying Item Interactions at Runtime
+### Custom Interactions
+Create custom interaction types by extending SimpleInteraction:
 ```java
-Class<?> itemClass = Class.forName("com.hypixel.hytale.server.core.asset.type.item.config.Item");
-Object assetStore = itemClass.getMethod("getAssetStore").invoke(null);
-Object assetMap = assetStore.getClass().getMethod("getAssetMap").invoke(assetStore);
-Object innerMap = assetMap.getClass().getMethod("getAssetMap").invoke(assetMap);
-Object item = ((Map<?,?>) innerMap).get("Plant_Crop_Wheat_Item");
+import com.hypixel.hytale.codec.builder.BuilderCodec;
+import com.hypixel.hytale.server.core.modules.interaction.interaction.config.SimpleInteraction;
+import com.hypixel.hytale.server.core.modules.interaction.interaction.CooldownHandler;
+import com.hypixel.hytale.server.core.entity.InteractionContext;
 
-Field interactionsField = item.getClass().getDeclaredField("interactions");
-interactionsField.setAccessible(true);
-Map<Object, Object> oldMap = (Map<Object, Object>) interactionsField.get(item);
+public class FeedAnimalInteraction extends SimpleInteraction {
+    public static final BuilderCodec<FeedAnimalInteraction> CODEC =
+        BuilderCodec.builder(FeedAnimalInteraction.class, FeedAnimalInteraction::new, SimpleInteraction.CODEC)
+            .build();
 
-Map<Object, Object> newMap = new HashMap<>(oldMap);
-newMap.put(useKey, "MyRootInteractionId");
-interactionsField.set(item, newMap);
+    @Override
+    protected void tick0(boolean firstRun, float time, InteractionType type,
+                         InteractionContext context, CooldownHandler cooldownHandler) {
+        if (firstRun) {
+            Ref<EntityStore> targetRef = context.getTargetEntity();
+            ItemStack heldItem = context.getHeldItem();
+            // Handle interaction logic
+        }
+        super.tick0(firstRun, time, type, context, cooldownHandler);
+    }
+}
 ```
 
-### Interaction Asset Format
+### Interaction Assets
+**RootInteraction:** `Server/Item/RootInteractions/Root_FeedAnimal.json`
 ```json
 {
-  "Type": "YourInteractionType",
+  "Interactions": ["FeedAnimal"],
+  "RequireNewClick": true
+}
+```
+
+**Interaction:** `Server/Item/Interactions/FeedAnimal.json`
+```json
+{
+  "Type": "FeedAnimal",
   "Effects": {
     "ItemAnimationId": "Eat",
-    "WaitForAnimationToFinish": true,
-    "WorldSoundEventId": "SFX_Consume_Bread"
-  },
-  "Next": {
-    "Type": "ModifyInventory",
-    "AdjustHeldItemQuantity": -1
+    "WaitForAnimationToFinish": true
   }
 }
 ```
-
-### Operation Types
-- `LabelOperation` - Wraps interactions with labels
-- `JumpOperation` - Jumps to labeled operations
-- `SimpleInteraction` - Basic interaction
-- `ReplaceInteraction` - Variable substitution
-- `ConditionInteraction` - Conditional checks
-- `ChargingInteraction` - Hold-to-charge
-- `ModifyInventoryInteraction` - Inventory changes
-
----
-
-## ContextualUseNPC System
-
-For conditional interactions like shearing sheep or milking cows.
-
-### How It Works
-1. **Item** defines `Type: "ContextualUseNPC"` with a `Context` string
-2. **NPC Role** defines `HarvestInteractionContext` field
-3. System checks if contexts match
-4. Match → execute effects; No match → execute `Failed` chain
-
-### Example: Shears on Sheep
-
-**Shears Item:**
-```json
-{
-  "Interactions": {
-    "Primary": {
-      "Interactions": [{
-        "Type": "ContextualUseNPC",
-        "Context": "Shear",
-        "Effects": {
-          "ItemAnimationId": "Shear",
-          "WaitForAnimationToFinish": true,
-          "WorldSoundEventId": "SFX_Shears_Activate"
-        },
-        "Failed": "Shears_Attack"
-      }]
-    }
-  }
-}
-```
-
-**Sheep NPC Role:**
-```json
-{
-  "Type": "Variant",
-  "Reference": "Template_Animal_Neutral",
-  "Modify": {
-    "IsHarvestable": true,
-    "HarvestInteractionContext": "Shear",
-    "HarvestDropList": "Drop_Sheep_Harvest",
-    "HarvestTimeout": ["PT11H", "PT14H"],
-    "HarvestSound": "SFX_Sheep_Sheared"
-  }
-}
-```
-
-### NPC Harvest Fields
-| Field | Description |
-|-------|-------------|
-| `IsHarvestable` | Enable harvest mechanics |
-| `HarvestInteractionContext` | Context string to match |
-| `HarvestDropList` | Drop table reference |
-| `HarvestTimeout` | Cooldown (ISO-8601 duration) |
-| `HarvestParticles` | Particle effect ID |
-| `HarvestSound` | Sound effect ID |
-| `HarvestAddItemBucket` | Special item for bucket tools |
-
-### Limitations
-- `HarvestInteractionContext` is in NPC Role assets, NOT runtime settable
-- One context per NPC type
-- Does NOT work for per-item validation (e.g., different foods for animals)
 
 ---
 
 ## Localization & Hints
 
-### Setting Up Hints
-```java
-// 1. Entity must have Interactable component
-Class<?> interactableClass = Class.forName(
-    "com.hypixel.hytale.server.core.modules.entity.component.Interactable");
-Object interactableType = interactableClass.getMethod("getComponentType").invoke(null);
-store.ensureAndGetComponent(entityRef, interactableType);
-
-// 2. Set hint using localization key
-Object interactions = store.ensureAndGetComponent(entityRef, interactionsType);
-Method setHint = interactions.getClass().getMethod("setInteractionHint", String.class);
-setHint.invoke(interactions, "server.interactionHints.feed");
+### Custom Localization
+**File:** `Server/Languages/en-US/server.lang`
+```
+interactionHints.feed = Press [{key}] to Feed
+interactionHints.feedOrMount = Press [{key}] to Feed / Mount
 ```
 
-### Built-in Localization Keys
+### Built-in Keys
 | Key | Display |
 |-----|---------|
 | `server.interactionHints.generic` | Press [F] to interact |
 | `server.interactionHints.mount` | Press [F] to Mount |
 | `server.interactionHints.trade` | Press [F] to Trade |
-| `server.interactionHints.harvest` | Press [F] to harvest {name} |
-| `server.interactionHints.open` | Press [F] to open {name} |
-
-### Custom Localization
-**File:** `Server/Languages/en-US/server.lang`
-```
-interactionHints.feed = Press [{key}] to Feed
-interactionHints.breed = Press [{key}] to Breed
-```
 
 ---
 
 ## NPC Spawning
 
+### Imports
 ```java
 import com.hypixel.hytale.server.npc.NPCPlugin;
+import com.hypixel.hytale.server.core.asset.type.model.config.Model;
+import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
+```
 
-int roleIndex = NPCPlugin.get().getIndex("Cow_Calf");
+### Spawning NPCs
+```java
+NPCPlugin npcPlugin = NPCPlugin.get();
+int roleIndex = npcPlugin.getIndex("Cow_Calf");
 
-Pair<Ref<EntityStore>, NPCEntity> result = NPCPlugin.get().spawnEntity(
-    store,
-    roleIndex,
-    position,      // Vector3d
-    rotation,      // Vector3f
-    model,         // Model (optional)
-    callback       // Consumer<NPCEntity> (optional)
-);
+// spawnEntity requires reflection due to complex callback signature
+for (Method m : NPCPlugin.class.getMethods()) {
+    if (m.getName().equals("spawnEntity") && m.getParameterCount() == 6) {
+        // Create no-op callback proxy
+        Class<?> callbackClass = m.getParameterTypes()[5];
+        Object callback = Proxy.newProxyInstance(
+            callbackClass.getClassLoader(),
+            new Class<?>[] { callbackClass },
+            (proxy, method, args) -> null
+        );
+        m.invoke(npcPlugin, store, roleIndex, position, rotation, scaledModel, callback);
+        break;
+    }
+}
+```
+
+### Creating Scaled Models
+```java
+ModelAsset modelAsset = ModelAsset.getAssetMap().getAsset("Wolf");
+Model scaledModel = Model.createScaledModel(modelAsset, 0.4f);  // 40% scale
 ```
 
 ### Baby Role IDs
-| Animal | Parent Role | Baby Role |
-|--------|-------------|-----------|
-| Cow | `Cow` | `Cow_Calf` |
-| Pig | `Pig` | `Pig_Piglet` |
-| Chicken | `Chicken` | `Chicken_Chick` |
-| Sheep | `Sheep` | `Sheep_Lamb` |
-| Goat | `Goat` | `Goat_Kid` |
-| Horse | `Horse` | `Horse_Foal` |
-| Camel | `Camel` | `Camel_Calf` |
-| Ram | `Ram` | `Ram_Lamb` |
-| Turkey | `Turkey` | `Turkey_Chick` |
-| Boar | `Boar` | `Boar_Piglet` |
-| Rabbit | `Rabbit` | `Bunny` |
-
-### Breeding Foods (from LovedItems)
-| Animal | Food Item ID |
-|--------|--------------|
-| Cow | `Plant_Crop_Cauliflower_Item` |
-| Pig | `Plant_Crop_Mushroom_Cap_Brown` |
-| Chicken | `Plant_Crop_Corn_Item` |
-| Sheep | `Plant_Crop_Lettuce_Item` |
-| Goat | `Plant_Fruit_Apple` |
-| Horse | `Plant_Crop_Carrot_Item` |
-| Camel | `Plant_Crop_Wheat_Item` |
+| Animal | Baby Role |
+|--------|-----------|
+| Cow | `Cow_Calf` |
+| Pig | `Pig_Piglet` |
+| Chicken | `Chicken_Chick` |
+| Sheep | `Sheep_Lamb` |
+| Horse | `Horse_Foal` |
 
 ---
 
 ## Inventory Management
 
+### Imports
 ```java
 import com.hypixel.hytale.server.core.entity.LivingEntity;
 import com.hypixel.hytale.server.core.inventory.Inventory;
-import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
+import com.hypixel.hytale.server.core.inventory.ItemStack;
+```
 
+### Working with Inventory
+```java
 Inventory inventory = ((LivingEntity) player).getInventory();
-```
-
-### Sections
-```java
-ItemContainer hotbar = inventory.getHotbar();
-ItemContainer storage = inventory.getStorage();
-ItemContainer armor = inventory.getArmor();
-ItemContainer utility = inventory.getUtility();
-ItemContainer tools = inventory.getTools();
-```
-
-### Active Slot & Removing Items
-```java
 byte activeSlot = inventory.getActiveHotbarSlot();
 ItemStack itemInHand = inventory.getItemInHand();
 
-// Remove 1 item
+// Remove 1 item from active slot
 inventory.getHotbar().removeItemStackFromSlot((short) activeSlot, 1);
 inventory.markChanged();
 player.sendInventory();
@@ -601,62 +436,85 @@ context.getHeldItem()           // ItemStack
 
 ## Sound System
 
+### Imports
 ```java
 import com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent;
 import com.hypixel.hytale.server.core.universe.world.SoundUtil;
 import com.hypixel.hytale.protocol.SoundCategory;
-
-int soundId = SoundEvent.getAssetMap().getIndex("SFX_Consume_Bread");
-Vector3d pos = entity.getTransformComponent().getPosition();
-Store<EntityStore> store = world.getEntityStore().getStore();
-
-SoundUtil.playSoundEvent3d(soundId, SoundCategory.SFX, pos.getX(), pos.getY(), pos.getZ(), store);
 ```
 
-### Common Sound IDs
-| Sound ID | Description |
-|----------|-------------|
-| `SFX_Consume_Bread` | Eating sound |
-| `SFX_Cow_Idle` | Cow moo |
-| `SFX_Pig_Idle` | Pig oink |
-| `SFX_Chicken_Idle` | Chicken cluck |
+### Playing Sounds
+```java
+int soundId = SoundEvent.getAssetMap().getIndex("SFX_Consume_Bread");
+Vector3d pos = transform.getPosition();
 
-### Sound Categories
-- `SoundCategory.SFX`
-- `SoundCategory.MUSIC`
-- `SoundCategory.AMBIENT`
+// Play 3D sound at position
+SoundUtil.playSoundEvent3d(soundId, SoundCategory.SFX,
+    pos.getX(), pos.getY(), pos.getZ(), store);
+```
+
+---
+
+## Particles
+
+### Imports
+```java
+import com.hypixel.hytale.server.core.universe.world.ParticleUtil;
+```
+
+### Spawning Particles
+**Note:** ParticleUtil methods require reflection to find the correct signature:
+```java
+Vector3d position = new Vector3d(x, y, z);
+
+// Find and invoke spawnParticleEffect via reflection
+for (Method method : ParticleUtil.class.getMethods()) {
+    if (method.getName().equals("spawnParticleEffect") && method.getParameterCount() == 3) {
+        Class<?>[] params = method.getParameterTypes();
+        if (params[0] == String.class && params[1].getSimpleName().equals("Vector3d")) {
+            method.invoke(null, "BreedingHearts", position, store);
+            break;
+        }
+    }
+}
+```
+
+### Custom Particle Assets
+**ParticleSystem:** `Server/Particles/BreedingHearts.particlesystem`
+```json
+{
+  "SpawnerId": "BreedingHearts"
+}
+```
+
+**ParticleSpawner:** `Server/Particles/Spawners/BreedingHearts.particlespawner`
+```json
+{
+  "Particle": {
+    "Texture": "Particles/Textures/Shapes/Hearts_HiRes.png",
+    "Color": "#fbbbfc"
+  },
+  "SpawnRate": { "Min": 5, "Max": 10 },
+  "ParticleLifeSpan": { "Min": 0.8, "Max": 1 }
+}
+```
 
 ---
 
 ## Entity Detection
 
-### Reading Entity Model
+### Reading Model Asset ID
 ```java
-Class<?> modelCompClass = Class.forName(
-    "com.hypixel.hytale.server.core.modules.entity.component.ModelComponent");
-Object modelCompType = modelCompClass.getMethod("getComponentType").invoke(null);
-Object modelComp = store.getComponent(entityRef, modelCompType);
+ModelComponent modelComp = store.getComponent(entityRef, MODEL_TYPE);
 
-Field modelField = modelCompClass.getDeclaredField("model");
+// Get modelAssetId via reflection (field is private)
+Field modelField = ModelComponent.class.getDeclaredField("model");
 modelField.setAccessible(true);
 Object model = modelField.get(modelComp);
 
-Field assetIdField = model.getClass().getDeclaredField("modelAssetId");
-assetIdField.setAccessible(true);
-String modelAssetId = (String) assetIdField.get(model);  // "Cow", "Sheep", etc.
-```
-
-### Creating Scaled Models
-```java
-Class<?> modelAssetClass = Class.forName(
-    "com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset");
-Object assetMap = modelAssetClass.getMethod("getAssetMap").invoke(null);
-Object modelAsset = assetMap.getClass().getMethod("getAsset", Object.class).invoke(assetMap, "Wolf");
-
-Class<?> modelClass = Class.forName(
-    "com.hypixel.hytale.server.core.asset.type.model.config.Model");
-Object model = modelClass.getMethod("createScaledModel", modelAssetClass, float.class)
-    .invoke(null, modelAsset, 0.4f);  // 40% scale for baby
+// Parse from toString() or use reflection on modelAssetId field
+String modelStr = model.toString();
+// Extract modelAssetId from: "Model{modelAssetId='Cow', ...}"
 ```
 
 ---
@@ -665,22 +523,13 @@ Object model = modelClass.getMethod("createScaledModel", modelAssetClass, float.
 
 Entity refs become invalid when entities despawn.
 
-### Solution
+### Handling Invalid Refs
 ```java
-Object component = null;
 try {
-    component = store.getComponent(entityRef, componentType);
-} catch (Exception e) {
-    Throwable cause = e;
-    if (e instanceof java.lang.reflect.InvocationTargetException) {
-        cause = ((java.lang.reflect.InvocationTargetException) e).getTargetException();
-    }
-
-    if (cause instanceof IllegalStateException &&
-        cause.getMessage() != null &&
-        cause.getMessage().contains("Invalid entity")) {
-        // Entity despawned - clean up
-        removeTrackingData(entityId);
+    TransformComponent transform = store.getComponent(entityRef, TRANSFORM_TYPE);
+} catch (IllegalStateException e) {
+    if (e.getMessage() != null && e.getMessage().contains("Invalid entity")) {
+        // Entity despawned - clean up tracking data
         return;
     }
     throw e;
@@ -690,8 +539,8 @@ try {
 ### Best Practices
 1. Always wrap ref usage in try-catch
 2. Clean up tracking data when ref is stale
-3. Don't store refs long-term - store entity IDs instead
-4. Use `world.execute()` for entity operations
+3. Store entity UUIDs instead of refs for long-term tracking
+4. Use `world.execute()` for deferred entity operations
 
 ---
 
@@ -701,46 +550,64 @@ When `IncludesAssetPack: true`:
 ```
 my-mod.jar
 ├── manifest.json
-└── assets/
-    └── Server/
-        ├── Item/
-        │   ├── RootInteractions/Root_FeedAnimal.json
-        │   ├── Interactions/FeedAnimal.json
-        │   └── Items/MyItem.json
-        ├── NPC/
-        │   └── Roles/MyNPC.json
-        └── Languages/
-            └── en-US/server.lang
+└── Server/
+    ├── Item/
+    │   ├── RootInteractions/Root_FeedAnimal.json
+    │   └── Interactions/FeedAnimal.json
+    ├── Particles/
+    │   ├── MyParticle.particlesystem
+    │   └── Spawners/MyParticle.particlespawner
+    └── Languages/
+        └── en-US/server.lang
 ```
-
-### Key Asset Paths
-| Type | Path |
-|------|------|
-| RootInteraction | `Server/Item/RootInteractions/{id}.json` |
-| Interaction | `Server/Item/Interactions/{id}.json` |
-| Item | `Server/Item/Items/{category}/{id}.json` |
-| NPC Role | `Server/NPC/Roles/{id}.json` |
 
 ---
 
 ## Class Paths
 
-| Component | Path |
-|-----------|------|
+### Core
+| Class | Path |
+|-------|------|
 | `JavaPlugin` | `com.hypixel.hytale.server.core.plugin.JavaPlugin` |
-| `JavaPluginInit` | `com.hypixel.hytale.server.core.plugin.JavaPluginInit` |
-| `AbstractCommand` | `com.hypixel.hytale.server.core.command.system.AbstractCommand` |
-| `CommandContext` | `com.hypixel.hytale.server.core.command.system.CommandContext` |
 | `Message` | `com.hypixel.hytale.server.core.Message` |
+| `Universe` | `com.hypixel.hytale.server.core.universe.Universe` |
+| `World` | `com.hypixel.hytale.server.core.universe.world.World` |
+
+### ECS
+| Class | Path |
+|-------|------|
+| `Store` | `com.hypixel.hytale.component.Store` |
+| `Ref` | `com.hypixel.hytale.component.Ref` |
+| `ComponentType` | `com.hypixel.hytale.component.ComponentType` |
+| `EntityStore` | `com.hypixel.hytale.server.core.universe.world.storage.EntityStore` |
+
+### Components (Direct getComponentType())
+| Class | Path |
+|-------|------|
+| `TransformComponent` | `com.hypixel.hytale.server.core.modules.entity.component.TransformComponent` |
+| `ModelComponent` | `com.hypixel.hytale.server.core.modules.entity.component.ModelComponent` |
+| `UUIDComponent` | `com.hypixel.hytale.server.core.entity.UUIDComponent` |
+
+### Components (Require Reflection for getComponentType())
+| Class | Path |
+|-------|------|
+| `Interactable` | `com.hypixel.hytale.server.core.modules.entity.component.Interactable` |
+| `Interactions` | `com.hypixel.hytale.server.core.modules.interaction.Interactions` |
+
+### Interactions
+| Class | Path |
+|-------|------|
+| `InteractionType` | `com.hypixel.hytale.protocol.InteractionType` |
+| `SimpleInteraction` | `com.hypixel.hytale.server.core.modules.interaction.interaction.config.SimpleInteraction` |
+| `RootInteraction` | `com.hypixel.hytale.server.core.modules.interaction.interaction.config.RootInteraction` |
+| `InteractionContext` | `com.hypixel.hytale.server.core.entity.InteractionContext` |
+
+### Assets
+| Class | Path |
+|-------|------|
 | `Model` | `com.hypixel.hytale.server.core.asset.type.model.config.Model` |
 | `ModelAsset` | `com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset` |
-| `ModelComponent` | `com.hypixel.hytale.server.core.modules.entity.component.ModelComponent` |
-| `TransformComponent` | `com.hypixel.hytale.server.core.modules.entity.component.TransformComponent` |
-| `Interactions` | `com.hypixel.hytale.server.core.modules.interaction.Interactions` |
-| `InteractionType` | `com.hypixel.hytale.protocol.InteractionType` |
-| `NPCPlugin` | `com.hypixel.hytale.server.npc.NPCPlugin` |
-| `EntityStore` | `com.hypixel.hytale.server.core.universe.world.storage.EntityStore` |
-| `PlayerRef` | `com.hypixel.hytale.server.core.universe.PlayerRef` |
-| `ItemStack` | `com.hypixel.hytale.server.core.inventory.ItemStack` |
 | `SoundEvent` | `com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent` |
 | `SoundUtil` | `com.hypixel.hytale.server.core.universe.world.SoundUtil` |
+| `ParticleUtil` | `com.hypixel.hytale.server.core.universe.world.ParticleUtil` |
+| `NPCPlugin` | `com.hypixel.hytale.server.npc.NPCPlugin` |

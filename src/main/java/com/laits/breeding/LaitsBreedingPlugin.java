@@ -50,6 +50,7 @@ import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
 import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.GrowthManager;
 import com.laits.breeding.listeners.UseBlockHandler;
+import com.laits.breeding.listeners.NewAnimalSpawnDetector;
 import com.laits.breeding.interactions.FeedAnimalInteraction;
 import com.laits.breeding.models.AnimalType;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.Interaction;
@@ -71,12 +72,14 @@ import java.util.concurrent.TimeUnit;
  */
 public class LaitsBreedingPlugin extends JavaPlugin {
 
-    public static final String VERSION = "1.2.0";
+    public static final String VERSION = "1.2.1";
 
     private static LaitsBreedingPlugin instance;
 
-    // Heart particle ID for breeding love effect
-    private static final String HEARTS_PARTICLE = "NPC/Emotions/Spawners/Hearts";
+    // Heart particle system ID for breeding love effect
+    // Custom particle with shorter duration (extends vanilla Hearts)
+    // Asset location: Server/Particles/BreedingHearts.particlesystem
+    private static final String HEARTS_PARTICLE = "BreedingHearts";
 
     // Breeding distance - animals must be within this range to breed
     private static final double BREEDING_DISTANCE = 5.0;
@@ -87,6 +90,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private BreedingManager breedingManager;
     private GrowthManager growthManager;
     private ScheduledExecutorService tickScheduler;
+    private NewAnimalSpawnDetector spawnDetector;
 
     // Getter for tick scheduler (used by commands)
     ScheduledExecutorService getTickScheduler() {
@@ -149,35 +153,123 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     public static void setDevMode(boolean enabled) { devMode = enabled; }
 
     // Store original interaction IDs before we override them (for fallback, e.g., horse mounting)
-    // Key is entity index (stable across different Ref instances)
-    private static final Map<Integer, String> originalInteractions = new ConcurrentHashMap<>();
+    // Key is entity UUID string (stable across different Ref objects for same entity)
+    private static final Map<String, String> originalInteractions = new ConcurrentHashMap<>();
+
+    /**
+     * Get a stable key for an entity ref using UUIDComponent.
+     * Falls back to index if UUID not available.
+     */
+    private static String getStableEntityKey(Object entityRef) {
+        if (!(entityRef instanceof Ref)) return null;
+        try {
+            @SuppressWarnings("unchecked")
+            Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+            Store<EntityStore> store = ref.getStore();
+            if (store != null) {
+                UUIDComponent uuidComp = store.getComponent(ref, UUID_TYPE);
+                if (uuidComp != null && uuidComp.getUuid() != null) {
+                    return uuidComp.getUuid().toString();
+                }
+            }
+        } catch (Exception e) {
+            // Fall through to index-based key
+        }
+        // Fallback to ref index if UUID not available
+        try {
+            @SuppressWarnings("unchecked")
+            Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+            Integer index = ref.getIndex();
+            if (index != null) {
+                return "idx:" + index;
+            }
+        } catch (Exception e) {
+            // Silent
+        }
+        return null;
+    }
 
     /**
      * Get the original interaction ID for an entity (before we set Root_FeedAnimal).
      * Used by FeedAnimalInteraction to fall back to default behavior (e.g., mounting).
      */
     public static String getOriginalInteractionId(Object entityRef) {
-        if (entityRef instanceof Ref) {
-            int index = ((Ref<?>) entityRef).getIndex();
-            return originalInteractions.get(index);
+        return getOriginalInteractionId(entityRef, null);
+    }
+
+    /**
+     * Get the original interaction ID for an entity, with animal type for fallback.
+     * If not found in cache but animal is mountable, returns "Root_Mount".
+     */
+    public static String getOriginalInteractionId(Object entityRef, AnimalType animalType) {
+        String key = getStableEntityKey(entityRef);
+        if (key != null) {
+            String stored = originalInteractions.get(key);
+            if (stored != null) {
+                return stored;
+            }
+        }
+
+        // Fallback: if animal type is mountable, return default mount interaction
+        if (animalType != null && animalType.isMountable()) {
+            return animalType.getDefaultInteractionId();
         }
         return null;
     }
 
     /**
      * Store the original interaction ID for an entity.
+     * For mountable animals (horses, camels), always stores a fallback even if currentUse is null.
+     */
+    private static void storeOriginalInteractionId(Ref<EntityStore> entityRef, String interactionId, AnimalType animalType) {
+        String key = getStableEntityKey(entityRef);
+        if (key == null) return;
+
+        String toStore = interactionId;
+
+        // For mountable animals, always ensure we have a fallback
+        if ((toStore == null || toStore.isEmpty()) && animalType != null && animalType.isMountable()) {
+            toStore = animalType.getDefaultInteractionId();
+        }
+
+        if (toStore != null && !toStore.isEmpty()) {
+            originalInteractions.put(key, toStore);
+        }
+    }
+
+    /**
+     * Legacy overload for backwards compatibility.
      */
     private static void storeOriginalInteractionId(Ref<EntityStore> entityRef, String interactionId) {
-        if (entityRef != null) {
-            int index = entityRef.getIndex();
-            originalInteractions.put(index, interactionId);
-        }
+        storeOriginalInteractionId(entityRef, interactionId, null);
     }
 
     /** Log verbose/debug message (only when verbose logging is enabled) */
     private void logVerbose(String message) {
         if (verboseLogging) {
             getLogger().atInfo().log("[Lait:AnimalBreeding] " + message);
+            // Also broadcast to chat if devMode is enabled
+            if (devMode) {
+                broadcastToChat(message);
+            }
+        }
+    }
+
+    /** Broadcast a message to all online players in chat */
+    private void broadcastToChat(String message) {
+        try {
+            World world = Universe.get().getDefaultWorld();
+            if (world == null) return;
+
+            world.getPlayers().forEach(player -> {
+                try {
+                    player.sendMessage(Message.raw("[Breeding] " + message).color("#AAAAAA"));
+                } catch (Exception e) {
+                    // Silent
+                }
+            });
+        } catch (Exception e) {
+            // Silent
         }
     }
 
@@ -315,6 +407,16 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Silent
         }
 
+        // Register ECS system for detecting new animal spawns (immediate detection)
+        try {
+            spawnDetector = new NewAnimalSpawnDetector();
+            getEntityStoreRegistry().registerSystem(spawnDetector);
+            logVerbose("NewAnimalSpawnDetector system registered");
+        } catch (Exception e) {
+            logWarning("NewAnimalSpawnDetector registration failed: " + e.getMessage());
+            spawnDetector = null;
+        }
+
         // Register commands
         getCommandRegistry().registerCommand(new BreedingHelpCommand());
         getCommandRegistry().registerCommand(new BreedingStatusCommand());
@@ -357,7 +459,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 growthManager.tickGrowth();
                 tickLoveAnimals();
             } catch (Exception e) {
-                // Silent - tick errors are non-critical
+                // Log tick errors for debugging
+                getLogger().atWarning().log("[Tick] Error: " + e.getMessage());
+                e.printStackTrace();
             }
         }, 1, 1, TimeUnit.SECONDS);
 
@@ -387,24 +491,30 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      */
     private void attachInteractionsToAnimals() {
         // Scan when a player connects (entities spawn when chunks load around players)
+        // Multiple scans to catch animals as they load
         getEventRegistry().register(PlayerConnectEvent.class, event -> {
+            // Quick scan after 1 second
             tickScheduler.schedule(() -> {
-                try {
-                    autoSetupNearbyAnimals();
-                } catch (Exception e) {
-                    // Silent
-                }
+                try { autoSetupNearbyAnimals(); } catch (Exception e) { }
+            }, 1, TimeUnit.SECONDS);
+            // Follow-up scan after 3 seconds (more entities loaded)
+            tickScheduler.schedule(() -> {
+                try { autoSetupNearbyAnimals(); } catch (Exception e) { }
             }, 3, TimeUnit.SECONDS);
+            // Final scan after 5 seconds
+            tickScheduler.schedule(() -> {
+                try { autoSetupNearbyAnimals(); } catch (Exception e) { }
+            }, 5, TimeUnit.SECONDS);
         });
 
-        // Primary: Periodic scan every 30 seconds for animals
+        // Primary: Periodic scan every 10 seconds for animals (reduced from 30s)
         tickScheduler.scheduleAtFixedRate(() -> {
             try {
                 autoSetupNearbyAnimals();
             } catch (Exception e) {
                 // Silent
             }
-        }, 30, 30, TimeUnit.SECONDS);
+        }, 10, 10, TimeUnit.SECONDS);
     }
 
     /**
@@ -456,6 +566,74 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             logVerbose("setupSingleEntity error: " + e.getMessage());
         } catch (Exception e) {
             logVerbose("setupSingleEntity error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Callback from NewAnimalSpawnDetector when a new animal is detected.
+     * This provides immediate detection instead of waiting for periodic scans.
+     *
+     * NOTE: This is called from within the ECS tick, so we must defer interaction
+     * setup to after the tick completes via world.execute().
+     *
+     * @param store The entity store
+     * @param entityRef The newly spawned entity reference
+     * @param modelAssetId The model asset ID (e.g., "Cow", "Sheep")
+     * @param animalType The detected animal type
+     */
+    public void onNewAnimalDetected(Store<EntityStore> store, Ref<EntityStore> entityRef,
+                                    String modelAssetId, AnimalType animalType) {
+        try {
+            if (entityRef == null || !entityRef.isValid()) return;
+
+            logVerbose("NewAnimalSpawnDetector: Immediate detection of " + modelAssetId);
+
+            // Skip if breeding is disabled for this animal type
+            if (!configManager.isAnimalEnabled(animalType)) {
+                logVerbose("Skipping disabled animal: " + animalType);
+                return;
+            }
+
+            boolean isBaby = AnimalType.isBabyVariant(modelAssetId);
+
+            // Register babies for growth tracking (safe to do during tick)
+            if (isBaby) {
+                UUID babyId = UUID.nameUUIDFromBytes(entityRef.toString().getBytes());
+                if (breedingManager.getData(babyId) == null) {
+                    breedingManager.registerBaby(babyId, animalType, entityRef);
+                    logVerbose("Registered new baby for growth tracking: " + modelAssetId);
+                }
+            }
+
+            // Set up interactions for adults - must be deferred to after the tick
+            // Component modifications during ECS tick may not work correctly
+            if (!isBaby) {
+                final Ref<EntityStore> finalEntityRef = entityRef;
+                final AnimalType finalAnimalType = animalType;
+                final String finalModelAssetId = modelAssetId;
+
+                World world = Universe.get().getDefaultWorld();
+                if (world != null) {
+                    world.execute(() -> {
+                        try {
+                            if (!finalEntityRef.isValid()) return;
+                            Store<EntityStore> worldStore = world.getEntityStore().getStore();
+                            setupEntityInteractions(worldStore, finalEntityRef, finalAnimalType);
+                            logVerbose("Interactions set up for new animal: " + finalModelAssetId);
+                        } catch (Exception e) {
+                            logVerbose("Deferred interaction setup error: " + e.getMessage());
+                        }
+                    });
+                }
+            }
+
+        } catch (IllegalStateException e) {
+            if (e.getMessage() != null && e.getMessage().contains("Invalid entity")) {
+                return; // Entity already despawned
+            }
+            logVerbose("onNewAnimalDetected error: " + e.getMessage());
+        } catch (Exception e) {
+            logVerbose("onNewAnimalDetected error: " + e.getMessage());
         }
     }
 
@@ -539,21 +717,27 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
             if (currentUse == null || !currentUse.equals(feedInteractionId)) {
                 // Save original interaction ID for fallback (e.g., horse mounting)
+                storeOriginalInteractionId(entityRef, currentUse, animalType);
                 if (currentUse != null && !currentUse.isEmpty()) {
-                    storeOriginalInteractionId(entityRef, currentUse);
                     logVerbose("Saved original interaction: " + currentUse);
+                } else if (animalType.isMountable()) {
+                    logVerbose("Stored default mount fallback for: " + animalType);
                 }
 
                 java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
                     "setInteractionId", interactionTypeClass, String.class);
                 setIntId.invoke(interactions, useType, feedInteractionId);
+                logVerbose("Set interaction ID to: " + feedInteractionId);
             }
 
-            // Set the interaction hint
+            // ALWAYS set the interaction hint (even if interaction was already set)
             java.lang.reflect.Method setHint = interactions.getClass().getMethod(
                 "setInteractionHint", String.class);
-            setHint.invoke(interactions, "server.interactionHints.feed");
-            logVerbose("Interaction setup complete for " + animalType);
+            String hintKey = animalType.isMountable()
+                ? "server.interactionHints.feedOrMount"
+                : "server.interactionHints.feed";
+            setHint.invoke(interactions, hintKey);
+            logVerbose("Interaction setup complete for " + animalType + " (hint: " + hintKey + ")");
 
         } catch (Exception e) {
             logVerbose("setupEntityInteractions error: " + e.getMessage());
@@ -697,12 +881,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                                 if (currentUse == null || !currentUse.equals(feedInteractionId)) {
                                     // Save original interaction ID for fallback (e.g., horse mounting)
-                                    if (currentUse != null && !currentUse.isEmpty()) {
-                                        // Store with Ref cast
-                                        if (entityRef instanceof Ref) {
-                                            storeOriginalInteractionId((Ref<EntityStore>) entityRef, currentUse);
+                                    if (entityRef instanceof Ref) {
+                                        @SuppressWarnings("unchecked")
+                                        Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+                                        storeOriginalInteractionId(ref, currentUse, animalType);
+                                        if (currentUse != null && !currentUse.isEmpty()) {
+                                            logVerbose("Saved original interaction for entity: " + currentUse);
+                                        } else if (animalType.isMountable()) {
+                                            logVerbose("Stored default mount fallback for: " + animalType);
                                         }
-                                        logVerbose("Saved original interaction for entity: " + currentUse);
                                     }
 
                                     java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
@@ -711,11 +898,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                     logVerbose("  Set interaction ID to: " + feedInteractionId);
                                 }
 
-                                // Set the interaction hint
+                                // ALWAYS set the interaction hint (even if interaction was already set)
                                 java.lang.reflect.Method setHint = interactions.getClass().getMethod(
                                     "setInteractionHint", String.class);
-                                setHint.invoke(interactions, "server.interactionHints.feed");
-                                logVerbose("  Set hint to: server.interactionHints.feed");
+                                String hintKey = animalType.isMountable()
+                                    ? "server.interactionHints.feedOrMount"
+                                    : "server.interactionHints.feed";
+                                setHint.invoke(interactions, hintKey);
+                                logVerbose("  Set hint to: " + hintKey);
+
                                 processedCount++;
                             }
                         } else {
@@ -774,7 +965,32 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     private void onPlayerInteract(PlayerInteractEvent event) {
-        // Handled by handleMouseClick - this is a fallback
+        // Set up interactions immediately when player interacts with an animal
+        try {
+            Entity targetEntity = event.getTargetEntity();
+            if (targetEntity == null) return;
+
+            String entityName = getEntityModelId(targetEntity);
+            AnimalType animalType = AnimalType.fromEntityTypeId(entityName);
+            if (animalType == null) return;
+
+            // Check if enabled
+            if (!configManager.isAnimalEnabled(animalType)) return;
+
+            // Set up interaction for this animal
+            Object entityRef = getEntityRef(targetEntity);
+            if (entityRef != null && entityRef instanceof Ref) {
+                @SuppressWarnings("unchecked")
+                Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+                World world = targetEntity.getWorld();
+                if (world != null) {
+                    Store<EntityStore> store = world.getEntityStore().getStore();
+                    setupEntityInteractions(store, ref, animalType);
+                }
+            }
+        } catch (Exception e) {
+            // Silent
+        }
     }
 
     /**
@@ -801,6 +1017,22 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         AnimalType animalType = AnimalType.fromEntityTypeId(entityName);
         if (animalType == null) {
             return; // Not a breedable animal
+        }
+
+        // Ensure interaction is set up for this animal (in case periodic scan hasn't run yet)
+        try {
+            Object entityRef = getEntityRef(targetEntity);
+            if (entityRef != null && entityRef instanceof Ref) {
+                @SuppressWarnings("unchecked")
+                Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+                World world = targetEntity.getWorld();
+                if (world != null) {
+                    Store<EntityStore> store = world.getEntityStore().getStore();
+                    setupEntityInteractions(store, ref, animalType);
+                }
+            }
+        } catch (Exception e) {
+            // Silent - interaction setup is best-effort
         }
 
         // Get held item
@@ -1034,6 +1266,63 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
+     * Spawn heart particles at an entity ref's position (for use on world thread).
+     * Used by tickLoveAnimals to show continuous hearts while animal is in love.
+     */
+    @SuppressWarnings("unchecked")
+    private void spawnHeartParticlesAtRef(Store<EntityStore> store, Object entityRef) {
+        try {
+            if (entityRef == null) {
+                getLogger().atWarning().log("[Hearts] entityRef is null");
+                return;
+            }
+            Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+            if (!ref.isValid()) {
+                getLogger().atWarning().log("[Hearts] ref is invalid");
+                return;
+            }
+
+            // Get position using the same method as breeding distance check
+            Vector3d position = getPositionOnWorldThread(store, ref);
+            if (position == null) {
+                // More detailed logging
+                Store<EntityStore> refStore = ref.getStore();
+                getLogger().atWarning().log("[Hearts] position is null - ref.getStore()=" +
+                    (refStore != null ? "valid" : "NULL") +
+                    ", ref.isValid()=" + ref.isValid() +
+                    ", ref.getIndex()=" + ref.getIndex());
+                return;
+            }
+
+            double x = position.getX();
+            double y = position.getY() + 1.5;  // Spawn above the animal
+            double z = position.getZ();
+
+            Vector3d heartsPos = new Vector3d(x, y, z);
+
+            // Use ParticleUtil.spawnParticleEffect
+            boolean methodFound = false;
+            for (java.lang.reflect.Method method : ParticleUtil.class.getMethods()) {
+                if (method.getName().equals("spawnParticleEffect") && method.getParameterCount() == 3) {
+                    Class<?>[] params = method.getParameterTypes();
+                    if (params[0] == String.class &&
+                        params[1].getSimpleName().equals("Vector3d") &&
+                        params[2].getSimpleName().equals("ComponentAccessor")) {
+                        method.invoke(null, HEARTS_PARTICLE, heartsPos, store);
+                        methodFound = true;
+                        return;
+                    }
+                }
+            }
+            if (!methodFound) {
+                getLogger().atWarning().log("[Hearts] spawnParticleEffect method not found");
+            }
+        } catch (Exception e) {
+            getLogger().atWarning().log("[Hearts] Error in spawnHeartParticlesAtRef: " + e.getMessage());
+        }
+    }
+
+    /**
      * Play feeding sound at entity's position.
      */
     private void playFeedingSoundAtEntity(Entity entity) {
@@ -1238,13 +1527,24 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      */
     private void tickLoveAnimals() {
         // Early exit if nothing tracked
-        if (breedingManager.getTrackedCount() == 0) return;
+        int trackedCount = breedingManager.getTrackedCount();
+        int inLoveTotal = breedingManager.getInLoveCount();
+
+        // Always log status when any animal is in love (for debugging)
+        if (inLoveTotal > 0) {
+            getLogger().atInfo().log("[TickLove] Running: tracked=" + trackedCount + ", inLove=" + inLoveTotal);
+        }
+
+        if (trackedCount == 0) return;
 
         long now = System.currentTimeMillis();
 
         // Single pass: expire love AND collect eligible animals AND group by type
         java.util.Map<AnimalType, java.util.List<BreedingData>> byType = new java.util.HashMap<>();
+        java.util.List<Object> inLoveEntityRefs = new java.util.ArrayList<>();
         int inLoveCount = 0;
+        int inLoveWithRef = 0;
+        int inLoveNoRef = 0;
 
         for (BreedingData data : breedingManager.getAllBreedingData()) {
             if (data.isInLove()) {
@@ -1253,11 +1553,48 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     data.resetLove();
                     continue;
                 }
+
+                // Collect entity ref for heart particles (all in-love animals)
+                if (data.getEntityRef() != null) {
+                    inLoveEntityRefs.add(data.getEntityRef());
+                    inLoveWithRef++;
+                } else {
+                    inLoveNoRef++;
+                }
+
                 // Collect if eligible for breeding
                 if (!data.isPregnant() && data.getGrowthStage().canBreed()) {
                     byType.computeIfAbsent(data.getAnimalType(), k -> new java.util.ArrayList<>()).add(data);
                     inLoveCount++;
                 }
+            }
+        }
+
+        // Debug: Log love status every tick
+        if (inLoveWithRef > 0 || inLoveNoRef > 0) {
+            getLogger().atInfo().log("[Hearts] Tracked: " + trackedCount +
+                ", InLove w/ref: " + inLoveWithRef +
+                ", InLove no ref: " + inLoveNoRef);
+        }
+
+        // Spawn heart particles for all animals in love (runs every 1 second)
+        if (!inLoveEntityRefs.isEmpty()) {
+            World world = Universe.get().getDefaultWorld();
+            if (world != null) {
+                final int refCount = inLoveEntityRefs.size();
+                world.execute(() -> {
+                    try {
+                        Store<EntityStore> store = world.getEntityStore().getStore();
+                        int spawned = 0;
+                        for (Object entityRef : inLoveEntityRefs) {
+                            spawnHeartParticlesAtRef(store, entityRef);
+                            spawned++;
+                        }
+                        getLogger().atInfo().log("[Hearts] Spawned particles for " + spawned + "/" + refCount + " entities");
+                    } catch (Exception e) {
+                        getLogger().atWarning().log("[Hearts] Error spawning: " + e.getMessage());
+                    }
+                });
             }
         }
 
@@ -1299,7 +1636,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     if (distance <= BREEDING_DISTANCE) {
                         finalAnimal1.completeBreeding();
                         finalAnimal2.completeBreeding();
-                        spawnBabyAnimal(finalType, pos1);
+                        // Spawn baby at midpoint between the two parents
+                        Vector3d midpoint = new Vector3d(
+                            (pos1.getX() + pos2.getX()) / 2.0,
+                            (pos1.getY() + pos2.getY()) / 2.0,
+                            (pos1.getZ() + pos2.getZ()) / 2.0
+                        );
+                        spawnBabyAnimal(finalType, midpoint);
                     }
                 } catch (Exception e) {
                     // Silent
@@ -1309,19 +1652,48 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Get position on world thread using typed component access.
+     * Get position on world thread using full reflection for robustness.
      */
     @SuppressWarnings("unchecked")
     private Vector3d getPositionOnWorldThread(Store<EntityStore> store, Object entityRef) {
         try {
-            if (entityRef instanceof Ref) {
-                TransformComponent transform = store.getComponent((Ref<EntityStore>) entityRef, TRANSFORM_TYPE);
-                if (transform != null) {
-                    return transform.getPosition();
-                }
+            if (entityRef == null) return null;
+
+            // Get the store from the ref
+            java.lang.reflect.Method getStoreMethod = entityRef.getClass().getMethod("getStore");
+            Object refStore = getStoreMethod.invoke(entityRef);
+            if (refStore == null) refStore = store;
+
+            // Use full reflection to get TransformComponent
+            Class<?> transformClass = Class.forName(
+                "com.hypixel.hytale.server.core.modules.entity.component.TransformComponent");
+            java.lang.reflect.Method getComponentType = transformClass.getMethod("getComponentType");
+            Object componentType = getComponentType.invoke(null);
+
+            if (componentType == null) {
+                getLogger().atWarning().log("[Hearts] TransformComponent.getComponentType() returned null");
+                return null;
+            }
+
+            // Use reflection to call store.getComponent(ref, componentType)
+            Class<?> refClass = Class.forName("com.hypixel.hytale.component.Ref");
+            Class<?> componentTypeClass = Class.forName("com.hypixel.hytale.component.ComponentType");
+            java.lang.reflect.Method getComponent = refStore.getClass().getMethod("getComponent", refClass, componentTypeClass);
+            Object transform = getComponent.invoke(refStore, entityRef, componentType);
+
+            if (transform == null) {
+                return null;
+            }
+
+            // Get position via getPosition() method
+            java.lang.reflect.Method getPosition = transform.getClass().getMethod("getPosition");
+            Object pos = getPosition.invoke(transform);
+
+            if (pos instanceof Vector3d) {
+                return (Vector3d) pos;
             }
         } catch (Exception e) {
-            // Entity removed or invalid
+            getLogger().atWarning().log("[Hearts] getPositionOnWorldThread error: " + e.getMessage());
         }
         return null;
     }
@@ -2143,6 +2515,24 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             ctx.sendMessage(Message.raw("  Adults: ").color("#AAAAAA")
                 .insert(Message.raw(String.valueOf(stageCounts.get(GrowthStage.ADULT))).color("#55FF55")));
 
+            // Spawn detector statistics
+            ctx.sendMessage(Message.raw(""));
+            ctx.sendMessage(Message.raw("Spawn Detection:").color("#FFFF55"));
+            int detectedCount = NewAnimalSpawnDetector.getDetectedCount();
+            long lastDetection = NewAnimalSpawnDetector.getLastDetectionTime();
+            String lastAnimal = NewAnimalSpawnDetector.getLastDetectedAnimal();
+
+            ctx.sendMessage(Message.raw("  Detected spawns: ").color("#AAAAAA")
+                .insert(Message.raw(String.valueOf(detectedCount)).color("#FFFFFF")));
+            if (lastDetection > 0) {
+                long secondsAgo = (System.currentTimeMillis() - lastDetection) / 1000;
+                ctx.sendMessage(Message.raw("  Last detection: ").color("#AAAAAA")
+                    .insert(Message.raw(lastAnimal + " (" + secondsAgo + "s ago)").color("#55FFFF")));
+            } else {
+                ctx.sendMessage(Message.raw("  Last detection: ").color("#AAAAAA")
+                    .insert(Message.raw("none").color("#777777")));
+            }
+
             if (breeding.getTrackedCount() == 0) {
                 ctx.sendMessage(Message.raw(""));
                 ctx.sendMessage(Message.raw("No animals tracked yet. Feed some animals!").color("#AAAAAA"));
@@ -2271,7 +2661,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     public static class BreedingDevCommand extends AbstractCommand {
 
         public BreedingDevCommand() {
-            super("breeddev", "Toggle in-game development debug messages");
+            super("breeddev", "Toggle in-game chat logging (shows all debug messages in chat)");
         }
 
         @Override
@@ -2279,18 +2669,21 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             boolean newState = !LaitsBreedingPlugin.isDevMode();
             LaitsBreedingPlugin.setDevMode(newState);
 
+            // Also enable/disable verbose logging to match
+            LaitsBreedingPlugin.setVerboseLogging(newState);
+
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin != null) {
-                plugin.getLogger().atInfo().log("[Lait:AnimalBreeding] Dev mode " + (newState ? "enabled" : "disabled"));
+                plugin.getLogger().atInfo().log("[Lait:AnimalBreeding] Chat logging " + (newState ? "enabled" : "disabled"));
             }
 
             String statusColor = newState ? "#55FF55" : "#FF5555";
             String statusText = newState ? "ENABLED" : "DISABLED";
-            ctx.sendMessage(Message.raw("Dev mode ").color("#AAAAAA")
+            ctx.sendMessage(Message.raw("Chat logging ").color("#AAAAAA")
                 .insert(Message.raw(statusText).color(statusColor)));
             if (newState) {
-                ctx.sendMessage(Message.raw("Debug messages will appear in-game for all players.").color("#FFAA00"));
-                ctx.sendMessage(Message.raw("(Also logged to server console with [DEV] prefix)").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw("All debug messages will now appear in chat.").color("#FFAA00"));
+                ctx.sendMessage(Message.raw("Use /breeddev again to disable.").color("#AAAAAA"));
             }
 
             return CompletableFuture.completedFuture(null);

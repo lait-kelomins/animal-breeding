@@ -15,6 +15,7 @@ import com.hypixel.hytale.server.core.entity.InteractionContext;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.CooldownHandler;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.RootInteraction;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.SimpleInteraction;
@@ -45,8 +46,10 @@ public class FeedAnimalInteraction extends SimpleInteraction {
         BuilderCodec.builder(FeedAnimalInteraction.class, FeedAnimalInteraction::new, SimpleInteraction.CODEC)
             .build();
 
-    // Heart particle spawner ID
-    private static final String HEARTS_PARTICLE = "NPC/Emotions/Spawners/Hearts";
+    // Heart particle system ID
+    // Custom particle with shorter duration (extends vanilla Hearts)
+    // Asset location: Server/Particles/BreedingHearts.particlesystem
+    private static final String HEARTS_PARTICLE = "BreedingHearts";
 
     // Breeding distance - animals must be within this range to breed
     private static final double BREEDING_DISTANCE = 5.0;
@@ -54,6 +57,7 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     // Cached component types for performance
     private static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE = TransformComponent.getComponentType();
     private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
+    private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
 
     public FeedAnimalInteraction() {
         super();
@@ -125,14 +129,14 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     log("Wrong food or no item, triggering fallback");
                     shouldFail = true;
                     failedTargetRef = targetRef;
-                    triggerFallbackInteraction(context, targetRef);
+                    triggerFallbackInteraction(context, targetRef, animalType);
                     return;
                 }
 
                 log("Correct food! Proceeding with breeding");
 
                 UUID animalId = getUuidFromRef(targetRef);
-                BreedingManager.FeedResult result = breeding.tryFeed(animalId, animalType, itemId);
+                BreedingManager.FeedResult result = breeding.tryFeed(animalId, animalType, itemId, targetRef);
 
                 switch (result) {
                     case SUCCESS:
@@ -155,7 +159,7 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     case WRONG_FOOD:
                         shouldFail = true;
                         failedTargetRef = targetRef;
-                        triggerFallbackInteraction(context, targetRef);
+                        triggerFallbackInteraction(context, targetRef, animalType);
                         return;
                 }
 
@@ -174,9 +178,17 @@ public class FeedAnimalInteraction extends SimpleInteraction {
      * Trigger the original/fallback interaction for an entity (e.g., horse mounting).
      */
     private void triggerFallbackInteraction(InteractionContext context, Ref<EntityStore> targetRef) {
+        triggerFallbackInteraction(context, targetRef, null);
+    }
+
+    /**
+     * Trigger the original/fallback interaction for an entity (e.g., horse mounting).
+     * Accepts animal type for robust fallback when cache lookup fails.
+     */
+    private void triggerFallbackInteraction(InteractionContext context, Ref<EntityStore> targetRef, AnimalType animalType) {
         try {
-            String originalInteractionId = LaitsBreedingPlugin.getOriginalInteractionId(targetRef);
-            log("Looking up fallback for targetRef: " + targetRef);
+            String originalInteractionId = LaitsBreedingPlugin.getOriginalInteractionId(targetRef, animalType);
+            log("Looking up fallback for targetRef: " + targetRef + " (animalType: " + animalType + ")");
             log("Original interaction ID: " + (originalInteractionId != null ? originalInteractionId : "NOT FOUND"));
 
             if (originalInteractionId == null || originalInteractionId.isEmpty()) {
@@ -453,7 +465,13 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                 }
                 otherData.completeBreeding();
 
-                spawnBabyAnimal(animalType, thisPos);
+                // Spawn baby at midpoint between the two parents
+                Vector3d midpoint = new Vector3d(
+                    (thisPos.getX() + otherPos.getX()) / 2.0,
+                    (thisPos.getY() + otherPos.getY()) / 2.0,
+                    (thisPos.getZ() + otherPos.getZ()) / 2.0
+                );
+                spawnBabyAnimal(animalType, midpoint);
                 return;
             }
         }
@@ -554,6 +572,23 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     }
 
     private UUID getUuidFromRef(Ref<EntityStore> ref) {
+        try {
+            // Use ECS UUIDComponent for stable entity identification
+            Store<EntityStore> store = ref.getStore();
+            if (store != null) {
+                UUIDComponent uuidComp = store.getComponent(ref, UUID_TYPE);
+                if (uuidComp != null) {
+                    UUID uuid = uuidComp.getUuid();
+                    if (uuid != null) {
+                        return uuid;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Silent - fall through to fallback
+        }
+
+        // Fallback: use ref index if available (stable within session)
         try {
             Integer index = ref.getIndex();
             if (index != null) {

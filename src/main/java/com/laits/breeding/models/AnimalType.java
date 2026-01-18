@@ -178,7 +178,121 @@ public enum AnimalType {
     // BOSS - Boss creatures (may be too powerful to breed!)
     // ===========================================
     DRAGON_FIRE(       Category.BOSS,       "Dragon_Fire",      "Food_Wildmeat_Cooked",             null,                   null),
-    DRAGON_FROST(      Category.BOSS,       "Dragon_Frost",     "Food_Fish_Raw",                    null,                   null);
+    DRAGON_FROST(      Category.BOSS,       "Dragon_Frost",     "Food_Fish_Raw",                    null,                   null),
+
+    // ===========================================
+    // UNDEAD - Skeletons, zombies, and undead creatures
+    // ===========================================
+    SKELETON(          Category.UNDEAD,     "Skeleton",         "Bone",                             null,                   null),
+    SKELETON_BURNT(    Category.UNDEAD,     "Skeleton_Burnt",   "Bone",                             null,                   null),
+    SKELETON_FROST(    Category.UNDEAD,     "Skeleton_Frost",   "Bone",                             null,                   null),
+    SKELETON_SAND(     Category.UNDEAD,     "Skeleton_Sand",    "Bone",                             null,                   null),
+    SKELETON_PIRATE(   Category.UNDEAD,     "Skeleton_Pirate",  "Bone",                             null,                   null),
+    SKELETON_INCANDESCENT(Category.UNDEAD,  "Skeleton_Incandescent", "Bone",                        null,                   null),
+    ZOMBIE(            Category.UNDEAD,     "Zombie",           "Food_Wildmeat_Raw",                null,                   null),
+    ZOMBIE_BURNT(      Category.UNDEAD,     "Zombie_Burnt",     "Food_Wildmeat_Raw",                null,                   null),
+    ZOMBIE_FROST(      Category.UNDEAD,     "Zombie_Frost",     "Food_Wildmeat_Raw",                null,                   null),
+    ZOMBIE_SAND(       Category.UNDEAD,     "Zombie_Sand",      "Food_Wildmeat_Raw",                null,                   null),
+    ZOMBIE_ABERRANT(   Category.UNDEAD,     "Zombie_Aberrant",  "Food_Wildmeat_Raw",                null,                   null),
+    GHOUL(             Category.UNDEAD,     "Ghoul",            "Food_Wildmeat_Raw",                null,                   null),
+    WRAITH(            Category.UNDEAD,     "Wraith",           "Ectoplasm",                        null,                   null),
+    WEREWOLF(          Category.UNDEAD,     "Werewolf",         "Food_Wildmeat_Raw",                null,                   null),
+    SHADOW_KNIGHT(     Category.UNDEAD,     "Shadow_Knight",    "Bone",                             null,                   null),
+    HORSE_SKELETON(    Category.UNDEAD,     "Horse_Skeleton",   "Bone",                             null,                   null),
+    HOUND_BLEACHED(    Category.UNDEAD,     "Hound_Bleached",   "Bone",                             null,                   null),
+    CHICKEN_UNDEAD(    Category.UNDEAD,     "Chicken_Undead",   "Bone",                             null,                   null),
+    COW_UNDEAD(        Category.UNDEAD,     "Cow_Undead",       "Bone",                             null,                   null),
+    PIG_UNDEAD(        Category.UNDEAD,     "Pig_Undead",       "Bone",                             null,                   null),
+
+    // ===========================================
+    // GOLEM - Elemental golems
+    // ===========================================
+    GOLEM_CRYSTAL_EARTH(Category.GOLEM,     "Golem_Crystal_Earth",   "Gem_Crystal",               null,                   null),
+    GOLEM_CRYSTAL_FLAME(Category.GOLEM,     "Golem_Crystal_Flame",   "Gem_Crystal",               null,                   null),
+    GOLEM_CRYSTAL_FROST(Category.GOLEM,     "Golem_Crystal_Frost",   "Gem_Crystal",               null,                   null),
+    GOLEM_CRYSTAL_SAND( Category.GOLEM,     "Golem_Crystal_Sand",    "Gem_Crystal",               null,                   null),
+    GOLEM_CRYSTAL_THUNDER(Category.GOLEM,   "Golem_Crystal_Thunder", "Gem_Crystal",               null,                   null),
+    GOLEM_FIRESTEEL(   Category.GOLEM,      "Golem_Firesteel",       "Ingot_Iron",                null,                   null),
+    GOLEM_GUARDIAN_VOID(Category.GOLEM,     "Golem_Guardian_Void",   "Void_Shard",                null,                   null),
+
+    // ===========================================
+    // SPIRIT - Elemental spirits
+    // ===========================================
+    SPIRIT_EMBER(      Category.SPIRIT,     "Spirit_Ember",     "Plant_Crop_Chilli_Item",           null,                   null),
+    SPIRIT_FROST(      Category.SPIRIT,     "Spirit_Frost",     "Snowball",                         null,                   null),
+    SPIRIT_ROOT(       Category.SPIRIT,     "Spirit_Root",      "Plant_Fruit_Apple",                null,                   null),
+    SPIRIT_THUNDER(    Category.SPIRIT,     "Spirit_Thunder",   "Gem_Crystal",                      null,                   null),
+
+    // ===========================================
+    // GOBLIN - Goblin enemies
+    // ===========================================
+    GOBLIN_SCRAPPER(   Category.GOBLIN,     "Goblin_Scrapper",  "Food_Wildmeat_Raw",                null,                   null),
+    GOBLIN_THIEF(      Category.GOBLIN,     "Goblin_Thief",     "Food_Wildmeat_Raw",                null,                   null),
+    GOBLIN_MINER(      Category.GOBLIN,     "Goblin_Miner",     "Food_Wildmeat_Raw",                null,                   null),
+    GOBLIN_LOBBER(     Category.GOBLIN,     "Goblin_Lobber",    "Food_Wildmeat_Raw",                null,                   null),
+    GOBLIN_SCAVENGER(  Category.GOBLIN,     "Goblin_Scavenger", "Food_Wildmeat_Raw",                null,                   null),
+    GOBLIN_HERMIT(     Category.GOBLIN,     "Goblin_Hermit",    "Food_Wildmeat_Raw",                null,                   null),
+    GOBLIN_OGRE(       Category.GOBLIN,     "Goblin_Ogre",      "Food_Wildmeat_Raw",                null,                   null),
+    GOBLIN_DUKE(       Category.GOBLIN,     "Goblin_Duke",      "Food_Wildmeat_Cooked",             null,                   null),
+
+    // ===========================================
+    // TRORK - Trork enemies
+    // ===========================================
+    TRORK_BRAWLER(     Category.TRORK,      "Trork_Brawler",    "Food_Wildmeat_Raw",                null,                   null),
+    TRORK_WARRIOR(     Category.TRORK,      "Trork_Warrior",    "Food_Wildmeat_Raw",                null,                   null),
+    TRORK_HUNTER(      Category.TRORK,      "Trork_Hunter",     "Food_Wildmeat_Raw",                null,                   null),
+    TRORK_SENTRY(      Category.TRORK,      "Trork_Sentry",     "Food_Wildmeat_Raw",                null,                   null),
+    TRORK_GUARD(       Category.TRORK,      "Trork_Guard",      "Food_Wildmeat_Raw",                null,                   null),
+    TRORK_MAULER(      Category.TRORK,      "Trork_Mauler",     "Food_Wildmeat_Raw",                null,                   null),
+    TRORK_SHAMAN(      Category.TRORK,      "Trork_Shaman",     "Food_Wildmeat_Raw",                null,                   null),
+    TRORK_CHIEFTAIN(   Category.TRORK,      "Trork_Chieftain",  "Food_Wildmeat_Cooked",             null,                   null),
+    TRORK_DOCTOR_WITCH(Category.TRORK,      "Trork_Doctor_Witch","Food_Wildmeat_Raw",               null,                   null),
+
+    // ===========================================
+    // SCARAK - Bug enemies
+    // ===========================================
+    SCARAK_LOUSE(      Category.SCARAK,     "Scarak_Louse",     "Food_Wildmeat_Raw",                null,                   null),
+    SCARAK_SEEKER(     Category.SCARAK,     "Scarak_Seeker",    "Food_Wildmeat_Raw",                null,                   null),
+    SCARAK_FIGHTER(    Category.SCARAK,     "Scarak_Fighter",   "Food_Wildmeat_Raw",                null,                   null),
+    SCARAK_DEFENDER(   Category.SCARAK,     "Scarak_Defender",  "Food_Wildmeat_Raw",                null,                   null),
+    SCARAK_BROODMOTHER(Category.SCARAK,     "Scarak_Broodmother","Food_Wildmeat_Raw",               null,                   null),
+
+    // ===========================================
+    // KWEEBEC - Plant people (neutral)
+    // ===========================================
+    KWEEBEC_SEEDLING(  Category.KWEEBEC,    "Kweebec_Seedling", "Plant_Fruit_Apple",                null,                   null),
+    KWEEBEC_SPROUTLING(Category.KWEEBEC,    "Kweebec_Sproutling","Plant_Fruit_Apple",               null,                   null),
+    KWEEBEC_SAPLING(   Category.KWEEBEC,    "Kweebec_Sapling",  "Plant_Fruit_Apple",                null,                   null),
+    KWEEBEC_ROOTLING(  Category.KWEEBEC,    "Kweebec_Rootling", "Plant_Fruit_Apple",                null,                   null),
+    KWEEBEC_RAZORLEAF( Category.KWEEBEC,    "Kweebec_Razorleaf","Plant_Fruit_Apple",                null,                   null),
+    KWEEBEC_ELDER(     Category.KWEEBEC,    "Kweebec_Elder",    "Plant_Fruit_Apple",                null,                   null),
+
+    // ===========================================
+    // OUTLANDER - Human bandits and cultists
+    // ===========================================
+    OUTLANDER_PEON(    Category.OUTLANDER,  "Outlander_Peon",   "Food_Bread",                       null,                   null),
+    OUTLANDER_HUNTER(  Category.OUTLANDER,  "Outlander_Hunter", "Food_Bread",                       null,                   null),
+    OUTLANDER_MARAUDER(Category.OUTLANDER,  "Outlander_Marauder","Food_Bread",                      null,                   null),
+    OUTLANDER_STALKER( Category.OUTLANDER,  "Outlander_Stalker","Food_Bread",                       null,                   null),
+    OUTLANDER_BERSERKER(Category.OUTLANDER, "Outlander_Berserker","Food_Bread",                     null,                   null),
+    OUTLANDER_BRUTE(   Category.OUTLANDER,  "Outlander_Brute",  "Food_Bread",                       null,                   null),
+    OUTLANDER_CULTIST( Category.OUTLANDER,  "Outlander_Cultist","Food_Bread",                       null,                   null),
+    OUTLANDER_PRIEST(  Category.OUTLANDER,  "Outlander_Priest", "Food_Bread",                       null,                   null),
+    OUTLANDER_SORCERER(Category.OUTLANDER,  "Outlander_Sorcerer","Food_Bread",                      null,                   null),
+
+    // ===========================================
+    // VOID - Void creatures
+    // ===========================================
+    CRAWLER_VOID(      Category.VOID,       "Crawler_Void",     "Void_Shard",                       null,                   null),
+    EYE_VOID(          Category.VOID,       "Eye_Void",         "Void_Shard",                       null,                   null),
+    LARVA_VOID(        Category.VOID,       "Larva_Void",       "Void_Shard",                       null,                   null),
+    SPAWN_VOID(        Category.VOID,       "Spawn_Void",       "Void_Shard",                       null,                   null),
+    SPECTRE_VOID(      Category.VOID,       "Spectre_Void",     "Void_Shard",                       null,                   null),
+
+    // ===========================================
+    // MISC - Other creatures
+    // ===========================================
+    HEDERA(            Category.MISC,       "Hedera",           "Plant_Fruit_Berries_Red",          null,                   null);
 
     /**
      * Animal categories for organization and filtering.
@@ -193,7 +307,17 @@ public enum AnimalType {
         AQUATIC,    // Fish and sea creatures
         MYTHIC,     // Mythical/fantasy creatures
         DINOSAUR,   // Prehistoric creatures
-        BOSS        // Boss creatures
+        BOSS,       // Boss creatures
+        UNDEAD,     // Skeletons, zombies, ghosts
+        GOLEM,      // Elemental golems
+        SPIRIT,     // Elemental spirits
+        GOBLIN,     // Goblin enemies
+        TRORK,      // Trork enemies
+        SCARAK,     // Bug enemies
+        KWEEBEC,    // Plant people
+        OUTLANDER,  // Human bandits/cultists
+        VOID,       // Void creatures
+        MISC        // Other creatures
     }
 
     private final Category category;
@@ -222,6 +346,52 @@ public enum AnimalType {
      */
     public boolean isLivestock() {
         return category == Category.LIVESTOCK;
+    }
+
+    /**
+     * Check if this animal is mountable.
+     * Mountable animals have a default mount interaction that we must preserve.
+     *
+     * Currently mountable in Hytale:
+     * - Horse, Ram, Skeleton Horse (vanilla)
+     *
+     * Likely mountable / mod-supported:
+     * - Camel, Tetrabird (confirmed future mounts)
+     * - Antelope, Bison, Deer, Moose (mountable via mods)
+     *
+     * Sources:
+     * - https://www.bisecthosting.com/blog/how-to-use-mounts-in-hytale-horses-rams-camels
+     * - https://www.curseforge.com/hytale/mods/more-mounts
+     */
+    public boolean isMountable() {
+        switch (this) {
+            // Vanilla mountable
+            case HORSE:
+            case CAMEL:
+            case RAM:
+            // Likely mountable / mod-supported
+            case TETRABIRD:
+            case ANTELOPE:
+            case BISON:
+            case DEER_DOE:
+            case DEER_STAG:
+            case MOOSE_BULL:
+            case MOOSE_COW:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /**
+     * Get the default interaction ID for mountable animals.
+     * This is used as a fallback when the player doesn't have breeding food.
+     */
+    public String getDefaultInteractionId() {
+        if (isMountable()) {
+            return "Root_Mount";  // Standard mount interaction
+        }
+        return null;
     }
 
     /**

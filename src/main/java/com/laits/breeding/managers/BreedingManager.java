@@ -95,6 +95,18 @@ public class BreedingManager {
      * @return Result of the feeding attempt
      */
     public FeedResult tryFeed(UUID animalId, AnimalType animalType, String foodItemId) {
+        return tryFeed(animalId, animalType, foodItemId, null);
+    }
+
+    /**
+     * Try to put an animal in "love mode" after feeding, storing the entity ref for particle effects.
+     * @param animalId The animal's UUID
+     * @param animalType The type of animal
+     * @param foodItemId The item used to feed
+     * @param entityRef The entity reference (for heart particles while in love)
+     * @return Result of the feeding attempt
+     */
+    public FeedResult tryFeed(UUID animalId, AnimalType animalType, String foodItemId, Object entityRef) {
         // Check if this animal type is enabled for breeding
         if (!config.isAnimalEnabled(animalType)) {
             return FeedResult.DISABLED;
@@ -106,6 +118,14 @@ public class BreedingManager {
         }
 
         BreedingData data = getOrCreateData(animalId, animalType);
+
+        // Store entity ref for heart particles (always update to latest ref)
+        if (entityRef != null) {
+            data.setEntityRef(entityRef);
+            debug("Stored entityRef for " + animalId + " (" + animalType + "): " + entityRef);
+        } else {
+            debug("WARNING: entityRef is null for " + animalId + " (" + animalType + ")");
+        }
 
         // Check if adult
         if (!data.getGrowthStage().canBreed()) {
