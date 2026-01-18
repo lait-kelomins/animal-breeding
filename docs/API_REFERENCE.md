@@ -160,26 +160,9 @@ ctx.sendMessage(Message.raw("Label: ").color("#AAAAAA")
 
 ### Imports
 ```java
-import com.hypixel.hytale.server.core.event.events.player.PlayerMouseButtonEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent;
-import com.hypixel.hytale.server.core.event.events.player.PlayerInteractEvent;
 import com.hypixel.hytale.server.core.event.events.entity.EntityRemoveEvent;
 import com.hypixel.hytale.server.core.event.events.ecs.UseBlockEvent;
-import com.hypixel.hytale.protocol.MouseButtonType;
-```
-
-### PlayerMouseButtonEvent
-```java
-getEventRegistry().register(PlayerMouseButtonEvent.class, event -> {
-    Player player = event.getPlayer();
-    MouseButtonType button = event.getMouseButton().mouseButtonType;
-    Entity targetEntity = event.getTargetEntity();   // nullable
-    Item heldItem = event.getItemInHand();           // Item config (not ItemStack!)
-
-    if (button == MouseButtonType.Right) {
-        // Handle right-click
-    }
-});
 ```
 
 ### Event Registration
@@ -188,8 +171,19 @@ getEventRegistry().register(PlayerMouseButtonEvent.class, event -> {
 getEventRegistry().register(SomeEvent.class, event -> { ... });
 
 // Global events
-getEventRegistry().registerGlobal(PlayerInteractEvent.class, event -> { ... });
+getEventRegistry().registerGlobal(SomeEvent.class, event -> { ... });
 ```
+
+### PlayerConnectEvent
+```java
+getEventRegistry().register(PlayerConnectEvent.class, event -> {
+    // Player just connected - good time to scan nearby entities
+});
+```
+
+### Notes
+- `PlayerMouseButtonEvent` - Does NOT work for entity interactions
+- Use custom `Interaction` classes (extending `SimpleInteraction`) for handling entity clicks
 
 ---
 
@@ -370,18 +364,22 @@ import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
 ```java
 NPCPlugin npcPlugin = NPCPlugin.get();
 int roleIndex = npcPlugin.getIndex("Cow_Calf");
+Vector3f rotation = new Vector3f(0, 0, 0);
 
-// spawnEntity requires reflection due to complex callback signature
+// spawnEntity - current code uses reflection for callback, but direct call may work
+// TODO: Test if this simpler approach works:
+// npcPlugin.spawnEntity(store, roleIndex, position, rotation, null, (a, b, c) -> {});
+
+// Current working approach (reflection):
 for (Method m : NPCPlugin.class.getMethods()) {
     if (m.getName().equals("spawnEntity") && m.getParameterCount() == 6) {
-        // Create no-op callback proxy
         Class<?> callbackClass = m.getParameterTypes()[5];
         Object callback = Proxy.newProxyInstance(
             callbackClass.getClassLoader(),
             new Class<?>[] { callbackClass },
             (proxy, method, args) -> null
         );
-        m.invoke(npcPlugin, store, roleIndex, position, rotation, scaledModel, callback);
+        m.invoke(npcPlugin, store, roleIndex, position, rotation, null, callback);
         break;
     }
 }
