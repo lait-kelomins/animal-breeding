@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.3.0 - Heart Particles & Spawn Detection
+## v1.2.1 - Heart Particles & Spawn Detection
 
 ### New Features
 - **Heart particles** - Pink hearts now appear above animals when they're in love mode
@@ -9,7 +9,7 @@
 
 ### Fixed
 - **Breeding cooldown bypass** - Fixed bug where feeding during cooldown could still trigger breeding
-- **Horse interaction** - Fixed interaction hints not showing on horses in some cases
+- **Horse interaction** - Partially fixed horse interactions (remaining bug is already in the base game)
 - **Spawn detector timing** - Moved ECS system registration to proper lifecycle phase
 
 ### Changed
