@@ -37,6 +37,10 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
     private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
     private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
 
+    // Cached reflection Field for extracting modelAssetId (avoid per-tick reflection)
+    private static Field cachedModelField = null;
+    private static boolean modelFieldInitialized = false;
+
     // NewSpawnComponent type - obtained via reflection since it may not be public API
     private static ComponentType<EntityStore, ?> newSpawnComponentType = null;
 
@@ -60,14 +64,15 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
 
     public NewAnimalSpawnDetector() {
         super();
-        initializeNewSpawnComponentType();
+        initializeReflectionCache();
     }
 
     /**
-     * Initialize the NewSpawnComponent type via reflection.
+     * Initialize all reflection caches once at construction.
      */
     @SuppressWarnings("unchecked")
-    private void initializeNewSpawnComponentType() {
+    private void initializeReflectionCache() {
+        // Initialize NewSpawnComponent type
         try {
             Class<?> newSpawnClass = Class.forName(
                 "com.hypixel.hytale.server.core.modules.entity.component.NewSpawnComponent");
@@ -78,6 +83,18 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
             log("NewSpawnComponent class not found - spawn detection will use fallback");
         } catch (Exception e) {
             log("Failed to initialize NewSpawnComponent: " + e.getMessage());
+        }
+
+        // Initialize Model field for extracting modelAssetId (only once)
+        if (!modelFieldInitialized) {
+            try {
+                cachedModelField = ModelComponent.class.getDeclaredField("model");
+                cachedModelField.setAccessible(true);
+                modelFieldInitialized = true;
+            } catch (Exception e) {
+                log("Failed to initialize model field cache: " + e.getMessage());
+                modelFieldInitialized = false;
+            }
         }
     }
 
@@ -170,13 +187,16 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
     }
 
     /**
-     * Extract modelAssetId from ModelComponent using reflection.
+     * Extract modelAssetId from ModelComponent using cached reflection.
      */
     private String extractModelAssetId(ModelComponent modelComp) {
         try {
-            Field modelField = ModelComponent.class.getDeclaredField("model");
-            modelField.setAccessible(true);
-            Object model = modelField.get(modelComp);
+            // Use cached Field for performance (avoid getDeclaredField per-tick)
+            if (!modelFieldInitialized || cachedModelField == null) {
+                return null;
+            }
+
+            Object model = cachedModelField.get(modelComp);
             if (model == null) return null;
 
             // Extract from toString: Model{modelAssetId='Cow', scale=1.0, ...}

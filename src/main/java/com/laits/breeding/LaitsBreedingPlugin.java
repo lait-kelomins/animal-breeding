@@ -124,6 +124,20 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
     private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
 
+    // Cached reflection Field for ModelComponent.model (avoid per-call getDeclaredField)
+    private static java.lang.reflect.Field cachedModelField = null;
+    private static boolean modelFieldInitialized = false;
+
+    static {
+        try {
+            cachedModelField = ModelComponent.class.getDeclaredField("model");
+            cachedModelField.setAccessible(true);
+            modelFieldInitialized = true;
+        } catch (Exception e) {
+            modelFieldInitialized = false;
+        }
+    }
+
     // These are initialized at runtime since their getComponentType() may not be
     // public
     private static Object INTERACTIONS_COMP_TYPE = null;
@@ -876,11 +890,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             if (modelComp == null)
                 return null;
 
-            // Extract modelAssetId from the model field using reflection (field is not
-            // public)
-            java.lang.reflect.Field modelField = ModelComponent.class.getDeclaredField("model");
-            modelField.setAccessible(true);
-            Object model = modelField.get(modelComp);
+            // Use cached Field for performance (avoid getDeclaredField per call)
+            if (!modelFieldInitialized || cachedModelField == null)
+                return null;
+
+            Object model = cachedModelField.get(modelComp);
             if (model == null)
                 return null;
 
@@ -2206,16 +2220,23 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     Store<EntityStore> store = world.getEntityStore().getStore();
                     ModelComponent modelComp = store.getComponent((Ref<EntityStore>) entityRef, MODEL_TYPE);
                     if (modelComp != null) {
-                        // Extract modelAssetId from the model field using reflection (field is not
-                        // public)
-                        java.lang.reflect.Field modelField = ModelComponent.class.getDeclaredField("model");
-                        modelField.setAccessible(true);
-                        Object model = modelField.get(modelComp);
+                        // Use cached Field for performance (avoid getDeclaredField per call)
+                        if (!modelFieldInitialized || cachedModelField == null)
+                            return entity.toString();
+
+                        Object model = cachedModelField.get(modelComp);
 
                         if (model != null) {
-                            java.lang.reflect.Field assetIdField = model.getClass().getDeclaredField("modelAssetId");
-                            assetIdField.setAccessible(true);
-                            return (String) assetIdField.get(model);
+                            // Parse modelAssetId from toString to avoid additional reflection
+                            String modelStr = model.toString();
+                            int start = modelStr.indexOf("modelAssetId='");
+                            if (start >= 0) {
+                                start += 14;
+                                int end = modelStr.indexOf("'", start);
+                                if (end > start) {
+                                    return modelStr.substring(start, end);
+                                }
+                            }
                         }
                     }
                 }
@@ -2646,11 +2667,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                                     if (getComponent != null) {
                                         Object modelComp = getComponent.invoke(store, entityRef, modelType);
-                                        if (modelComp != null) {
-                                            java.lang.reflect.Field modelField = modelCompClass
-                                                    .getDeclaredField("model");
-                                            modelField.setAccessible(true);
-                                            Object currentModel = modelField.get(modelComp);
+                                        if (modelComp != null && modelFieldInitialized && cachedModelField != null) {
+                                            // Use cached Field for performance
+                                            Object currentModel = cachedModelField.get(modelComp);
 
                                             if (currentModel != null) {
                                                 java.lang.reflect.Field assetIdField = currentModel.getClass()
@@ -2686,7 +2705,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                                         // No toReference method, use the model directly
                                                     }
 
-                                                    modelField.set(modelComp, modelToSet);
+                                                    cachedModelField.set(modelComp, modelToSet);
 
                                                     // Try to trigger ECS sync via setComponent
                                                     try {
@@ -2841,10 +2860,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         return;
                     }
 
-                    // Get current model from ModelComponent
-                    java.lang.reflect.Field modelField = modelCompClass.getDeclaredField("model");
-                    modelField.setAccessible(true);
-                    Object currentModel = modelField.get(modelComp);
+                    // Use cached Field for performance (avoid getDeclaredField per call)
+                    if (!modelFieldInitialized || cachedModelField == null) {
+                        logWarning("Model field cache not initialized");
+                        return;
+                    }
+                    Object currentModel = cachedModelField.get(modelComp);
 
                     if (currentModel == null) {
                         logWarning("Entity has no model - cannot scale");
@@ -2888,8 +2909,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         logVerbose("No toReference method, using Model directly");
                     }
 
-                    // Set the new model on the ModelComponent
-                    modelField.set(modelComp, modelToSet);
+                    // Set the new model on the ModelComponent using cached field
+                    cachedModelField.set(modelComp, modelToSet);
 
                     // Log what we set
                     logVerbose("Set model field to: " + modelToSet.toString());

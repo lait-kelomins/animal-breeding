@@ -5,6 +5,7 @@ import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.GrowthStage;
 import com.laits.breeding.util.ConfigManager;
 
+import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,6 +22,10 @@ public class BreedingManager {
     // Custom animal love mode tracking (separate from enum-based animals)
     private final Map<UUID, CustomAnimalLoveData> customAnimalsInLove = new ConcurrentHashMap<>();
 
+    // Cached reflection Method for Ref.getStore() (avoid getMethod() per cleanup call)
+    private static Method cachedGetStoreMethod = null;
+    private static boolean getStoreMethodInitialized = false;
+
     // Callbacks for game integration
     private Consumer<BirthEvent> onBirthCallback;
     private Consumer<CustomBirthEvent> onCustomBirthCallback;
@@ -28,6 +33,24 @@ public class BreedingManager {
 
     public BreedingManager(ConfigManager config) {
         this.config = config;
+        initializeReflectionCache();
+    }
+
+    /**
+     * Initialize cached reflection objects once.
+     */
+    private void initializeReflectionCache() {
+        if (!getStoreMethodInitialized) {
+            try {
+                // Cache the getStore method from Ref class
+                Class<?> refClass = Class.forName("com.hypixel.hytale.component.Ref");
+                cachedGetStoreMethod = refClass.getMethod("getStore");
+                getStoreMethodInitialized = true;
+            } catch (Exception e) {
+                // Will use per-call reflection as fallback
+                getStoreMethodInitialized = false;
+            }
+        }
     }
 
     /**
@@ -81,8 +104,13 @@ public class BreedingManager {
             Object entityRef = data.getEntityRef();
             if (entityRef != null) {
                 try {
-                    // Attempt to access the entity - will throw if ref is stale/invalid
-                    Object store = entityRef.getClass().getMethod("getStore").invoke(entityRef);
+                    // Use cached Method if available, fall back to per-call if not
+                    Object store;
+                    if (getStoreMethodInitialized && cachedGetStoreMethod != null) {
+                        store = cachedGetStoreMethod.invoke(entityRef);
+                    } else {
+                        store = entityRef.getClass().getMethod("getStore").invoke(entityRef);
+                    }
                     if (store == null) {
                         it.remove();
                         removed++;
@@ -116,7 +144,13 @@ public class BreedingManager {
             Object entityRef = data.getEntityRef();
             if (entityRef != null) {
                 try {
-                    Object store = entityRef.getClass().getMethod("getStore").invoke(entityRef);
+                    // Use cached Method if available, fall back to per-call if not
+                    Object store;
+                    if (getStoreMethodInitialized && cachedGetStoreMethod != null) {
+                        store = cachedGetStoreMethod.invoke(entityRef);
+                    } else {
+                        store = entityRef.getClass().getMethod("getStore").invoke(entityRef);
+                    }
                     if (store == null) {
                         it.remove();
                         removed++;

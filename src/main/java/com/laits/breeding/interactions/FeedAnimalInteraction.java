@@ -62,6 +62,20 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
     private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
 
+    // Cached reflection Field for model extraction (avoid per-call reflection)
+    private static Field cachedModelField = null;
+    private static boolean modelFieldInitialized = false;
+
+    static {
+        try {
+            cachedModelField = ModelComponent.class.getDeclaredField("model");
+            cachedModelField.setAccessible(true);
+            modelFieldInitialized = true;
+        } catch (Exception e) {
+            modelFieldInitialized = false;
+        }
+    }
+
     public FeedAnimalInteraction() {
         super();
     }
@@ -995,10 +1009,12 @@ public class FeedAnimalInteraction extends SimpleInteraction {
             ModelComponent modelComp = store.getComponent(targetRef, MODEL_TYPE);
             if (modelComp == null) return null;
 
-            // Extract modelAssetId via reflection (field is private)
-            Field modelField = ModelComponent.class.getDeclaredField("model");
-            modelField.setAccessible(true);
-            Object model = modelField.get(modelComp);
+            // Use cached Field for performance (avoid getDeclaredField per call)
+            if (!modelFieldInitialized || cachedModelField == null) {
+                return null;
+            }
+
+            Object model = cachedModelField.get(modelComp);
             if (model == null) return null;
 
             String modelStr = model.toString();

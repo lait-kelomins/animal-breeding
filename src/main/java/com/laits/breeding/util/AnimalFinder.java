@@ -27,6 +27,28 @@ public class AnimalFinder {
     // Cache the ModelComponent type for performance
     private static final ComponentType<EntityStore, ModelComponent> MODEL_COMPONENT_TYPE = ModelComponent.getComponentType();
 
+    // Cached reflection Field for extracting modelAssetId (avoid per-call reflection)
+    private static Field cachedModelField = null;
+    private static boolean reflectionInitialized = false;
+
+    static {
+        initializeReflectionCache();
+    }
+
+    /**
+     * Initialize cached reflection objects once at class load.
+     */
+    private static void initializeReflectionCache() {
+        try {
+            cachedModelField = ModelComponent.class.getDeclaredField("model");
+            cachedModelField.setAccessible(true);
+            reflectionInitialized = true;
+        } catch (Exception e) {
+            // Will fall back to per-call reflection if this fails
+            reflectionInitialized = false;
+        }
+    }
+
     /**
      * Result of finding an animal in the world.
      */
@@ -150,15 +172,17 @@ public class AnimalFinder {
     }
 
     /**
-     * Extract modelAssetId from ModelComponent using reflection on the model field.
+     * Extract modelAssetId from ModelComponent using cached reflection on the model field.
      * The model field contains modelAssetId which identifies the entity type.
      */
     private static String extractModelAssetId(ModelComponent modelComp) {
         try {
-            // Get model field via reflection (field is not public)
-            Field modelField = ModelComponent.class.getDeclaredField("model");
-            modelField.setAccessible(true);
-            Object model = modelField.get(modelComp);
+            // Use cached Field for performance (avoid getDeclaredField every call)
+            if (!reflectionInitialized || cachedModelField == null) {
+                return null;
+            }
+
+            Object model = cachedModelField.get(modelComp);
             if (model == null) return null;
 
             // Extract from toString: Model{modelAssetId='Duck', scale=1.0, ...}
