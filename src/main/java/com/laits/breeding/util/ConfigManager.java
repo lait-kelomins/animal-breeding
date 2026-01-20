@@ -38,6 +38,89 @@ public class ConfigManager {
     private Path presetsDirectory;
     private Consumer<String> logger;
 
+    // ==================== SAFE JSON EXTRACTION HELPERS ====================
+
+    /**
+     * Safely extract a double from a JsonObject with a default value.
+     * Handles null, missing keys, wrong types, and malformed values.
+     */
+    private static double safeGetDouble(JsonObject json, String key, double defaultValue) {
+        try {
+            if (json == null || !json.has(key)) return defaultValue;
+            JsonElement elem = json.get(key);
+            if (elem == null || elem.isJsonNull()) return defaultValue;
+            if (elem.isJsonPrimitive() && elem.getAsJsonPrimitive().isNumber()) {
+                return elem.getAsDouble();
+            }
+            // Try parsing string as double
+            if (elem.isJsonPrimitive() && elem.getAsJsonPrimitive().isString()) {
+                return Double.parseDouble(elem.getAsString());
+            }
+            return defaultValue;
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Safely extract a boolean from a JsonObject with a default value.
+     * Handles null, missing keys, wrong types, and malformed values.
+     */
+    private static boolean safeGetBoolean(JsonObject json, String key, boolean defaultValue) {
+        try {
+            if (json == null || !json.has(key)) return defaultValue;
+            JsonElement elem = json.get(key);
+            if (elem == null || elem.isJsonNull()) return defaultValue;
+            if (elem.isJsonPrimitive() && elem.getAsJsonPrimitive().isBoolean()) {
+                return elem.getAsBoolean();
+            }
+            // Try parsing string as boolean
+            if (elem.isJsonPrimitive() && elem.getAsJsonPrimitive().isString()) {
+                String str = elem.getAsString().toLowerCase();
+                return "true".equals(str) || "1".equals(str) || "yes".equals(str);
+            }
+            // Try parsing number as boolean (0 = false, non-0 = true)
+            if (elem.isJsonPrimitive() && elem.getAsJsonPrimitive().isNumber()) {
+                return elem.getAsInt() != 0;
+            }
+            return defaultValue;
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Safely extract a String from a JsonObject with a default value.
+     * Handles null, missing keys, and non-string values.
+     */
+    private static String safeGetString(JsonObject json, String key, String defaultValue) {
+        try {
+            if (json == null || !json.has(key)) return defaultValue;
+            JsonElement elem = json.get(key);
+            return safeGetString(elem, defaultValue);
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    /**
+     * Safely extract a String from a JsonElement with a default value.
+     * Handles null and non-string values.
+     */
+    private static String safeGetString(JsonElement elem, String defaultValue) {
+        try {
+            if (elem == null || elem.isJsonNull()) return defaultValue;
+            if (elem.isJsonPrimitive()) {
+                return elem.getAsString();
+            }
+            return defaultValue;
+        } catch (Exception e) {
+            return defaultValue;
+        }
+    }
+
+    // ==================== END SAFE JSON HELPERS ====================
+
     /**
      * Configuration for a single animal type.
      */
@@ -389,31 +472,23 @@ public class ConfigManager {
         try {
             JsonObject root = JsonParser.parseString(json).getAsJsonObject();
 
-            // Load active preset name
-            if (root.has("activePreset")) {
-                activePreset = root.get("activePreset").getAsString();
-            }
+            // Load active preset name (using safe extraction)
+            activePreset = safeGetString(root, "activePreset", activePreset);
 
-            // Load defaults
-            if (root.has("defaults")) {
+            // Load defaults (using safe extraction)
+            if (root.has("defaults") && root.get("defaults").isJsonObject()) {
                 JsonObject defaults = root.getAsJsonObject("defaults");
-                if (defaults.has("growthTimeMinutes")) {
-                    defaultGrowthTimeMinutes = defaults.get("growthTimeMinutes").getAsDouble();
-                }
-                if (defaults.has("breedCooldownMinutes")) {
-                    defaultBreedCooldownMinutes = defaults.get("breedCooldownMinutes").getAsDouble();
-                }
-                if (defaults.has("growthEnabled")) {
-                    growthEnabled = defaults.get("growthEnabled").getAsBoolean();
-                }
+                defaultGrowthTimeMinutes = safeGetDouble(defaults, "growthTimeMinutes", defaultGrowthTimeMinutes);
+                defaultBreedCooldownMinutes = safeGetDouble(defaults, "breedCooldownMinutes", defaultBreedCooldownMinutes);
+                growthEnabled = safeGetBoolean(defaults, "growthEnabled", growthEnabled);
             }
 
-            // Load animal configs
-            if (root.has("animals")) {
+            // Load animal configs (using safe extraction)
+            if (root.has("animals") && root.get("animals").isJsonObject()) {
                 JsonObject animals = root.getAsJsonObject("animals");
                 for (AnimalType type : AnimalType.values()) {
                     String key = type.name();
-                    if (animals.has(key)) {
+                    if (animals.has(key) && animals.get(key).isJsonObject()) {
                         JsonObject animalJson = animals.getAsJsonObject(key);
                         AnimalConfig config = animalConfigs.get(type);
                         if (config == null) {
@@ -421,35 +496,35 @@ public class ConfigManager {
                             animalConfigs.put(type, config);
                         }
 
-                        if (animalJson.has("enabled")) {
-                            config.enabled = animalJson.get("enabled").getAsBoolean();
-                        }
+                        config.enabled = safeGetBoolean(animalJson, "enabled", config.enabled);
 
                         // Support both single food (legacy) and multiple foods
-                        if (animalJson.has("breedingFoods")) {
+                        if (animalJson.has("breedingFoods") && animalJson.get("breedingFoods").isJsonArray()) {
                             config.breedingFoods.clear();
                             JsonArray foodsArray = animalJson.getAsJsonArray("breedingFoods");
                             for (JsonElement elem : foodsArray) {
-                                config.breedingFoods.add(elem.getAsString());
+                                String food = safeGetString(elem, null);
+                                if (food != null) {
+                                    config.breedingFoods.add(food);
+                                }
                             }
                         } else if (animalJson.has("breedingFood")) {
                             // Legacy single food support
-                            config.breedingFoods.clear();
-                            config.breedingFoods.add(animalJson.get("breedingFood").getAsString());
+                            String food = safeGetString(animalJson, "breedingFood", null);
+                            if (food != null) {
+                                config.breedingFoods.clear();
+                                config.breedingFoods.add(food);
+                            }
                         }
 
-                        if (animalJson.has("growthTimeMinutes")) {
-                            config.growthTimeMinutes = animalJson.get("growthTimeMinutes").getAsDouble();
-                        }
-                        if (animalJson.has("breedCooldownMinutes")) {
-                            config.breedCooldownMinutes = animalJson.get("breedCooldownMinutes").getAsDouble();
-                        }
+                        config.growthTimeMinutes = safeGetDouble(animalJson, "growthTimeMinutes", config.growthTimeMinutes);
+                        config.breedCooldownMinutes = safeGetDouble(animalJson, "breedCooldownMinutes", config.breedCooldownMinutes);
                     }
                 }
             }
 
             // Load custom animals (for mod support)
-            if (root.has("customAnimals")) {
+            if (root.has("customAnimals") && root.get("customAnimals").isJsonObject()) {
                 customAnimals.clear();
                 JsonObject customAnimalsJson = root.getAsJsonObject("customAnimals");
                 for (String modelAssetId : customAnimalsJson.keySet()) {
@@ -464,21 +539,14 @@ public class ConfigManager {
                             }
                         }
 
-                        // Parse other fields with defaults
-                        String displayName = customJson.has("displayName")
-                            ? customJson.get("displayName").getAsString() : modelAssetId;
-                        double growthTime = customJson.has("growthTimeMinutes")
-                            ? customJson.get("growthTimeMinutes").getAsDouble() : defaultGrowthTimeMinutes;
-                        double breedCooldown = customJson.has("breedCooldownMinutes")
-                            ? customJson.get("breedCooldownMinutes").getAsDouble() : defaultBreedCooldownMinutes;
-                        String babyNpcRole = customJson.has("babyNpcRoleId")
-                            ? customJson.get("babyNpcRoleId").getAsString() : null;
-                        String adultNpcRole = customJson.has("adultNpcRoleId")
-                            ? customJson.get("adultNpcRoleId").getAsString() : modelAssetId;
-                        boolean mountable = customJson.has("mountable")
-                            && customJson.get("mountable").getAsBoolean();
-                        boolean enabled = !customJson.has("enabled")
-                            || customJson.get("enabled").getAsBoolean();
+                        // Parse other fields with defaults using safe extraction
+                        String displayName = safeGetString(customJson, "displayName", modelAssetId);
+                        double growthTime = safeGetDouble(customJson, "growthTimeMinutes", defaultGrowthTimeMinutes);
+                        double breedCooldown = safeGetDouble(customJson, "breedCooldownMinutes", defaultBreedCooldownMinutes);
+                        String babyNpcRole = safeGetString(customJson, "babyNpcRoleId", null);
+                        String adultNpcRole = safeGetString(customJson, "adultNpcRoleId", modelAssetId);
+                        boolean mountable = safeGetBoolean(customJson, "mountable", false);
+                        boolean enabled = safeGetBoolean(customJson, "enabled", true);
 
                         CustomAnimalConfig customConfig = new CustomAnimalConfig(
                             modelAssetId, displayName, foods, growthTime, breedCooldown,

@@ -113,13 +113,17 @@ public class PersistenceManager {
             }
 
             // Load tamed animals
-            if (root.has("tamedAnimals")) {
+            if (root.has("tamedAnimals") && root.get("tamedAnimals").isJsonArray()) {
                 JsonArray animalsArray = root.getAsJsonArray("tamedAnimals");
                 for (JsonElement elem : animalsArray) {
                     try {
                         TamedAnimalData data = GSON.fromJson(elem, TamedAnimalData.class);
-                        if (data != null && data.getAnimalUuid() != null) {
+                        // Validate required fields: animalUuid and ownerUuid must be present
+                        if (data != null && data.getAnimalUuid() != null && data.getOwnerUuid() != null) {
                             result.add(data);
+                        } else if (data != null) {
+                            logWarning("Skipping tamed animal with missing UUID (animal=" +
+                                data.getAnimalUuid() + ", owner=" + data.getOwnerUuid() + ")");
                         }
                     } catch (Exception e) {
                         logWarning("Failed to parse tamed animal entry: " + e.getMessage());
@@ -127,7 +131,13 @@ public class PersistenceManager {
                 }
             }
 
-            lastSaveTime = root.has("lastSaved") ? root.get("lastSaved").getAsLong() : 0;
+            // Safe extraction of lastSaved timestamp
+            try {
+                lastSaveTime = (root.has("lastSaved") && root.get("lastSaved").isJsonPrimitive())
+                    ? root.get("lastSaved").getAsLong() : 0;
+            } catch (Exception e) {
+                lastSaveTime = 0;
+            }
             log("Loaded " + result.size() + " tamed animals from save file");
 
         } catch (Exception e) {
