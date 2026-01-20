@@ -679,6 +679,32 @@ public class ConfigManager {
         }
     }
 
+    // Pattern for valid preset names: alphanumeric, underscores, hyphens only
+    private static final java.util.regex.Pattern VALID_PRESET_NAME =
+        java.util.regex.Pattern.compile("^[a-zA-Z0-9_-]+$");
+
+    /**
+     * Validate a preset name to prevent path traversal attacks.
+     * Valid names contain only alphanumeric characters, underscores, and hyphens.
+     * @param presetName The name to validate
+     * @return true if the name is valid and safe
+     */
+    public boolean isValidPresetName(String presetName) {
+        if (presetName == null || presetName.isEmpty()) {
+            return false;
+        }
+        // Check length (prevent excessively long names)
+        if (presetName.length() > 64) {
+            return false;
+        }
+        // Check for path traversal patterns
+        if (presetName.contains("..") || presetName.contains("/") || presetName.contains("\\")) {
+            return false;
+        }
+        // Only allow safe characters
+        return VALID_PRESET_NAME.matcher(presetName).matches();
+    }
+
     /**
      * Save the current configuration as a new preset.
      * @param presetName The name for the new preset
@@ -689,8 +715,18 @@ public class ConfigManager {
             log("Presets directory not initialized");
             return false;
         }
+        // Validate preset name to prevent path traversal
+        if (!isValidPresetName(presetName)) {
+            log("Invalid preset name: " + presetName + " (must be alphanumeric with underscores/hyphens only)");
+            return false;
+        }
         try {
             Path presetFile = presetsDirectory.resolve(presetName + ".json");
+            // Double-check that resolved path is within presets directory
+            if (!presetFile.normalize().startsWith(presetsDirectory.normalize())) {
+                log("Security error: preset path escapes presets directory");
+                return false;
+            }
             String json = toJson();
             Files.writeString(presetFile, json);
             log("Saved preset: " + presetFile);

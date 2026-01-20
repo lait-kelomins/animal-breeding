@@ -210,4 +210,41 @@ public class HytaleEntityAdapter {
         reverseMap.clear();
         uuidToId.clear();
     }
+
+    /**
+     * Clean up stale entity references where the entity ref is no longer valid.
+     * This is a safety net for missed EntityRemoveEvents.
+     *
+     * @return number of stale entries removed
+     */
+    public int cleanupStaleEntities() {
+        int removed = 0;
+        var iterator = entityMap.entrySet().iterator();
+
+        while (iterator.hasNext()) {
+            var entry = iterator.next();
+            Entity entity = entry.getValue();
+
+            try {
+                Ref<EntityStore> ref = entity.getReference();
+                if (ref == null || !ref.isValid()) {
+                    // Entity ref is stale - remove it
+                    iterator.remove();
+                    reverseMap.remove(entity);
+                    UUID uuid = entity.getUuid();
+                    if (uuid != null) {
+                        uuidToId.remove(uuid);
+                    }
+                    removed++;
+                }
+            } catch (Exception e) {
+                // Entity is in an invalid state - remove it
+                iterator.remove();
+                reverseMap.remove(entity);
+                removed++;
+            }
+        }
+
+        return removed;
+    }
 }

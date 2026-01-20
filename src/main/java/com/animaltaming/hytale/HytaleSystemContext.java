@@ -20,6 +20,7 @@ import com.hypixel.hytale.builtin.mounts.MountedByComponent;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.Iterator;
 
 /**
  * Hytale API implementation of SystemContext.
@@ -319,8 +320,47 @@ public class HytaleSystemContext implements SystemContext {
             Set<Long> species = tameablesBySpecies.get(speciesId);
             if (species != null) {
                 species.remove(entityId);
+                // Clean up empty species sets
+                if (species.isEmpty()) {
+                    tameablesBySpecies.remove(speciesId);
+                }
             }
         }
+    }
+
+    /**
+     * Clean up stale tameable animal entries where the entity no longer exists.
+     * @return number of entries removed
+     */
+    public int cleanupStaleTameableAnimals() {
+        int removed = 0;
+        Iterator<Map.Entry<Long, String>> it = entitySpecies.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Long, String> entry = it.next();
+            long entityId = entry.getKey();
+            if (!entityExists(entityId)) {
+                String speciesId = entry.getValue();
+                it.remove();
+                removed++;
+
+                Set<Long> species = tameablesBySpecies.get(speciesId);
+                if (species != null) {
+                    species.remove(entityId);
+                    if (species.isEmpty()) {
+                        tameablesBySpecies.remove(speciesId);
+                    }
+                }
+            }
+        }
+        return removed;
+    }
+
+    /**
+     * Clear all tameable animal registrations.
+     */
+    public void clearTameableAnimals() {
+        tameablesBySpecies.clear();
+        entitySpecies.clear();
     }
 
     @Override

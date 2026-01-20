@@ -17,6 +17,8 @@ import org.jetbrains.annotations.Nullable;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 
 import java.lang.reflect.Field;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,8 +40,15 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
     // NewSpawnComponent type - obtained via reflection since it may not be public API
     private static ComponentType<EntityStore, ?> newSpawnComponentType = null;
 
-    // Track processed entities to avoid duplicate processing
-    private final Set<String> processedEntities = ConcurrentHashMap.newKeySet();
+    // Track processed entities with timestamps to avoid duplicate processing and enable TTL cleanup
+    // Key: entity ref string, Value: timestamp when processed
+    private final Map<String, Long> processedEntities = new ConcurrentHashMap<>();
+
+    // Cache configuration
+    private static final long CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes TTL
+    private static final int MAX_CACHE_SIZE = 10000; // Maximum entries before forced cleanup
+    private long lastCleanupTime = 0;
+    private static final long CLEANUP_INTERVAL_MS = 60 * 1000; // Cleanup every minute
 
     // Player UUIDs to exclude from animal detection (updated by main plugin)
     private volatile Set<UUID> playerUuids = ConcurrentHashMap.newKeySet();
@@ -106,7 +115,14 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
 
             // Create unique key to avoid reprocessing
             String refKey = entityRef.toString();
-            if (processedEntities.contains(refKey)) return;
+            if (processedEntities.containsKey(refKey)) return;
+
+            // Periodic cache cleanup (don't do it every tick for performance)
+            long now = System.currentTimeMillis();
+            if (now - lastCleanupTime > CLEANUP_INTERVAL_MS || processedEntities.size() > MAX_CACHE_SIZE) {
+                cleanupExpiredEntries();
+                lastCleanupTime = now;
+            }
 
             // Check if this is a player entity (skip players with animal models)
             try {
@@ -132,8 +148,8 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
             AnimalType animalType = AnimalType.fromModelAssetId(modelAssetId);
             if (animalType == null) return;
 
-            // Mark as processed
-            processedEntities.add(refKey);
+            // Mark as processed with timestamp
+            processedEntities.put(refKey, System.currentTimeMillis());
 
             // Update statistics
             detectedCount++;
@@ -193,6 +209,31 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
      */
     public void clearProcessedCache() {
         processedEntities.clear();
+    }
+
+    /**
+     * Remove expired entries from the processed entities cache.
+     * Entries older than CACHE_TTL_MS are removed.
+     * @return Number of entries removed
+     */
+    public int cleanupExpiredEntries() {
+        long now = System.currentTimeMillis();
+        int removed = 0;
+
+        Iterator<Map.Entry<String, Long>> it = processedEntities.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, Long> entry = it.next();
+            if (now - entry.getValue() > CACHE_TTL_MS) {
+                it.remove();
+                removed++;
+            }
+        }
+
+        if (removed > 0) {
+            log("Cleaned up " + removed + " expired entries from spawn detector cache");
+        }
+
+        return removed;
     }
 
     /**

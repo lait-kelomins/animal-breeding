@@ -62,6 +62,7 @@ public class BreedingManager {
      */
     public void clearAll() {
         breedingDataMap.clear();
+        customAnimalsInLove.clear();
     }
 
     /**
@@ -71,6 +72,8 @@ public class BreedingManager {
      */
     public int cleanupStaleEntries() {
         int removed = 0;
+
+        // Clean up breedingDataMap
         java.util.Iterator<Map.Entry<UUID, BreedingData>> it = breedingDataMap.entrySet().iterator();
         while (it.hasNext()) {
             Map.Entry<UUID, BreedingData> entry = it.next();
@@ -90,6 +93,39 @@ public class BreedingManager {
                     it.remove();
                     removed++;
                     debug("Removed stale breeding entry (exception): " + entry.getKey());
+                }
+            }
+        }
+
+        // Clean up customAnimalsInLove
+        removed += cleanupStaleCustomAnimals();
+
+        return removed;
+    }
+
+    /**
+     * Clean up stale custom animal entries where entity refs are no longer valid.
+     * @return Number of entries removed
+     */
+    private int cleanupStaleCustomAnimals() {
+        int removed = 0;
+        java.util.Iterator<Map.Entry<UUID, CustomAnimalLoveData>> it = customAnimalsInLove.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<UUID, CustomAnimalLoveData> entry = it.next();
+            CustomAnimalLoveData data = entry.getValue();
+            Object entityRef = data.getEntityRef();
+            if (entityRef != null) {
+                try {
+                    Object store = entityRef.getClass().getMethod("getStore").invoke(entityRef);
+                    if (store == null) {
+                        it.remove();
+                        removed++;
+                        debug("Removed stale custom animal entry: " + entry.getKey());
+                    }
+                } catch (Exception e) {
+                    it.remove();
+                    removed++;
+                    debug("Removed stale custom animal entry (exception): " + entry.getKey());
                 }
             }
         }

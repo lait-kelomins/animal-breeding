@@ -30,6 +30,10 @@ public class PersistenceManager {
     private static final int CURRENT_VERSION = 1;
     private static final String SAVE_FILE_NAME = "tamed_animals.json";
 
+    // Backup limits to prevent disk space exhaustion
+    private static final int MAX_BACKUPS = 10;
+    private static final int DEFAULT_KEEP_COUNT = 5;
+
     private static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
             .create();
@@ -258,6 +262,7 @@ public class PersistenceManager {
 
     /**
      * Create a backup of the current save file.
+     * Automatically cleans up old backups to stay within MAX_BACKUPS limit.
      * @return true if backup was created successfully
      */
     public boolean createBackup() {
@@ -266,6 +271,9 @@ public class PersistenceManager {
         }
 
         try {
+            // Clean up old backups first to enforce limit
+            cleanupOldBackups(MAX_BACKUPS - 1); // -1 because we're about to create a new one
+
             String timestamp = String.valueOf(System.currentTimeMillis());
             Path backupPath = saveFilePath.resolveSibling(
                     SAVE_FILE_NAME.replace(".json", "_backup_" + timestamp + ".json"));
@@ -275,6 +283,24 @@ public class PersistenceManager {
         } catch (IOException e) {
             logError("Failed to create backup: " + e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Get the current number of backup files.
+     * @return count of backup files
+     */
+    public int getBackupCount() {
+        if (saveFilePath == null) return 0;
+
+        try {
+            Path directory = saveFilePath.getParent();
+            return (int) Files.list(directory)
+                    .filter(p -> p.getFileName().toString().contains("_backup_"))
+                    .filter(p -> p.getFileName().toString().endsWith(".json"))
+                    .count();
+        } catch (IOException e) {
+            return 0;
         }
     }
 
