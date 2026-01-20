@@ -67,6 +67,36 @@ public class ConfigManager {
         }
     }
 
+    /**
+     * Result of looking up an animal by ID (unified for built-in and custom animals).
+     */
+    public static class AnimalLookupResult {
+        private final AnimalType builtInType;
+        private final CustomAnimalConfig customConfig;
+
+        public AnimalLookupResult(AnimalType builtInType, CustomAnimalConfig customConfig) {
+            this.builtInType = builtInType;
+            this.customConfig = customConfig;
+        }
+
+        public boolean isBuiltIn() { return builtInType != null; }
+        public boolean isCustom() { return customConfig != null; }
+        public AnimalType getBuiltInType() { return builtInType; }
+        public CustomAnimalConfig getCustomConfig() { return customConfig; }
+
+        public String getId() {
+            if (builtInType != null) return builtInType.name();
+            if (customConfig != null) return customConfig.getModelAssetId();
+            return null;
+        }
+
+        public String getDisplayName() {
+            if (builtInType != null) return builtInType.getModelAssetId();
+            if (customConfig != null) return customConfig.getDisplayName();
+            return null;
+        }
+    }
+
     public ConfigManager() {
         loadDefaults();
     }
@@ -1432,6 +1462,208 @@ public class ConfigManager {
      */
     public Map<String, CustomAnimalConfig> getCustomAnimals() {
         return Collections.unmodifiableMap(customAnimals);
+    }
+
+    // ===========================================
+    // UNIFIED ANIMAL LOOKUP (built-in + custom)
+    // ===========================================
+
+    /**
+     * Look up any animal by ID (built-in or custom).
+     * Tries built-in AnimalType first (case-insensitive), then custom animals.
+     * @param id The animal identifier (e.g., "COW", "cow", "MyCustomCreature")
+     * @return AnimalLookupResult or null if not found
+     */
+    public AnimalLookupResult lookupAnimal(String id) {
+        if (id == null || id.isEmpty()) {
+            return null;
+        }
+
+        // Try built-in first (case-insensitive)
+        AnimalType type = AnimalType.fromModelAssetId(id);
+        if (type != null) {
+            return new AnimalLookupResult(type, null);
+        }
+
+        // Try custom animal (exact match first, then case-insensitive)
+        CustomAnimalConfig custom = customAnimals.get(id);
+        if (custom != null) {
+            return new AnimalLookupResult(null, custom);
+        }
+
+        // Try case-insensitive custom animal lookup
+        for (Map.Entry<String, CustomAnimalConfig> entry : customAnimals.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(id)) {
+                return new AnimalLookupResult(null, entry.getValue());
+            }
+        }
+
+        return null; // Not found
+    }
+
+    /**
+     * Set growth time for any animal (built-in or custom).
+     */
+    public boolean setAnyAnimalGrowthTime(String id, double minutes) {
+        AnimalLookupResult result = lookupAnimal(id);
+        if (result == null) return false;
+
+        if (result.isBuiltIn()) {
+            setGrowthTime(result.getBuiltInType(), minutes);
+        } else {
+            setCustomAnimalGrowthTime(result.getCustomConfig().getModelAssetId(), minutes);
+        }
+        return true;
+    }
+
+    /**
+     * Set breeding cooldown for any animal (built-in or custom).
+     */
+    public boolean setAnyAnimalCooldown(String id, double minutes) {
+        AnimalLookupResult result = lookupAnimal(id);
+        if (result == null) return false;
+
+        if (result.isBuiltIn()) {
+            setBreedingCooldown(result.getBuiltInType(), minutes);
+        } else {
+            setCustomAnimalCooldown(result.getCustomConfig().getModelAssetId(), minutes);
+        }
+        return true;
+    }
+
+    /**
+     * Set primary breeding food for any animal (built-in or custom).
+     */
+    public boolean setAnyAnimalFood(String id, String food) {
+        AnimalLookupResult result = lookupAnimal(id);
+        if (result == null) return false;
+
+        if (result.isBuiltIn()) {
+            setBreedingFood(result.getBuiltInType(), food);
+        } else {
+            // For custom animals, clear existing and add new
+            String modelId = result.getCustomConfig().getModelAssetId();
+            CustomAnimalConfig existing = customAnimals.get(modelId);
+            if (existing != null) {
+                List<String> newFoods = new ArrayList<>();
+                newFoods.add(food);
+                customAnimals.put(modelId, new CustomAnimalConfig(
+                    existing.getModelAssetId(),
+                    existing.getDisplayName(),
+                    newFoods,
+                    existing.getGrowthTimeMinutes(),
+                    existing.getBreedCooldownMinutes(),
+                    existing.getBabyNpcRoleId(),
+                    existing.getAdultNpcRoleId(),
+                    existing.isMountable(),
+                    existing.isEnabled()
+                ));
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Add a breeding food to any animal (built-in or custom).
+     */
+    public boolean addAnyAnimalFood(String id, String food) {
+        AnimalLookupResult result = lookupAnimal(id);
+        if (result == null) return false;
+
+        if (result.isBuiltIn()) {
+            addBreedingFood(result.getBuiltInType(), food);
+        } else {
+            addCustomAnimalFood(result.getCustomConfig().getModelAssetId(), food);
+        }
+        return true;
+    }
+
+    /**
+     * Remove a breeding food from any animal (built-in or custom).
+     */
+    public boolean removeAnyAnimalFood(String id, String food) {
+        AnimalLookupResult result = lookupAnimal(id);
+        if (result == null) return false;
+
+        if (result.isBuiltIn()) {
+            removeBreedingFood(result.getBuiltInType(), food);
+        } else {
+            removeCustomAnimalFood(result.getCustomConfig().getModelAssetId(), food);
+        }
+        return true;
+    }
+
+    /**
+     * Enable or disable any animal (built-in or custom).
+     */
+    public boolean setAnyAnimalEnabled(String id, boolean enabled) {
+        AnimalLookupResult result = lookupAnimal(id);
+        if (result == null) return false;
+
+        if (result.isBuiltIn()) {
+            setAnimalEnabled(result.getBuiltInType(), enabled);
+        } else {
+            setCustomAnimalEnabled(result.getCustomConfig().getModelAssetId(), enabled);
+        }
+        return true;
+    }
+
+    /**
+     * Get breeding foods for any animal (built-in or custom).
+     */
+    public List<String> getAnyAnimalFoods(String id) {
+        AnimalLookupResult result = lookupAnimal(id);
+        if (result == null) return Collections.emptyList();
+
+        if (result.isBuiltIn()) {
+            return getBreedingFoods(result.getBuiltInType());
+        } else {
+            return result.getCustomConfig().getBreedingFoods();
+        }
+    }
+
+    /**
+     * Check if any animal is enabled (built-in or custom).
+     */
+    public boolean isAnyAnimalEnabled(String id) {
+        AnimalLookupResult result = lookupAnimal(id);
+        if (result == null) return false;
+
+        if (result.isBuiltIn()) {
+            return isAnimalEnabled(result.getBuiltInType());
+        } else {
+            return result.getCustomConfig().isEnabled();
+        }
+    }
+
+    /**
+     * Get growth time in minutes for any animal (built-in or custom).
+     */
+    public double getAnyAnimalGrowthTimeMinutes(String id) {
+        AnimalLookupResult result = lookupAnimal(id);
+        if (result == null) return defaultGrowthTimeMinutes;
+
+        if (result.isBuiltIn()) {
+            AnimalConfig config = animalConfigs.get(result.getBuiltInType());
+            return config != null ? config.growthTimeMinutes : defaultGrowthTimeMinutes;
+        } else {
+            return result.getCustomConfig().getGrowthTimeMinutes();
+        }
+    }
+
+    /**
+     * Get cooldown in minutes for any animal (built-in or custom).
+     */
+    public double getAnyAnimalCooldownMinutes(String id) {
+        AnimalLookupResult result = lookupAnimal(id);
+        if (result == null) return defaultBreedCooldownMinutes;
+
+        if (result.isBuiltIn()) {
+            AnimalConfig config = animalConfigs.get(result.getBuiltInType());
+            return config != null ? config.breedCooldownMinutes : defaultBreedCooldownMinutes;
+        } else {
+            return result.getCustomConfig().getBreedCooldownMinutes();
+        }
     }
 
     /**

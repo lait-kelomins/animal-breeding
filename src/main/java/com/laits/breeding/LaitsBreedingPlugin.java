@@ -4445,12 +4445,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         /** /breedconfig info <animal> */
         public static class InfoSubCommand extends AbstractCommand {
-            private final RequiredArg<AnimalType> animalArg;
+            private final RequiredArg<String> animalArg;
 
             public InfoSubCommand() {
                 super("info", "Show detailed information for an animal");
-                animalArg = withRequiredArg("animal", "Animal type",
-                        ArgTypes.forEnum("animal", AnimalType.class));
+                animalArg = withRequiredArg("animal", "Animal name (built-in or custom)",
+                        ArgTypes.STRING);
             }
 
             @Override
@@ -4461,34 +4461,72 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     return CompletableFuture.completedFuture(null);
                 }
 
-                AnimalType type = ctx.get(animalArg);
-                ConfigManager.AnimalConfig ac = config.getAnimalConfig(type);
+                String animalId = ctx.get(animalArg);
+                ConfigManager.AnimalLookupResult lookup = config.lookupAnimal(animalId);
 
-                ctx.sendMessage(Message.raw("=== " + type.name() + " ===").color("#FF9900"));
-                ctx.sendMessage(Message.raw("Category: ").color("#AAAAAA")
-                        .insert(Message.raw(type.getCategory().name()).color("#FFFFFF")));
-                boolean enabled = config.isAnimalEnabled(type);
-                ctx.sendMessage(Message.raw("Enabled: ").color("#AAAAAA")
-                        .insert(Message.raw(enabled ? "Yes" : "No").color(enabled ? "#55FF55" : "#FF5555")));
-                boolean hasBaby = type.hasBabyVariant();
-                Message babyMsg = Message.raw("Has Baby: ").color("#AAAAAA")
-                        .insert(Message.raw(hasBaby ? "Yes" : "No").color(hasBaby ? "#55FF55" : "#FF5555"));
-                if (hasBaby) {
-                    babyMsg = babyMsg.insert(Message.raw(" (" + type.getBabyNpcRoleId() + ")").color("#AAAAAA"));
+                if (lookup == null) {
+                    ctx.sendMessage(Message.raw("Unknown animal: ").color("#FF5555")
+                            .insert(Message.raw(animalId).color("#FFFFFF")));
+                    ctx.sendMessage(Message.raw("Use /breed custom add to register custom animals").color("#AAAAAA"));
+                    return CompletableFuture.completedFuture(null);
                 }
-                ctx.sendMessage(babyMsg);
-                ctx.sendMessage(Message.raw("Growth Time: ").color("#AAAAAA")
-                        .insert(Message.raw((ac != null ? ac.growthTimeMinutes : 30.0) + " min").color("#FFFF55")));
-                ctx.sendMessage(Message.raw("Cooldown: ").color("#AAAAAA")
-                        .insert(Message.raw((ac != null ? ac.breedCooldownMinutes : 5.0) + " min").color("#FFFF55")));
-                ctx.sendMessage(Message.raw("Breeding Foods:").color("#AAAAAA"));
 
-                java.util.List<String> foods = config.getBreedingFoods(type);
-                for (int i = 0; i < foods.size(); i++) {
-                    String food = foods.get(i);
-                    boolean isPrimary = i == 0;
-                    ctx.sendMessage(Message.raw(isPrimary ? "* " : "  ").color(isPrimary ? "#55FF55" : "#AAAAAA")
-                            .insert(Message.raw(food).color("#FFFFFF")));
+                if (lookup.isBuiltIn()) {
+                    // Built-in animal info
+                    AnimalType type = lookup.getBuiltInType();
+                    ConfigManager.AnimalConfig ac = config.getAnimalConfig(type);
+
+                    ctx.sendMessage(Message.raw("=== " + type.name() + " ===").color("#FF9900"));
+                    ctx.sendMessage(Message.raw("Category: ").color("#AAAAAA")
+                            .insert(Message.raw(type.getCategory().name()).color("#FFFFFF")));
+                    boolean enabled = config.isAnimalEnabled(type);
+                    ctx.sendMessage(Message.raw("Enabled: ").color("#AAAAAA")
+                            .insert(Message.raw(enabled ? "Yes" : "No").color(enabled ? "#55FF55" : "#FF5555")));
+                    boolean hasBaby = type.hasBabyVariant();
+                    Message babyMsg = Message.raw("Has Baby: ").color("#AAAAAA")
+                            .insert(Message.raw(hasBaby ? "Yes" : "No").color(hasBaby ? "#55FF55" : "#FF5555"));
+                    if (hasBaby) {
+                        babyMsg = babyMsg.insert(Message.raw(" (" + type.getBabyNpcRoleId() + ")").color("#AAAAAA"));
+                    }
+                    ctx.sendMessage(babyMsg);
+                    ctx.sendMessage(Message.raw("Growth Time: ").color("#AAAAAA")
+                            .insert(Message.raw((ac != null ? ac.growthTimeMinutes : 30.0) + " min").color("#FFFF55")));
+                    ctx.sendMessage(Message.raw("Cooldown: ").color("#AAAAAA")
+                            .insert(Message.raw((ac != null ? ac.breedCooldownMinutes : 5.0) + " min").color("#FFFF55")));
+                    ctx.sendMessage(Message.raw("Breeding Foods:").color("#AAAAAA"));
+
+                    java.util.List<String> foods = config.getBreedingFoods(type);
+                    for (int i = 0; i < foods.size(); i++) {
+                        String food = foods.get(i);
+                        boolean isPrimary = i == 0;
+                        ctx.sendMessage(Message.raw(isPrimary ? "* " : "  ").color(isPrimary ? "#55FF55" : "#AAAAAA")
+                                .insert(Message.raw(food).color("#FFFFFF")));
+                    }
+                } else {
+                    // Custom animal info
+                    CustomAnimalConfig custom = lookup.getCustomConfig();
+
+                    ctx.sendMessage(Message.raw("=== " + custom.getDisplayName() + " (Custom) ===").color("#FF9900"));
+                    ctx.sendMessage(Message.raw("Model ID: ").color("#AAAAAA")
+                            .insert(Message.raw(custom.getModelAssetId()).color("#FFFFFF")));
+                    boolean enabled = custom.isEnabled();
+                    ctx.sendMessage(Message.raw("Enabled: ").color("#AAAAAA")
+                            .insert(Message.raw(enabled ? "Yes" : "No").color(enabled ? "#55FF55" : "#FF5555")));
+                    ctx.sendMessage(Message.raw("NPC Role: ").color("#AAAAAA")
+                            .insert(Message.raw(custom.getAdultNpcRoleId()).color("#FFFFFF")));
+                    ctx.sendMessage(Message.raw("Growth Time: ").color("#AAAAAA")
+                            .insert(Message.raw(custom.getGrowthTimeMinutes() + " min").color("#FFFF55")));
+                    ctx.sendMessage(Message.raw("Cooldown: ").color("#AAAAAA")
+                            .insert(Message.raw(custom.getBreedCooldownMinutes() + " min").color("#FFFF55")));
+                    ctx.sendMessage(Message.raw("Breeding Foods:").color("#AAAAAA"));
+
+                    java.util.List<String> foods = custom.getBreedingFoods();
+                    for (int i = 0; i < foods.size(); i++) {
+                        String food = foods.get(i);
+                        boolean isPrimary = i == 0;
+                        ctx.sendMessage(Message.raw(isPrimary ? "* " : "  ").color(isPrimary ? "#55FF55" : "#AAAAAA")
+                                .insert(Message.raw(food).color("#FFFFFF")));
+                    }
                 }
                 return CompletableFuture.completedFuture(null);
             }
@@ -4548,18 +4586,22 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             String statusWord = enable ? "Enabled" : "Disabled";
 
             // Check if it's ALL
-            if (target.equals("ALL")) {
+            if (target.equalsIgnoreCase("ALL")) {
                 for (AnimalType type : AnimalType.values()) {
                     config.setAnimalEnabled(type, enable);
                 }
+                // Also enable/disable all custom animals
+                for (String customId : config.getCustomAnimals().keySet()) {
+                    config.setCustomAnimalEnabled(customId, enable);
+                }
                 ctx.sendMessage(Message.raw(statusWord).color(statusColor)
-                        .insert(Message.raw(" breeding for ALL animals.").color("#AAAAAA")));
+                        .insert(Message.raw(" breeding for ALL animals (including custom).").color("#AAAAAA")));
                 return;
             }
 
             // Check if it's a category
             try {
-                AnimalType.Category cat = AnimalType.Category.valueOf(target);
+                AnimalType.Category cat = AnimalType.Category.valueOf(target.toUpperCase());
                 int count = 0;
                 for (AnimalType type : AnimalType.values()) {
                     if (type.getCategory() == cat) {
@@ -4574,17 +4616,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             } catch (IllegalArgumentException ignored) {
             }
 
-            // Try as individual animal
-            try {
-                AnimalType type = AnimalType.valueOf(target);
-                config.setAnimalEnabled(type, enable);
+            // Use unified lookup for individual animal (built-in or custom)
+            ConfigManager.AnimalLookupResult lookup = config.lookupAnimal(target);
+            if (lookup != null) {
+                config.setAnyAnimalEnabled(target, enable);
                 ctx.sendMessage(Message.raw(statusWord).color(statusColor)
                         .insert(Message.raw(" breeding for ").color("#AAAAAA"))
-                        .insert(Message.raw(type.name()).color("#FFFFFF")));
-            } catch (IllegalArgumentException e) {
+                        .insert(Message.raw(lookup.getDisplayName()).color("#FFFFFF")));
+            } else {
                 ctx.sendMessage(Message.raw("Unknown animal or category: ").color("#FF5555")
                         .insert(Message.raw(target).color("#FFFFFF")));
-                ctx.sendMessage(Message.raw("Animals: COW, PIG, CHICKEN, WOLF, etc.").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw("Animals: COW, PIG, CHICKEN, or custom animal names").color("#AAAAAA"));
                 ctx.sendMessage(Message.raw("Categories: ").color("#AAAAAA")
                         .insert(Message.raw(java.util.Arrays.toString(AnimalType.Category.values())).color("#FFFFFF")));
             }
@@ -4592,14 +4634,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         /** /breedconfig set <animal> <property> <value> */
         public static class SetSubCommand extends AbstractCommand {
-            private final RequiredArg<AnimalType> animalArg;
+            private final RequiredArg<String> animalArg;
             private final RequiredArg<String> propertyArg;
             private final RequiredArg<String> valueArg;
 
             public SetSubCommand() {
                 super("set", "Set animal property (food, growth, cooldown)");
-                animalArg = withRequiredArg("animal", "Animal type",
-                        ArgTypes.forEnum("animal", AnimalType.class));
+                animalArg = withRequiredArg("animal", "Animal name (built-in or custom)",
+                        ArgTypes.STRING);
                 propertyArg = withRequiredArg("property", "Property: food, growth, cooldown",
                         ArgTypes.STRING);
                 valueArg = withRequiredArg("value", "New value",
@@ -4614,30 +4656,41 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     return CompletableFuture.completedFuture(null);
                 }
 
-                AnimalType type = ctx.get(animalArg);
+                String animalId = ctx.get(animalArg);
                 String property = ctx.get(propertyArg).toLowerCase();
                 String value = ctx.get(valueArg);
+
+                // Use unified lookup - works for both built-in and custom animals
+                ConfigManager.AnimalLookupResult lookup = config.lookupAnimal(animalId);
+                if (lookup == null) {
+                    ctx.sendMessage(Message.raw("Unknown animal: ").color("#FF5555")
+                            .insert(Message.raw(animalId).color("#FFFFFF")));
+                    ctx.sendMessage(Message.raw("Use /breed custom add to register custom animals").color("#AAAAAA"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String displayName = lookup.getDisplayName();
 
                 switch (property) {
                     case "food":
                         // Resolve food shortcut
                         String resolvedFood = resolveFoodShortcut(value);
-                        config.setBreedingFood(type, resolvedFood);
+                        config.setAnyAnimalFood(animalId, resolvedFood);
                         ctx.sendMessage(Message.raw("Set ").color("#55FF55")
-                                .insert(Message.raw(type.name()).color("#FFFFFF"))
+                                .insert(Message.raw(displayName).color("#FFFFFF"))
                                 .insert(Message.raw(" primary food to: ").color("#55FF55"))
                                 .insert(Message.raw(resolvedFood).color("#FFFFFF")));
                         ctx.sendMessage(Message.raw("(This replaces all foods. Use ").color("#AAAAAA")
-                                .insert(Message.raw("/breedconfig addfood").color("#FFFFFF"))
+                                .insert(Message.raw("/breed config addfood").color("#FFFFFF"))
                                 .insert(Message.raw(" to add more.)").color("#AAAAAA")));
                         break;
 
                     case "growth":
                         try {
                             double minutes = Double.parseDouble(value);
-                            config.setGrowthTime(type, minutes);
+                            config.setAnyAnimalGrowthTime(animalId, minutes);
                             ctx.sendMessage(Message.raw("Set ").color("#55FF55")
-                                    .insert(Message.raw(type.name()).color("#FFFFFF"))
+                                    .insert(Message.raw(displayName).color("#FFFFFF"))
                                     .insert(Message.raw(" growth time to: ").color("#55FF55"))
                                     .insert(Message.raw(minutes + " min").color("#FFFF55")));
                         } catch (NumberFormatException e) {
@@ -4649,9 +4702,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     case "cooldown":
                         try {
                             double minutes = Double.parseDouble(value);
-                            config.setBreedingCooldown(type, minutes);
+                            config.setAnyAnimalCooldown(animalId, minutes);
                             ctx.sendMessage(Message.raw("Set ").color("#55FF55")
-                                    .insert(Message.raw(type.name()).color("#FFFFFF"))
+                                    .insert(Message.raw(displayName).color("#FFFFFF"))
                                     .insert(Message.raw(" cooldown to: ").color("#55FF55"))
                                     .insert(Message.raw(minutes + " min").color("#FFFF55")));
                         } catch (NumberFormatException e) {
@@ -4671,13 +4724,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         /** /breedconfig addfood <animal> <item> */
         public static class AddFoodSubCommand extends AbstractCommand {
-            private final RequiredArg<AnimalType> animalArg;
+            private final RequiredArg<String> animalArg;
             private final RequiredArg<String> foodArg;
 
             public AddFoodSubCommand() {
                 super("addfood", "Add a breeding food to an animal");
-                animalArg = withRequiredArg("animal", "Animal type",
-                        ArgTypes.forEnum("animal", AnimalType.class));
+                animalArg = withRequiredArg("animal", "Animal name (built-in or custom)",
+                        ArgTypes.STRING);
                 foodArg = withRequiredArg("food", "Item ID or shortcut (e.g., Carrot, Wheat, Apple)",
                         ArgTypes.STRING);
             }
@@ -4690,12 +4743,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     return CompletableFuture.completedFuture(null);
                 }
 
-                AnimalType type = ctx.get(animalArg);
+                String animalId = ctx.get(animalArg);
                 String foodInput = ctx.get(foodArg);
 
-                // Null checks for arguments
-                if (type == null) {
-                    ctx.sendMessage(Message.raw("Invalid animal type!").color("#FF5555"));
+                // Use unified lookup
+                ConfigManager.AnimalLookupResult lookup = config.lookupAnimal(animalId);
+                if (lookup == null) {
+                    ctx.sendMessage(Message.raw("Unknown animal: ").color("#FF5555")
+                            .insert(Message.raw(animalId).color("#FFFFFF")));
+                    ctx.sendMessage(Message.raw("Use /breed custom add to register custom animals").color("#AAAAAA"));
                     return CompletableFuture.completedFuture(null);
                 }
                 if (foodInput == null || foodInput.isEmpty()) {
@@ -4706,25 +4762,25 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 // Resolve food shortcut
                 String food = resolveFoodShortcut(foodInput);
 
-                config.addBreedingFood(type, food);
+                config.addAnyAnimalFood(animalId, food);
                 ctx.sendMessage(Message.raw("Added ").color("#55FF55")
                         .insert(Message.raw(food).color("#FFFFFF"))
-                        .insert(Message.raw(" to " + type.name() + " breeding foods.").color("#55FF55")));
+                        .insert(Message.raw(" to " + lookup.getDisplayName() + " breeding foods.").color("#55FF55")));
                 ctx.sendMessage(Message.raw("Foods: ").color("#AAAAAA")
-                        .insert(Message.raw(String.join(", ", config.getBreedingFoods(type))).color("#FFFFFF")));
+                        .insert(Message.raw(String.join(", ", config.getAnyAnimalFoods(animalId))).color("#FFFFFF")));
                 return CompletableFuture.completedFuture(null);
             }
         }
 
         /** /breedconfig removefood <animal> <item> */
         public static class RemoveFoodSubCommand extends AbstractCommand {
-            private final RequiredArg<AnimalType> animalArg;
+            private final RequiredArg<String> animalArg;
             private final RequiredArg<String> foodArg;
 
             public RemoveFoodSubCommand() {
                 super("removefood", "Remove a breeding food from an animal");
-                animalArg = withRequiredArg("animal", "Animal type",
-                        ArgTypes.forEnum("animal", AnimalType.class));
+                animalArg = withRequiredArg("animal", "Animal name (built-in or custom)",
+                        ArgTypes.STRING);
                 foodArg = withRequiredArg("food", "Item ID or shortcut to remove",
                         ArgTypes.STRING);
             }
@@ -4737,12 +4793,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     return CompletableFuture.completedFuture(null);
                 }
 
-                AnimalType type = ctx.get(animalArg);
+                String animalId = ctx.get(animalArg);
                 String foodInput = ctx.get(foodArg);
 
-                // Null checks for arguments
-                if (type == null) {
-                    ctx.sendMessage(Message.raw("Invalid animal type!").color("#FF5555"));
+                // Use unified lookup
+                ConfigManager.AnimalLookupResult lookup = config.lookupAnimal(animalId);
+                if (lookup == null) {
+                    ctx.sendMessage(Message.raw("Unknown animal: ").color("#FF5555")
+                            .insert(Message.raw(animalId).color("#FFFFFF")));
+                    ctx.sendMessage(Message.raw("Use /breed custom add to register custom animals").color("#AAAAAA"));
                     return CompletableFuture.completedFuture(null);
                 }
                 if (foodInput == null || foodInput.isEmpty()) {
@@ -4753,20 +4812,20 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 // Resolve food shortcut
                 String food = resolveFoodShortcut(foodInput);
 
-                java.util.List<String> foods = config.getBreedingFoods(type);
+                java.util.List<String> foods = config.getAnyAnimalFoods(animalId);
                 if (foods.size() <= 1) {
                     ctx.sendMessage(Message.raw("Cannot remove last food. Use ").color("#FF5555")
-                            .insert(Message.raw("/breedconfig set food").color("#FFFFFF"))
+                            .insert(Message.raw("/breed config set food").color("#FFFFFF"))
                             .insert(Message.raw(" to replace instead.").color("#FF5555")));
                     return CompletableFuture.completedFuture(null);
                 }
 
-                config.removeBreedingFood(type, food);
+                config.removeAnyAnimalFood(animalId, food);
                 ctx.sendMessage(Message.raw("Removed ").color("#55FF55")
                         .insert(Message.raw(food).color("#FFFFFF"))
-                        .insert(Message.raw(" from " + type.name() + " breeding foods.").color("#55FF55")));
+                        .insert(Message.raw(" from " + lookup.getDisplayName() + " breeding foods.").color("#55FF55")));
                 ctx.sendMessage(Message.raw("Foods: ").color("#AAAAAA")
-                        .insert(Message.raw(String.join(", ", config.getBreedingFoods(type))).color("#FFFFFF")));
+                        .insert(Message.raw(String.join(", ", config.getAnyAnimalFoods(animalId))).color("#FFFFFF")));
                 return CompletableFuture.completedFuture(null);
             }
         }
