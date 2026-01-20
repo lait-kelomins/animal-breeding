@@ -706,7 +706,12 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                 (thisPos.getY() + otherPos.getY()) / 2.0,
                 (thisPos.getZ() + otherPos.getZ()) / 2.0
             );
-            spawnCustomAnimalBaby(modelAssetId, midpoint);
+
+            // Get the custom animal config for spawning
+            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+            CustomAnimalConfig customConfig = plugin != null ?
+                plugin.getConfigManager().getCustomAnimal(modelAssetId) : null;
+            spawnCustomAnimalBaby(modelAssetId, customConfig, midpoint);
             return;
         }
     }
@@ -715,23 +720,75 @@ public class FeedAnimalInteraction extends SimpleInteraction {
      * Spawn a baby custom animal at the given position.
      * For custom animals, we spawn the same NPC at a smaller scale.
      */
-    private void spawnCustomAnimalBaby(String modelAssetId, Vector3d position) {
+    private void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position) {
         try {
             World world = Universe.get().getDefaultWorld();
             if (world == null) return;
 
             final String finalModelAssetId = modelAssetId;
+            final CustomAnimalConfig finalConfig = customConfig;
 
             world.execute(() -> {
                 try {
                     Store<EntityStore> store = world.getEntityStore().getStore();
 
                     NPCPlugin npcPlugin = NPCPlugin.get();
-                    // Try to find the NPC role for this model asset ID
-                    int roleIndex = npcPlugin.getIndex(finalModelAssetId);
+
+                    // Try multiple role names in order of preference
+                    int roleIndex = -1;
+                    String usedRoleName = null;
+
+                    // 1. Try configured adultNpcRoleId first
+                    if (finalConfig != null && finalConfig.getAdultNpcRoleId() != null) {
+                        roleIndex = npcPlugin.getIndex(finalConfig.getAdultNpcRoleId());
+                        if (roleIndex >= 0) {
+                            usedRoleName = finalConfig.getAdultNpcRoleId();
+                            log("Found NPC role via adultNpcRoleId: " + usedRoleName);
+                        }
+                    }
+
+                    // 2. Try the model asset ID directly
+                    if (roleIndex < 0) {
+                        roleIndex = npcPlugin.getIndex(finalModelAssetId);
+                        if (roleIndex >= 0) {
+                            usedRoleName = finalModelAssetId;
+                            log("Found NPC role via modelAssetId: " + usedRoleName);
+                        }
+                    }
+
+                    // 3. Try common variations - remove common prefixes
+                    if (roleIndex < 0) {
+                        String[] prefixesToRemove = {"VgSlime_", "MA_", "Vg_", "Mod_"};
+                        String baseName = finalModelAssetId;
+                        for (String prefix : prefixesToRemove) {
+                            if (baseName.startsWith(prefix)) {
+                                baseName = baseName.substring(prefix.length());
+                            }
+                        }
+                        if (!baseName.equals(finalModelAssetId)) {
+                            roleIndex = npcPlugin.getIndex(baseName);
+                            if (roleIndex >= 0) {
+                                usedRoleName = baseName;
+                                log("Found NPC role via simplified name: " + usedRoleName);
+                            }
+                        }
+                    }
+
+                    // 4. Try with _Adult suffix
+                    if (roleIndex < 0) {
+                        String adultName = finalModelAssetId + "_Adult";
+                        roleIndex = npcPlugin.getIndex(adultName);
+                        if (roleIndex >= 0) {
+                            usedRoleName = adultName;
+                            log("Found NPC role via _Adult suffix: " + usedRoleName);
+                        }
+                    }
 
                     if (roleIndex < 0) {
-                        log("No NPC role found for custom animal: " + finalModelAssetId + ", cannot spawn baby");
+                        log("No NPC role found for custom animal: " + finalModelAssetId);
+                        log("  Tried: adultNpcRoleId=" + (finalConfig != null ? finalConfig.getAdultNpcRoleId() : "null"));
+                        log("  Tried: modelAssetId=" + finalModelAssetId);
+                        log("  TIP: Use '/breed custom setrole " + finalModelAssetId + " <role_name>' to set the NPC role");
                         return;
                     }
 

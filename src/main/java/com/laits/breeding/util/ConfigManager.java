@@ -1810,6 +1810,75 @@ public class ConfigManager {
         }
     }
 
+    /**
+     * Set the NPC role ID for a custom animal (used for spawning babies).
+     * @param modelAssetId The model asset ID of the custom animal
+     * @param roleId The NPC role ID to use when spawning this animal
+     */
+    public void setCustomAnimalNpcRole(String modelAssetId, String roleId) {
+        CustomAnimalConfig existing = customAnimals.get(modelAssetId);
+        if (existing != null) {
+            customAnimals.put(modelAssetId, new CustomAnimalConfig(
+                existing.getModelAssetId(),
+                existing.getDisplayName(),
+                existing.getBreedingFoods(),
+                existing.getGrowthTimeMinutes(),
+                existing.getBreedCooldownMinutes(),
+                existing.getBabyNpcRoleId(),
+                roleId,  // Set the new adult NPC role ID
+                existing.isMountable(),
+                existing.isEnabled()
+            ));
+            log("Set NPC role for " + modelAssetId + " to: " + roleId);
+        }
+    }
+
+    /**
+     * Set the growth time for a custom animal in minutes.
+     * @param modelAssetId The model asset ID of the custom animal
+     * @param growthTimeMinutes The growth time in minutes
+     */
+    public void setCustomAnimalGrowthTime(String modelAssetId, double growthTimeMinutes) {
+        CustomAnimalConfig existing = customAnimals.get(modelAssetId);
+        if (existing != null) {
+            customAnimals.put(modelAssetId, new CustomAnimalConfig(
+                existing.getModelAssetId(),
+                existing.getDisplayName(),
+                existing.getBreedingFoods(),
+                growthTimeMinutes,  // Set the new growth time
+                existing.getBreedCooldownMinutes(),
+                existing.getBabyNpcRoleId(),
+                existing.getAdultNpcRoleId(),
+                existing.isMountable(),
+                existing.isEnabled()
+            ));
+            log("Set growth time for " + modelAssetId + " to: " + growthTimeMinutes + " min");
+        }
+    }
+
+    /**
+     * Set the breeding cooldown for a custom animal in minutes.
+     * @param modelAssetId The model asset ID of the custom animal
+     * @param cooldownMinutes The cooldown time in minutes
+     */
+    public void setCustomAnimalCooldown(String modelAssetId, double cooldownMinutes) {
+        CustomAnimalConfig existing = customAnimals.get(modelAssetId);
+        if (existing != null) {
+            customAnimals.put(modelAssetId, new CustomAnimalConfig(
+                existing.getModelAssetId(),
+                existing.getDisplayName(),
+                existing.getBreedingFoods(),
+                existing.getGrowthTimeMinutes(),
+                cooldownMinutes,  // Set the new cooldown
+                existing.getBabyNpcRoleId(),
+                existing.getAdultNpcRoleId(),
+                existing.isMountable(),
+                existing.isEnabled()
+            ));
+            log("Set cooldown for " + modelAssetId + " to: " + cooldownMinutes + " min");
+        }
+    }
+
     // ===========================================
     // LEGACY MESSAGE METHODS (kept for compatibility)
     // ===========================================

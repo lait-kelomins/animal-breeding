@@ -3541,6 +3541,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 addSubCommand(new CustomAnimalCommand.CustomAnimalAddFoodCommand());
                 addSubCommand(new CustomAnimalCommand.CustomAnimalRemoveFoodCommand());
                 addSubCommand(new CustomAnimalCommand.CustomAnimalScanCommand());
+                addSubCommand(new CustomAnimalCommand.CustomAnimalSetRoleCommand());
+                addSubCommand(new CustomAnimalCommand.CustomAnimalSetGrowthCommand());
+                addSubCommand(new CustomAnimalCommand.CustomAnimalSetCooldownCommand());
             }
 
             @Override
@@ -3556,6 +3559,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         .insert(Message.raw(" - List added custom animals").color("#AAAAAA")));
                 ctx.sendMessage(Message.raw("/breed custom info <model>").color("#FFFFFF")
                         .insert(Message.raw(" - Show details").color("#AAAAAA")));
+                ctx.sendMessage(Message.raw("/breed custom setrole <model> <role>").color("#FFFFFF")
+                        .insert(Message.raw(" - Set NPC role for spawning").color("#AAAAAA")));
+                ctx.sendMessage(Message.raw("/breed custom setgrowth <model> <min>").color("#FFFFFF")
+                        .insert(Message.raw(" - Set growth time").color("#AAAAAA")));
+                ctx.sendMessage(Message.raw("/breed custom setcooldown <model> <min>").color("#FFFFFF")
+                        .insert(Message.raw(" - Set breeding cooldown").color("#AAAAAA")));
                 ctx.sendMessage(Message.raw("Run ").color("#AAAAAA")
                         .insert(Message.raw("/breed custom scan").color("#FFFF55"))
                         .insert(Message.raw(" first to find creature names!").color("#AAAAAA")));
@@ -5040,6 +5049,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             addSubCommand(new CustomAnimalAddFoodCommand());
             addSubCommand(new CustomAnimalRemoveFoodCommand());
             addSubCommand(new CustomAnimalScanCommand());
+            addSubCommand(new CustomAnimalSetRoleCommand());
+            addSubCommand(new CustomAnimalSetGrowthCommand());
+            addSubCommand(new CustomAnimalSetCooldownCommand());
         }
 
         @Override
@@ -5465,6 +5477,128 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     }
                 });
 
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        /** /customanimal setrole <modelAssetId> <roleId> - Set the NPC role for spawning */
+        public static class CustomAnimalSetRoleCommand extends AbstractCommand {
+            private final RequiredArg<String> modelArg;
+            private final RequiredArg<String> roleArg;
+
+            public CustomAnimalSetRoleCommand() {
+                super("setrole", "Set the NPC role ID for spawning babies");
+                modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
+                roleArg = withRequiredArg("roleId", "NPC role ID", ArgTypes.STRING);
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String modelId = ctx.get(modelArg);
+                String roleId = ctx.get(roleArg);
+
+                if (!plugin.getConfigManager().isCustomAnimal(modelId)) {
+                    ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
+                    ctx.sendMessage(Message.raw("Use /breed custom add first").color("#AAAAAA"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                plugin.getConfigManager().setCustomAnimalNpcRole(modelId, roleId);
+                ctx.sendMessage(Message.raw("Set NPC role for ").color("#55FF55")
+                        .insert(Message.raw(modelId).color("#FFFFFF"))
+                        .insert(Message.raw(" to ").color("#55FF55"))
+                        .insert(Message.raw(roleId).color("#FFAA00")));
+                ctx.sendMessage(Message.raw("Use /breed config save to persist").color("#AAAAAA"));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        /** /customanimal setgrowth <modelAssetId> <minutes> - Set the growth time */
+        public static class CustomAnimalSetGrowthCommand extends AbstractCommand {
+            private final RequiredArg<String> modelArg;
+            private final RequiredArg<Double> timeArg;
+
+            public CustomAnimalSetGrowthCommand() {
+                super("setgrowth", "Set growth time in minutes");
+                modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
+                timeArg = withRequiredArg("minutes", "Growth time in minutes", ArgTypes.DOUBLE);
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String modelId = ctx.get(modelArg);
+                double minutes = ctx.get(timeArg);
+
+                if (!plugin.getConfigManager().isCustomAnimal(modelId)) {
+                    ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                if (minutes <= 0) {
+                    ctx.sendMessage(Message.raw("Growth time must be positive").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                plugin.getConfigManager().setCustomAnimalGrowthTime(modelId, minutes);
+                ctx.sendMessage(Message.raw("Set growth time for ").color("#55FF55")
+                        .insert(Message.raw(modelId).color("#FFFFFF"))
+                        .insert(Message.raw(" to ").color("#55FF55"))
+                        .insert(Message.raw(minutes + " min").color("#FFAA00")));
+                ctx.sendMessage(Message.raw("Use /breed config save to persist").color("#AAAAAA"));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        /** /customanimal setcooldown <modelAssetId> <minutes> - Set the breeding cooldown */
+        public static class CustomAnimalSetCooldownCommand extends AbstractCommand {
+            private final RequiredArg<String> modelArg;
+            private final RequiredArg<Double> timeArg;
+
+            public CustomAnimalSetCooldownCommand() {
+                super("setcooldown", "Set breeding cooldown in minutes");
+                modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
+                timeArg = withRequiredArg("minutes", "Cooldown in minutes", ArgTypes.DOUBLE);
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String modelId = ctx.get(modelArg);
+                double minutes = ctx.get(timeArg);
+
+                if (!plugin.getConfigManager().isCustomAnimal(modelId)) {
+                    ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                if (minutes < 0) {
+                    ctx.sendMessage(Message.raw("Cooldown must be non-negative").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                plugin.getConfigManager().setCustomAnimalCooldown(modelId, minutes);
+                ctx.sendMessage(Message.raw("Set cooldown for ").color("#55FF55")
+                        .insert(Message.raw(modelId).color("#FFFFFF"))
+                        .insert(Message.raw(" to ").color("#55FF55"))
+                        .insert(Message.raw(minutes + " min").color("#FFAA00")));
+                ctx.sendMessage(Message.raw("Use /breed config save to persist").color("#AAAAAA"));
                 return CompletableFuture.completedFuture(null);
             }
         }
