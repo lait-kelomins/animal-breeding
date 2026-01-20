@@ -31,6 +31,7 @@ import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.TamingManager;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
+import com.laits.breeding.models.CustomAnimalConfig;
 import com.laits.breeding.models.GrowthStage;
 import com.laits.breeding.models.TamedAnimalData;
 
@@ -78,6 +79,14 @@ public class FeedAnimalInteraction extends SimpleInteraction {
         InteractionContext context,
         CooldownHandler cooldownHandler
     ) {
+        // Always log when interaction is triggered (for debugging)
+        if (firstRun) {
+            LaitsBreedingPlugin p = LaitsBreedingPlugin.getInstance();
+            if (p != null) {
+                p.getLogger().atInfo().log("[FeedAnimal] tick0 triggered! firstRun=%s, type=%s", firstRun, type);
+            }
+        }
+
         if (firstRun) {
             shouldFail = false;
             failedTargetRef = null;
@@ -114,10 +123,23 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                 String itemId = heldItem != null ? heldItem.getItemId() : null;
                 log("Held item: " + (heldItem != null ? heldItem.getClass().getSimpleName() : "null") + ", itemId: " + itemId);
 
-                AnimalType animalType = getAnimalTypeFromEntity(targetRef);
+                // Get model asset ID and check for both enum animals and custom animals
+                String modelAssetId = getModelAssetIdFromEntity(targetRef);
+                AnimalType animalType = modelAssetId != null ? AnimalType.fromModelAssetId(modelAssetId) : null;
+                CustomAnimalConfig customAnimal = null;
+
+                log("Model asset ID: " + modelAssetId);
                 log("Animal type: " + (animalType != null ? animalType.name() : "null"));
 
-                if (animalType == null) {
+                // If not a known animal type, check for custom animal
+                if (animalType == null && modelAssetId != null && plugin.getConfigManager() != null) {
+                    customAnimal = plugin.getConfigManager().getCustomAnimal(modelAssetId);
+                    if (customAnimal != null) {
+                        log("Found custom animal: " + customAnimal.getDisplayName());
+                    }
+                }
+
+                if (animalType == null && customAnimal == null) {
                     log("Not a breedable animal, triggering fallback");
                     shouldFail = true;
                     failedTargetRef = targetRef;
@@ -190,14 +212,16 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                             return;
                         }
 
-                        // Tame the animal
+                        // Tame the animal (use animalType if available, otherwise null for custom animals)
                         TamedAnimalData tamedData = tamingManager.tameAnimal(animalUuid, playerUuid, pendingName, animalType);
                         if (tamedData != null) {
-                            // Update breeding data too
-                            BreedingData bData = breeding.getOrCreateData(animalUuid, animalType);
-                            bData.setTamed(true, playerUuid);
-                            bData.setCustomName(pendingName);
-                            bData.setEntityRef(targetRef);
+                            // Update breeding data too (only for known animal types)
+                            if (animalType != null) {
+                                BreedingData bData = breeding.getOrCreateData(animalUuid, animalType);
+                                bData.setTamed(true, playerUuid);
+                                bData.setCustomName(pendingName);
+                                bData.setEntityRef(targetRef);
+                            }
 
                             // Update position in tamed data
                             Vector3d pos = getEntityPosition(targetRef);
@@ -231,14 +255,21 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     }
                 }
 
-                // Check if holding correct food
+                // Check if holding correct food (for both regular and custom animals)
                 boolean isCorrectFood = false;
-                if (plugin.getConfigManager() != null) {
-                    isCorrectFood = itemId != null && plugin.getConfigManager().isBreedingFood(animalType, itemId);
-                    log("Valid foods: " + plugin.getConfigManager().getBreedingFoods(animalType) + ", isCorrectFood: " + isCorrectFood);
-                } else {
-                    isCorrectFood = itemId != null && animalType.isBreedingFood(itemId);
-                    log("Expected food (fallback): " + animalType.getBreedingFood() + ", isCorrectFood: " + isCorrectFood);
+                if (animalType != null) {
+                    // Regular animal type
+                    if (plugin.getConfigManager() != null) {
+                        isCorrectFood = itemId != null && plugin.getConfigManager().isBreedingFood(animalType, itemId);
+                        log("Valid foods: " + plugin.getConfigManager().getBreedingFoods(animalType) + ", isCorrectFood: " + isCorrectFood);
+                    } else {
+                        isCorrectFood = itemId != null && animalType.isBreedingFood(itemId);
+                        log("Expected food (fallback): " + animalType.getBreedingFood() + ", isCorrectFood: " + isCorrectFood);
+                    }
+                } else if (customAnimal != null) {
+                    // Custom animal from config
+                    isCorrectFood = itemId != null && customAnimal.isBreedingFood(itemId);
+                    log("Custom animal valid foods: " + customAnimal.getBreedingFoods() + ", isCorrectFood: " + isCorrectFood);
                 }
 
                 if (!isCorrectFood) {
@@ -252,31 +283,43 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                 log("Correct food! Proceeding with breeding");
 
                 UUID animalId = getUuidFromRef(targetRef);
-                BreedingManager.FeedResult result = breeding.tryFeed(animalId, animalType, itemId, targetRef);
 
-                switch (result) {
-                    case SUCCESS:
-                        spawnHeartParticles(targetRef);
-                        checkForMateAndBreedInstantly(breeding, animalId, animalType, targetRef);
-                        playSoundAndConsumeItem(plugin, context, targetRef);
-                        break;
+                // Handle breeding differently for regular vs custom animals
+                if (animalType != null) {
+                    // Regular animal - use full breeding system
+                    BreedingManager.FeedResult result = breeding.tryFeed(animalId, animalType, itemId, targetRef);
 
-                    case ALREADY_IN_LOVE:
-                        spawnHeartParticles(targetRef);
-                        playSoundAndConsumeItem(plugin, context, targetRef);
-                        break;
+                    switch (result) {
+                        case SUCCESS:
+                            spawnHeartParticles(targetRef);
+                            checkForMateAndBreedInstantly(breeding, animalId, animalType, targetRef);
+                            playSoundAndConsumeItem(plugin, context, targetRef);
+                            break;
 
-                    case ON_COOLDOWN:
-                    case NOT_ADULT:
-                        shouldFail = true;
-                        failedTargetRef = targetRef;
-                        return;
+                        case ALREADY_IN_LOVE:
+                            spawnHeartParticles(targetRef);
+                            playSoundAndConsumeItem(plugin, context, targetRef);
+                            break;
 
-                    case WRONG_FOOD:
-                        shouldFail = true;
-                        failedTargetRef = targetRef;
-                        triggerFallbackInteraction(context, targetRef, animalType);
-                        return;
+                        case ON_COOLDOWN:
+                        case NOT_ADULT:
+                            shouldFail = true;
+                            failedTargetRef = targetRef;
+                            return;
+
+                        case WRONG_FOOD:
+                            shouldFail = true;
+                            failedTargetRef = targetRef;
+                            triggerFallbackInteraction(context, targetRef, animalType);
+                            return;
+                    }
+                } else if (customAnimal != null) {
+                    // Custom animal - simplified breeding (hearts + sound + consume)
+                    // Full mate finding and baby spawning for custom animals requires additional implementation
+                    log("Feeding custom animal: " + customAnimal.getDisplayName());
+                    spawnHeartParticles(targetRef);
+                    playSoundAndConsumeItem(plugin, context, targetRef);
+                    // TODO: Implement full breeding for custom animals (find mate, spawn baby)
                 }
 
             } catch (Exception e) {
@@ -739,7 +782,11 @@ public class FeedAnimalInteraction extends SimpleInteraction {
         return false;
     }
 
-    private AnimalType getAnimalTypeFromEntity(Ref<EntityStore> targetRef) {
+    /**
+     * Extract the model asset ID from an entity (e.g., "Cow", "Sheep", "CustomCreature").
+     * Returns null if unable to determine.
+     */
+    private String getModelAssetIdFromEntity(Ref<EntityStore> targetRef) {
         try {
             Store<EntityStore> store = targetRef.getStore();
             if (store == null) return null;
@@ -759,13 +806,16 @@ public class FeedAnimalInteraction extends SimpleInteraction {
             start += 14;
             int end = modelStr.indexOf("'", start);
             if (end <= start) return null;
-            String modelAssetId = modelStr.substring(start, end);
-
-            return AnimalType.fromModelAssetId(modelAssetId);
+            return modelStr.substring(start, end);
 
         } catch (Exception e) {
             return null;
         }
+    }
+
+    private AnimalType getAnimalTypeFromEntity(Ref<EntityStore> targetRef) {
+        String modelAssetId = getModelAssetIdFromEntity(targetRef);
+        return modelAssetId != null ? AnimalType.fromModelAssetId(modelAssetId) : null;
     }
 
     // ===========================================

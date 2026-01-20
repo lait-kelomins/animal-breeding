@@ -134,5 +134,17 @@
 
     "DRAGON_FIRE": { "enabled": false, "breedingFoods": ["Food_Wildmeat_Cooked"], "growthTimeMinutes": 180.0, "breedCooldownMinutes": 60.0 },
     "DRAGON_FROST": { "enabled": false, "breedingFoods": ["Food_Fish_Raw", "Food_Wildmeat_Cooked"], "growthTimeMinutes": 180.0, "breedCooldownMinutes": 60.0 }
+  },
+
+  "_customAnimals_comment": "Add creatures from other mods here. Use their exact model asset ID as the key.",
+  "customAnimals": {
+    "_ExampleCreature": {
+      "enabled": false,
+      "displayName": "Example Creature",
+      "breedingFoods": ["Plant_Crop_Wheat_Item", "Plant_Fruit_Apple"],
+      "growthTimeMinutes": 30.0,
+      "breedCooldownMinutes": 5.0,
+      "mountable": false
+    }
   }
 }

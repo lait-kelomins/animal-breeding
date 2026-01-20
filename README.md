@@ -52,6 +52,7 @@
 *   **Breeding cooldown** - Parents need time to rest before breeding again
 *   **49 animal types** - All livestock plus wild animals (wolves, bears, deer, birds, etc.)
 *   **Multiple breeding foods** - Each animal can accept multiple food items
+*   **Custom animals** - Add creatures from other mods via `/customanimal` commands
 *   **Preset system** - Quick configuration with built-in presets
 *   **Fully configurable** - Customize everything via JSON config or in-game commands
 
@@ -130,35 +131,80 @@ Configure animals with `/breedconfig` commands, then run `/breedconfig preset sa
 
 ## Commands
 
-### Basic
+All commands use the unified `/breed` prefix for easy discovery.
+
+### Main Commands
 
 ```
-/laitsbreeding                        Show help and breeding foods
-/breedstatus                          View tracked animals and stats
-/breedgrowth                          Toggle baby growth on/off
+/breed                                Show help
+/breed help                           Show help
+/breed status                         View tracked animals and stats
+/breed growth                         Toggle baby growth on/off
+```
+
+### Taming
+
+```
+/breed tame <name>                    Prepare to tame and name an animal
+/breed untame                         Release a tamed animal
+/breed info                           Show taming information
+/breed settings                       Taming settings
 ```
 
 ### Configuration
 
 ```
-/breedconfig                          Show config summary
-/breedconfig list [category]          List animals by category
-/breedconfig info <animal>            Show detailed animal info
-/breedconfig reload                   Reload config from file
-/breedconfig save                     Save current config to file
+/breed config                         Show config summary
+/breed config list [category]         List animals by category
+/breed config info <animal>           Show detailed animal info
+/breed config reload                  Reload config from file
+/breed config save                    Save current config to file
+/breed config enable <animal|ALL>     Enable breeding
+/breed config disable <animal|ALL>    Disable breeding
+/breed config set <animal> food <item>      Set primary food
+/breed config set <animal> growth <min>     Set growth time
+/breed config set <animal> cooldown <min>   Set cooldown
+/breed config addfood <animal> <item>       Add breeding food
+/breed config removefood <animal> <item>    Remove breeding food
 ```
 
-### Animal Management
+### Custom Animals (Other Mods)
+
+Add creatures from other mods to the breeding system by their model asset ID.
 
 ```
-/breedconfig enable <animal|category|ALL>     Enable breeding
-/breedconfig disable <animal|category|ALL>    Disable breeding
-/breedconfig set <animal> food <item>         Set primary food
-/breedconfig set <animal> growth <minutes>    Set growth time
-/breedconfig set <animal> cooldown <minutes>  Set cooldown
-/breedconfig addfood <animal> <item>          Add breeding food
-/breedconfig removefood <animal> <item>       Remove breeding food
+/breed custom add <model> <food> [food2] [food3]   Add a custom animal
+/breed custom remove <model>                       Remove a custom animal
+/breed custom list                                 List all custom animals
+/breed custom info <model>                         Show custom animal details
+/breed custom enable <model>                       Enable a custom animal
+/breed custom disable <model>                      Disable a custom animal
+/breed custom addfood <model> <food>               Add a breeding food
+/breed custom removefood <model> <food>            Remove a breeding food
 ```
+
+**Example:** To add a creature called "Unicorn" from another mod:
+```
+/breed custom add Unicorn apple carrot
+```
+
+Custom animals are saved to the config file and persist across restarts.
+
+### Legacy Commands (Deprecated)
+
+The following commands still work but show deprecation warnings:
+
+| Old Command | New Command |
+|-------------|-------------|
+| `/laitsbreeding` | `/breed` |
+| `/breedstatus` | `/breed status` |
+| `/breedgrowth` | `/breed growth` |
+| `/breedconfig` | `/breed config` |
+| `/nametag` | `/breed tame` |
+| `/untame` | `/breed untame` |
+| `/taminginfo` | `/breed info` |
+| `/tamingsettings` | `/breed settings` |
+| `/customanimal` | `/breed custom` |
 
 ***
 
@@ -189,16 +235,14 @@ Config file: `mods/laits-breeding-config.json`
 
 ## Roadmap
 
-**Done:** Configurable timing, multiple breeding foods, external preset files, all creatures breeding, heart particles
+**Done:** Configurable timing, multiple breeding foods, external preset files, all creatures breeding, heart particles, custom animals from other mods
 
 **Planned:**
 
-*   Taming to make domesticated animals follow you
 *   Feed babies to make them grow faster
 *   Advanced config (custom scales per growth stage, baby models/NPCs, offsprings count)
 *   Animal wellness (pet your animals, build trust, mood affects breeding)
 *   Genetics system (babies inherit traits and appearance from parents)
-*   Cross-compatibility testing with other mods
 
 ***
 

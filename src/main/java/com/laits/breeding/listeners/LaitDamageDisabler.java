@@ -27,7 +27,7 @@ import java.util.Objects;
 import java.util.Set;
 import javax.annotation.Nonnull;
 
-public class LaitDamageDisabler extends DamageEventSystem implements StatModifyingSystem {
+public class LaitDamageDisabler extends DeathSystems {
     @Nonnull
     private static final Query QUERY = EntityStatMap.getComponentType();
     @Nonnull
@@ -41,7 +41,7 @@ public class LaitDamageDisabler extends DamageEventSystem implements StatModifyi
 
     @Nonnull
     public Set getDependencies() {
-        return DEPENDENCIES;
+        return Set.of(new SystemGroupDependency(Order.AFTER, DamageModule.get().getInspectDamageGroup()), new SystemDependency(Order.BEFORE, DeathSystems.ClearHealth.class));
     }
 
     public void handle(int index, @Nonnull ArchetypeChunk archetypeChunk, @Nonnull Store store,

@@ -1,6 +1,7 @@
 package com.laits.breeding.util;
 
 import com.laits.breeding.models.AnimalType;
+import com.laits.breeding.models.CustomAnimalConfig;
 import com.laits.breeding.models.GrowthStage;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -25,6 +26,7 @@ public class ConfigManager {
 
     // Config data
     private final Map<AnimalType, AnimalConfig> animalConfigs = new EnumMap<>(AnimalType.class);
+    private final Map<String, CustomAnimalConfig> customAnimals = new HashMap<>();  // key = modelAssetId
     private double defaultGrowthTimeMinutes = 30.0;
     private double defaultBreedCooldownMinutes = 5.0;
     private boolean debugMode = false;
@@ -415,6 +417,51 @@ public class ConfigManager {
                     }
                 }
             }
+
+            // Load custom animals (for mod support)
+            if (root.has("customAnimals")) {
+                customAnimals.clear();
+                JsonObject customAnimalsJson = root.getAsJsonObject("customAnimals");
+                for (String modelAssetId : customAnimalsJson.keySet()) {
+                    try {
+                        JsonObject customJson = customAnimalsJson.getAsJsonObject(modelAssetId);
+
+                        // Parse breeding foods
+                        List<String> foods = new ArrayList<>();
+                        if (customJson.has("breedingFoods")) {
+                            for (JsonElement elem : customJson.getAsJsonArray("breedingFoods")) {
+                                foods.add(elem.getAsString());
+                            }
+                        }
+
+                        // Parse other fields with defaults
+                        String displayName = customJson.has("displayName")
+                            ? customJson.get("displayName").getAsString() : modelAssetId;
+                        double growthTime = customJson.has("growthTimeMinutes")
+                            ? customJson.get("growthTimeMinutes").getAsDouble() : defaultGrowthTimeMinutes;
+                        double breedCooldown = customJson.has("breedCooldownMinutes")
+                            ? customJson.get("breedCooldownMinutes").getAsDouble() : defaultBreedCooldownMinutes;
+                        String babyNpcRole = customJson.has("babyNpcRoleId")
+                            ? customJson.get("babyNpcRoleId").getAsString() : null;
+                        String adultNpcRole = customJson.has("adultNpcRoleId")
+                            ? customJson.get("adultNpcRoleId").getAsString() : modelAssetId;
+                        boolean mountable = customJson.has("mountable")
+                            && customJson.get("mountable").getAsBoolean();
+                        boolean enabled = !customJson.has("enabled")
+                            || customJson.get("enabled").getAsBoolean();
+
+                        CustomAnimalConfig customConfig = new CustomAnimalConfig(
+                            modelAssetId, displayName, foods, growthTime, breedCooldown,
+                            babyNpcRole, adultNpcRole, mountable, enabled
+                        );
+                        customAnimals.put(modelAssetId, customConfig);
+                        log("Loaded custom animal: " + modelAssetId);
+                    } catch (Exception e) {
+                        log("Error parsing custom animal " + modelAssetId + ": " + e.getMessage());
+                    }
+                }
+                log("Loaded " + customAnimals.size() + " custom animals");
+            }
         } catch (Exception e) {
             log("Error parsing config JSON: " + e.getMessage());
         }
@@ -476,6 +523,38 @@ public class ConfigManager {
             }
         }
         root.add("animals", animals);
+
+        // Custom animals (for mod support)
+        if (!customAnimals.isEmpty()) {
+            JsonObject customAnimalsJson = new JsonObject();
+            for (CustomAnimalConfig custom : customAnimals.values()) {
+                JsonObject customJson = new JsonObject();
+                customJson.addProperty("enabled", custom.isEnabled());
+                customJson.addProperty("displayName", custom.getDisplayName());
+
+                JsonArray foodsArray = new JsonArray();
+                for (String food : custom.getBreedingFoods()) {
+                    foodsArray.add(food);
+                }
+                customJson.add("breedingFoods", foodsArray);
+
+                customJson.addProperty("growthTimeMinutes", custom.getGrowthTimeMinutes());
+                customJson.addProperty("breedCooldownMinutes", custom.getBreedCooldownMinutes());
+
+                if (custom.getBabyNpcRoleId() != null) {
+                    customJson.addProperty("babyNpcRoleId", custom.getBabyNpcRoleId());
+                }
+                if (!custom.getAdultNpcRoleId().equals(custom.getModelAssetId())) {
+                    customJson.addProperty("adultNpcRoleId", custom.getAdultNpcRoleId());
+                }
+                if (custom.isMountable()) {
+                    customJson.addProperty("mountable", true);
+                }
+
+                customAnimalsJson.add(custom.getModelAssetId(), customJson);
+            }
+            root.add("customAnimals", customAnimalsJson);
+        }
 
         return GSON.toJson(root);
     }
@@ -1321,6 +1400,62 @@ public class ConfigManager {
         return config != null && config.enabled;
     }
 
+    // ===========================================
+    // CUSTOM ANIMAL GETTERS
+    // ===========================================
+
+    /**
+     * Get a custom animal config by model asset ID.
+     * @return CustomAnimalConfig or null if not found
+     */
+    public CustomAnimalConfig getCustomAnimal(String modelAssetId) {
+        return customAnimals.get(modelAssetId);
+    }
+
+    /**
+     * Check if a model asset ID is a registered custom animal.
+     */
+    public boolean isCustomAnimal(String modelAssetId) {
+        return customAnimals.containsKey(modelAssetId);
+    }
+
+    /**
+     * Check if a custom animal is enabled for breeding.
+     */
+    public boolean isCustomAnimalEnabled(String modelAssetId) {
+        CustomAnimalConfig custom = customAnimals.get(modelAssetId);
+        return custom != null && custom.isEnabled();
+    }
+
+    /**
+     * Get all registered custom animals.
+     */
+    public Map<String, CustomAnimalConfig> getCustomAnimals() {
+        return Collections.unmodifiableMap(customAnimals);
+    }
+
+    /**
+     * Get breeding cooldown for a custom animal in milliseconds.
+     */
+    public long getCustomAnimalBreedingCooldown(String modelAssetId) {
+        CustomAnimalConfig custom = customAnimals.get(modelAssetId);
+        if (custom != null) {
+            return (long) (custom.getBreedCooldownMinutes() * 60 * 1000);
+        }
+        return (long) (defaultBreedCooldownMinutes * 60 * 1000);
+    }
+
+    /**
+     * Get growth time for a custom animal in milliseconds.
+     */
+    public long getCustomAnimalGrowthTime(String modelAssetId) {
+        CustomAnimalConfig custom = customAnimals.get(modelAssetId);
+        if (custom != null) {
+            return (long) (custom.getGrowthTimeMinutes() * 60 * 1000);
+        }
+        return (long) (defaultGrowthTimeMinutes * 60 * 1000);
+    }
+
     /**
      * Get the primary breeding food for an animal type (first in list).
      */
@@ -1538,6 +1673,141 @@ public class ConfigManager {
      */
     public Map<AnimalType, AnimalConfig> getAllAnimalConfigs() {
         return new EnumMap<>(animalConfigs);
+    }
+
+    // ===========================================
+    // CUSTOM ANIMAL SETTERS
+    // ===========================================
+
+    /**
+     * Add a new custom animal or update an existing one.
+     * @param modelAssetId The exact model asset ID of the creature
+     * @param breedingFoods List of valid breeding foods
+     * @return The created/updated CustomAnimalConfig
+     */
+    public CustomAnimalConfig addCustomAnimal(String modelAssetId, List<String> breedingFoods) {
+        CustomAnimalConfig config = new CustomAnimalConfig(
+            modelAssetId,
+            modelAssetId,  // displayName defaults to modelAssetId
+            breedingFoods,
+            defaultGrowthTimeMinutes,
+            defaultBreedCooldownMinutes,
+            null,  // no baby NPC role
+            modelAssetId,  // adult NPC role
+            false,  // not mountable by default
+            true   // enabled by default
+        );
+        customAnimals.put(modelAssetId, config);
+        log("Added custom animal: " + modelAssetId + " with foods: " + breedingFoods);
+        return config;
+    }
+
+    /**
+     * Add a custom animal with full configuration.
+     */
+    public CustomAnimalConfig addCustomAnimal(
+            String modelAssetId,
+            String displayName,
+            List<String> breedingFoods,
+            double growthTimeMinutes,
+            double breedCooldownMinutes,
+            boolean mountable
+    ) {
+        CustomAnimalConfig config = new CustomAnimalConfig(
+            modelAssetId,
+            displayName,
+            breedingFoods,
+            growthTimeMinutes,
+            breedCooldownMinutes,
+            null,  // no baby NPC role
+            modelAssetId,
+            mountable,
+            true
+        );
+        customAnimals.put(modelAssetId, config);
+        log("Added custom animal: " + modelAssetId);
+        return config;
+    }
+
+    /**
+     * Remove a custom animal.
+     * @return true if removed, false if not found
+     */
+    public boolean removeCustomAnimal(String modelAssetId) {
+        CustomAnimalConfig removed = customAnimals.remove(modelAssetId);
+        if (removed != null) {
+            log("Removed custom animal: " + modelAssetId);
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Enable or disable a custom animal.
+     */
+    public void setCustomAnimalEnabled(String modelAssetId, boolean enabled) {
+        CustomAnimalConfig existing = customAnimals.get(modelAssetId);
+        if (existing != null) {
+            // Recreate with new enabled status
+            customAnimals.put(modelAssetId, new CustomAnimalConfig(
+                existing.getModelAssetId(),
+                existing.getDisplayName(),
+                existing.getBreedingFoods(),
+                existing.getGrowthTimeMinutes(),
+                existing.getBreedCooldownMinutes(),
+                existing.getBabyNpcRoleId(),
+                existing.getAdultNpcRoleId(),
+                existing.isMountable(),
+                enabled
+            ));
+        }
+    }
+
+    /**
+     * Add a breeding food to a custom animal.
+     */
+    public void addCustomAnimalFood(String modelAssetId, String food) {
+        CustomAnimalConfig existing = customAnimals.get(modelAssetId);
+        if (existing != null) {
+            List<String> foods = new ArrayList<>(existing.getBreedingFoods());
+            if (!foods.contains(food)) {
+                foods.add(food);
+                customAnimals.put(modelAssetId, new CustomAnimalConfig(
+                    existing.getModelAssetId(),
+                    existing.getDisplayName(),
+                    foods,
+                    existing.getGrowthTimeMinutes(),
+                    existing.getBreedCooldownMinutes(),
+                    existing.getBabyNpcRoleId(),
+                    existing.getAdultNpcRoleId(),
+                    existing.isMountable(),
+                    existing.isEnabled()
+                ));
+            }
+        }
+    }
+
+    /**
+     * Remove a breeding food from a custom animal.
+     */
+    public void removeCustomAnimalFood(String modelAssetId, String food) {
+        CustomAnimalConfig existing = customAnimals.get(modelAssetId);
+        if (existing != null) {
+            List<String> foods = new ArrayList<>(existing.getBreedingFoods());
+            if (foods.remove(food)) {
+                customAnimals.put(modelAssetId, new CustomAnimalConfig(
+                    existing.getModelAssetId(),
+                    existing.getDisplayName(),
+                    foods,
+                    existing.getGrowthTimeMinutes(),
+                    existing.getBreedCooldownMinutes(),
+                    existing.getBabyNpcRoleId(),
+                    existing.getAdultNpcRoleId(),
+                    existing.isMountable(),
+                    existing.isEnabled()
+                ));
+            }
+        }
     }
 
     // ===========================================

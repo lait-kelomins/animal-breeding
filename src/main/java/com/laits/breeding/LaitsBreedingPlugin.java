@@ -23,6 +23,7 @@ import com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent;
 import com.hypixel.hytale.server.core.universe.world.SoundUtil;
 import com.hypixel.hytale.server.core.universe.world.ParticleUtil;
 import com.hypixel.hytale.protocol.SoundCategory;
+import com.hypixel.hytale.protocol.CameraSettings;
 import com.hypixel.hytale.protocol.InteractionType;
 import com.hypixel.hytale.server.core.asset.type.item.config.Item;
 import com.hypixel.hytale.protocol.MouseButtonType;
@@ -63,6 +64,7 @@ import com.laits.breeding.listeners.LaitDamageDisabler;
 import com.laits.breeding.listeners.NewAnimalSpawnDetector;
 import com.laits.breeding.interactions.FeedAnimalInteraction;
 import com.laits.breeding.models.AnimalType;
+import com.laits.breeding.models.CustomAnimalConfig;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.Interaction;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.GrowthStage;
@@ -501,30 +503,36 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         // Register ECS system for block interactions
         try {
             getEntityStoreRegistry().registerSystem(new UseBlockHandler());
-            getEntityStoreRegistry().registerSystem(new LaitDamageDisabler());
+            // TODO: LaitDamageDisabler needs to implement ISystem<EntityStore> - commenting out for now
+            // getEntityStoreRegistry().registerSystem(new LaitDamageDisabler());
         } catch (Exception e) {
             // Silent
         }
 
         // NOTE: NewAnimalSpawnDetector is registered in start() after world is ready
 
-        // Register commands
-        getCommandRegistry().registerCommand(new BreedingHelpCommand());
-        getCommandRegistry().registerCommand(new BreedingStatusCommand());
+        // Register unified /breed command (recommended)
+        getCommandRegistry().registerCommand(new BreedCommand());
+
+        // Register legacy commands (with deprecation warnings)
+        // These are kept for backwards compatibility but show deprecation notices
+        getCommandRegistry().registerCommand(new BreedingHelpCommand());      // Use /breed help
+        getCommandRegistry().registerCommand(new BreedingStatusCommand());    // Use /breed status
+        getCommandRegistry().registerCommand(new BreedingConfigCommand());    // Use /breed config
+        getCommandRegistry().registerCommand(new BreedingGrowthCommand());    // Use /breed growth
+        getCommandRegistry().registerCommand(new NameTagCommand());           // Use /breed tame
+        getCommandRegistry().registerCommand(new TamingInfoCommand());        // Use /breed info
+        getCommandRegistry().registerCommand(new TamingSettingsCommand());    // Use /breed settings
+        getCommandRegistry().registerCommand(new UntameCommand());            // Use /breed untame
+        getCommandRegistry().registerCommand(new CustomAnimalCommand());      // Use /breed custom
+
+        // Dev/debug commands (no unified equivalent)
         getCommandRegistry().registerCommand(new BreedingLogsCommand());
         getCommandRegistry().registerCommand(new BreedingDevCommand());
         getCommandRegistry().registerCommand(new BreedingHintCommand());
-        getCommandRegistry().registerCommand(new BreedingConfigCommand());
         getCommandRegistry().registerCommand(new BreedingScanCommand());
-        getCommandRegistry().registerCommand(new BreedingGrowthCommand());
         getCommandRegistry().registerCommand(new BreedingCachesCommand());
         getCommandRegistry().registerCommand(new NoClipCommand());
-
-        // Register taming commands
-        getCommandRegistry().registerCommand(new NameTagCommand());
-        getCommandRegistry().registerCommand(new TamingInfoCommand());
-        getCommandRegistry().registerCommand(new TamingSettingsCommand());
-        getCommandRegistry().registerCommand(new UntameCommand());
     }
 
     @Override
@@ -945,16 +953,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             if (currentUse == null || !currentUse.equals(feedInteractionId)) {
                 // Save original interaction ID for fallback (e.g., horse mounting)
                 storeOriginalInteractionId(entityRef, currentUse, animalType);
-                if (currentUse != null && !currentUse.isEmpty()) {
-                    logVerbose("Saved original interaction: " + currentUse);
-                } else if (animalType.isMountable()) {
-                    logVerbose("Stored default mount fallback for: " + animalType);
-                }
+                getLogger().atInfo().log("[BuiltIn] %s: set interaction to %s (was: %s)", animalType, feedInteractionId, currentUse);
 
                 java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
                         "setInteractionId", interactionTypeClass, String.class);
                 setIntId.invoke(interactions, useType, feedInteractionId);
-                logVerbose("Set interaction ID to: " + feedInteractionId);
             }
 
             // ALWAYS set the interaction hint (even if interaction was already set)
@@ -968,6 +971,91 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         } catch (Exception e) {
             logVerbose("setupEntityInteractions error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Set up breeding interactions on a custom animal entity (from config).
+     * IDENTICAL to setupEntityInteractions - copy-pasted to ensure same behavior.
+     */
+    private void setupCustomAnimalInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef, CustomAnimalConfig customAnimal) {
+        String animalName = customAnimal.getModelAssetId();
+        try {
+            Object interactableType = getInteractableComponentType();
+            Object interactionsType = getInteractionsComponentType();
+            if (interactionsType == null)
+                return;
+
+            java.lang.reflect.Method ensureMethod = null;
+            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
+                if (m.getName().equals("ensureAndGetComponent") && m.getParameterCount() == 2) {
+                    ensureMethod = m;
+                    break;
+                }
+            }
+            if (ensureMethod == null)
+                return;
+
+            if (interactableType != null) {
+                try {
+                    ensureMethod.invoke(store, entityRef, interactableType);
+                } catch (Exception e) {
+                    // Silent
+                }
+            }
+
+            Object interactions = ensureMethod.invoke(store, entityRef, interactionsType);
+            if (interactions == null)
+                return;
+
+            String feedInteractionId = "Root_FeedAnimal";
+
+            Class<?> interactionTypeClass = Class.forName("com.hypixel.hytale.protocol.InteractionType");
+            Object useType = null;
+            for (Object enumConst : interactionTypeClass.getEnumConstants()) {
+                if (enumConst.toString().equals("Use")) {
+                    useType = enumConst;
+                    break;
+                }
+            }
+
+            java.lang.reflect.Method getIntId = interactions.getClass().getMethod(
+                    "getInteractionId", interactionTypeClass);
+            String currentUse = (String) getIntId.invoke(interactions, useType);
+
+            if (currentUse == null || !currentUse.equals(feedInteractionId)) {
+                // Store original - SAME as built-in (unconditional)
+                storeOriginalInteractionId(entityRef, currentUse, null);
+                getLogger().atInfo().log("[CustomAnimal] %s: set interaction to %s (was: %s)", animalName, feedInteractionId, currentUse);
+
+                java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
+                        "setInteractionId", interactionTypeClass, String.class);
+                setIntId.invoke(interactions, useType, feedInteractionId);
+            }
+
+            // ALWAYS set hint - SAME as built-in
+            java.lang.reflect.Method setHint = interactions.getClass().getMethod(
+                    "setInteractionHint", String.class);
+            setHint.invoke(interactions, "server.interactionHints.feed");
+            getLogger().atInfo().log("[CustomAnimal] %s: setup complete", animalName);
+
+        } catch (Exception e) {
+            getLogger().atSevere().log("[CustomAnimal] %s: setup error: %s", animalName, e.getMessage());
+        }
+    }
+
+    /**
+     * Store the original interaction ID for a custom animal entity (for fallback).
+     */
+    private void storeOriginalInteractionIdForCustom(Ref<EntityStore> entityRef, String originalId, CustomAnimalConfig customAnimal) {
+        // Use the same storage mechanism as regular animals
+        // Store whatever the original interaction was so we can fall back to it
+        String key = getStableEntityKey(entityRef);
+        if (key == null)
+            return;
+
+        if (originalId != null && !originalId.isEmpty()) {
+            originalInteractions.put(key, originalId);
         }
     }
 
@@ -1188,32 +1276,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             if (world == null)
                 return;
 
-            // Get the Interactions component type via reflection
-            Class<?> interactionsClass = Class
-                    .forName("com.hypixel.hytale.server.core.modules.interaction.Interactions");
-            java.lang.reflect.Method getCompType = interactionsClass.getMethod("getComponentType");
-            Object interactionsCompType = getCompType.invoke(null);
-
-            // Get Interactable component type
-            Class<?> interactableClass = Class
-                    .forName("com.hypixel.hytale.server.core.modules.entity.component.Interactable");
-            Object interactableCompType = interactableClass.getMethod("getComponentType").invoke(null);
-
-            // Get InteractionType enum values
-            Class<?> interactionTypeClass = Class.forName("com.hypixel.hytale.protocol.InteractionType");
-            Object useType = null;
-            for (Object enumConst : interactionTypeClass.getEnumConstants()) {
-                if (enumConst.toString().equals("Use")) {
-                    useType = enumConst;
-                    break;
-                }
-            }
-
-            final Object compType = interactionsCompType;
-            final Object intCompType = interactableCompType;
-            final Object intTypeUse = useType;
-            final Class<?> intTypeClass = interactionTypeClass;
-
             // Collect player UUIDs to exclude from animal detection
             final Set<UUID> playerUuids = new HashSet<>();
             for (Player p : world.getPlayers()) {
@@ -1230,26 +1292,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     logVerbose("Found " + animals.size() + " animals total");
                     if (animals.isEmpty())
                         return;
-
-                    Object entityStore = world.getClass().getMethod("getEntityStore").invoke(world);
-                    Object store = entityStore.getClass().getMethod("getStore").invoke(entityStore);
-                    logVerbose("Got store: " + store.getClass().getSimpleName());
-
-                    // Find ensureAndGetComponent method - use iteration pattern for robustness
-                    java.lang.reflect.Method ensureMethod = null;
-                    for (java.lang.reflect.Method m : store.getClass().getMethods()) {
-                        if (m.getName().equals("ensureAndGetComponent") && m.getParameterCount() == 2) {
-                            ensureMethod = m;
-                            break;
-                        }
-                    }
-                    if (ensureMethod == null) {
-                        logWarning("Could not find ensureAndGetComponent method on store");
-                        return;
-                    }
-                    logVerbose("Found ensureAndGetComponent method");
-
-                    String feedInteractionId = "Root_FeedAnimal";
 
                     int processedCount = 0;
                     int skippedNull = 0;
@@ -1277,25 +1319,51 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                 }
                             } catch (Exception e) {
                                 // Entity ref may be stale, skip it
+                                // Log first few to help debug
+                                if (skippedNull < 3) {
+                                    getLogger().atWarning().log("[AnimalScan] Entity ref error for %s: %s",
+                                        animal.getModelAssetId(), e.getMessage());
+                                }
+                                skippedNull++; // Count these as skipped
                                 continue;
                             }
                         }
 
-                        // Skip if not a recognized farm animal
+                        // Check if it's a custom animal (from config)
+                        CustomAnimalConfig customAnimal = null;
                         if (animalType == null) {
+                            String modelId = animal.getModelAssetId();
+                            customAnimal = configManager.getCustomAnimal(modelId);
+                            // Debug: log custom animal lookup attempts
+                            if (customAnimal != null) {
+                                getLogger().atInfo().log("[CustomAnimal] Found match for '%s'", modelId);
+                            } else if (configManager.getCustomAnimals().size() > 0) {
+                                // Only log if there are custom animals registered
+                                logVerbose("[CustomAnimal] No match for '" + modelId + "' (registered: " +
+                                    String.join(", ", configManager.getCustomAnimals().keySet()) + ")");
+                            }
+                        }
+
+                        // Skip if not a recognized farm animal OR custom animal
+                        if (animalType == null && customAnimal == null) {
                             skippedNull++;
                             continue;
                         }
 
-                        // Skip if breeding is disabled for this animal type
-                        if (!configManager.isAnimalEnabled(animalType)) {
+                        // Skip if breeding is disabled
+                        if (animalType != null && !configManager.isAnimalEnabled(animalType)) {
                             skippedDisabled++;
                             logVerbose("Skipping disabled animal: " + animalType);
                             continue;
                         }
+                        if (customAnimal != null && !customAnimal.isEnabled()) {
+                            skippedDisabled++;
+                            logVerbose("Skipping disabled custom animal: " + animal.getModelAssetId());
+                            continue;
+                        }
 
                         // Check if this is a baby that needs growth tracking
-                        if (animal.isBaby()) {
+                        if (animal.isBaby() && animalType != null) {
                             UUID babyId = UUID.nameUUIDFromBytes(entityRef.toString().getBytes());
                             if (breedingManager.getData(babyId) == null) {
                                 breedingManager.registerBaby(babyId, animalType, entityRef);
@@ -1304,53 +1372,18 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                         // Set up interactions for adults (babies can't breed)
                         if (!animal.isBaby()) {
-                            logVerbose("Setting up interactions for adult: " + animal.getModelAssetId() + " (type: "
-                                    + animalType + ")");
-
-                            // Ensure entity has Interactable component (required for hints to show)
-                            try {
-                                ensureMethod.invoke(store, entityRef, intCompType);
-                                logVerbose("  Ensured Interactable component");
-                            } catch (Exception e) {
-                                logVerbose("  Failed to ensure Interactable: " + e.getMessage());
-                            }
-
-                            Object interactions = ensureMethod.invoke(store, entityRef, compType);
-                            logVerbose("  Got Interactions component: " + (interactions != null));
-
-                            if (interactions != null) {
-                                java.lang.reflect.Method getIntId = interactions.getClass().getMethod(
-                                        "getInteractionId", intTypeClass);
-                                String currentUse = (String) getIntId.invoke(interactions, intTypeUse);
-
-                                if (currentUse == null || !currentUse.equals(feedInteractionId)) {
-                                    // Save original interaction ID for fallback (e.g., horse mounting)
-                                    if (entityRef instanceof Ref) {
-                                        @SuppressWarnings("unchecked")
-                                        Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
-                                        storeOriginalInteractionId(ref, currentUse, animalType);
-                                        if (currentUse != null && !currentUse.isEmpty()) {
-                                            logVerbose("Saved original interaction for entity: " + currentUse);
-                                        } else if (animalType.isMountable()) {
-                                            logVerbose("Stored default mount fallback for: " + animalType);
-                                        }
-                                    }
-
-                                    java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
-                                            "setInteractionId", intTypeClass, String.class);
-                                    setIntId.invoke(interactions, intTypeUse, feedInteractionId);
-                                    logVerbose("  Set interaction ID to: " + feedInteractionId);
+                            @SuppressWarnings("unchecked")
+                            Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+                            Store<EntityStore> refStore = ref.getStore();
+                            if (refStore != null) {
+                                if (animalType != null) {
+                                    logVerbose("Setting up interactions for adult: " + animal.getModelAssetId() + " (type: "
+                                            + animalType + ")");
+                                    setupEntityInteractions(refStore, ref, animalType);
+                                } else if (customAnimal != null) {
+                                    logVerbose("Setting up interactions for custom animal: " + animal.getModelAssetId());
+                                    setupCustomAnimalInteractions(refStore, ref, customAnimal);
                                 }
-
-                                // ALWAYS set the interaction hint (even if interaction was already set)
-                                java.lang.reflect.Method setHint = interactions.getClass().getMethod(
-                                        "setInteractionHint", String.class);
-                                String hintKey = animalType.isMountable()
-                                        ? "server.interactionHints.feedOrMount"
-                                        : "server.interactionHints.feed";
-                                setHint.invoke(interactions, hintKey);
-                                logVerbose("  Set hint to: " + hintKey);
-
                                 processedCount++;
                             }
                         } else {
@@ -3135,10 +3168,352 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // COMMANDS
     // ===========================================
 
+    // ===========================================
+    // UNIFIED /breed COMMAND
+    // ===========================================
+
     /**
-     * Help command.
-     * Usage: /laitsbreeding
+     * Unified command for all breeding functionality.
+     * Usage: /breed [subcommand]
+     * Subcommands: help, status, config, growth, tame, untame, info, settings, custom
      */
+    public static class BreedCommand extends AbstractCommand {
+        public BreedCommand() {
+            super("breed", "Main command for Lait's Animal Breeding");
+            addSubCommand(new BreedHelpSubCommand());
+            addSubCommand(new BreedStatusSubCommand());
+            addSubCommand(new BreedConfigSubCommand());
+            addSubCommand(new BreedGrowthSubCommand());
+            addSubCommand(new BreedTameSubCommand());
+            addSubCommand(new BreedUntameSubCommand());
+            addSubCommand(new BreedInfoSubCommand());
+            addSubCommand(new BreedSettingsSubCommand());
+            addSubCommand(new BreedCustomSubCommand());
+        }
+
+        @Override
+        protected CompletableFuture<Void> execute(CommandContext ctx) {
+            // Default action: show help
+            showHelp(ctx);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        private static void showHelp(CommandContext ctx) {
+            ctx.sendMessage(Message.raw("=== Lait's Animal Breeding ===").color("#FF9900"));
+            ctx.sendMessage(Message.raw("Version: ").color("#AAAAAA")
+                    .insert(Message.raw(LaitsBreedingPlugin.VERSION).color("#FFFFFF")));
+            ctx.sendMessage(Message.raw(""));
+            ctx.sendMessage(Message.raw("Commands:").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("/breed help").color("#FFFFFF")
+                    .insert(Message.raw(" - Show this help").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/breed status").color("#FFFFFF")
+                    .insert(Message.raw(" - View tracked animals").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/breed config ...").color("#FFFFFF")
+                    .insert(Message.raw(" - Configuration commands").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/breed growth").color("#FFFFFF")
+                    .insert(Message.raw(" - Toggle baby growth").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/breed tame <name>").color("#FFFFFF")
+                    .insert(Message.raw(" - Prepare to tame an animal").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/breed untame").color("#FFFFFF")
+                    .insert(Message.raw(" - Release a tamed animal").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/breed info").color("#FFFFFF")
+                    .insert(Message.raw(" - Show taming info").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/breed settings").color("#FFFFFF")
+                    .insert(Message.raw(" - Taming settings").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/breed custom ...").color("#FFFFFF")
+                    .insert(Message.raw(" - Manage custom animals").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw(""));
+            ctx.sendMessage(Message.raw("Feed animals their favorite food to breed!").color("#55FF55"));
+        }
+
+        // --- Subcommand: help ---
+        public static class BreedHelpSubCommand extends AbstractCommand {
+            public BreedHelpSubCommand() {
+                super("help", "Show help information");
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                showHelp(ctx);
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        // --- Subcommand: status ---
+        public static class BreedStatusSubCommand extends AbstractCommand {
+            public BreedStatusSubCommand() {
+                super("status", "View tracked animals and breeding stats");
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = getInstance();
+                if (plugin == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                BreedingManager breeding = plugin.getBreedingManager();
+                TamingManager taming = plugin.getTamingManager();
+
+                ctx.sendMessage(Message.raw("=== Breeding Status ===").color("#FF9900"));
+                ctx.sendMessage(Message.raw("Animals tracked: ").color("#AAAAAA")
+                        .insert(Message.raw(String.valueOf(breeding.getTrackedCount())).color("#FFFFFF")));
+                ctx.sendMessage(Message.raw("In love mode: ").color("#AAAAAA")
+                        .insert(Message.raw(String.valueOf(breeding.getInLoveCount())).color("#FF69B4")));
+                ctx.sendMessage(Message.raw("Pregnant: ").color("#AAAAAA")
+                        .insert(Message.raw(String.valueOf(breeding.getPregnantCount())).color("#FFFF55")));
+
+                if (taming != null) {
+                    ctx.sendMessage(Message.raw("Tamed animals: ").color("#AAAAAA")
+                            .insert(Message.raw(String.valueOf(taming.getTamedCount())).color("#55FF55")));
+                }
+
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        // --- Subcommand: config (delegates to BreedingConfigCommand subcommands) ---
+        public static class BreedConfigSubCommand extends AbstractCommand {
+            public BreedConfigSubCommand() {
+                super("config", "Configuration commands");
+                // Add all config subcommands
+                addSubCommand(new BreedingConfigCommand.ReloadSubCommand());
+                addSubCommand(new BreedingConfigCommand.SaveSubCommand());
+                addSubCommand(new BreedingConfigCommand.ListSubCommand());
+                addSubCommand(new BreedingConfigCommand.InfoSubCommand());
+                addSubCommand(new BreedingConfigCommand.EnableSubCommand());
+                addSubCommand(new BreedingConfigCommand.DisableSubCommand());
+                addSubCommand(new BreedingConfigCommand.SetSubCommand());
+                addSubCommand(new BreedingConfigCommand.AddFoodSubCommand());
+                addSubCommand(new BreedingConfigCommand.RemoveFoodSubCommand());
+                addSubCommand(new BreedingConfigCommand.PresetSubCommand());
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                // Show config summary
+                LaitsBreedingPlugin plugin = getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Config not loaded!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+                ctx.sendMessage(Message.raw("=== Breeding Config ===").color("#FF9900"));
+                ctx.sendMessage(Message.raw("Active Preset: ").color("#AAAAAA")
+                        .insert(Message.raw(plugin.getConfigManager().getActivePreset()).color("#FFFFFF")));
+                ctx.sendMessage(Message.raw("Type ").color("#AAAAAA")
+                        .insert(Message.raw("/breed config").color("#FFFFFF"))
+                        .insert(Message.raw(" and press TAB for subcommands").color("#AAAAAA")));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        // --- Subcommand: growth ---
+        public static class BreedGrowthSubCommand extends AbstractCommand {
+            public BreedGrowthSubCommand() {
+                super("growth", "Toggle baby animal growth");
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                ConfigManager config = plugin.getConfigManager();
+                boolean current = config.isGrowthEnabled();
+                config.setGrowthEnabled(!current);
+
+                if (config.isGrowthEnabled()) {
+                    ctx.sendMessage(Message.raw("Baby growth: ").color("#AAAAAA")
+                            .insert(Message.raw("ENABLED").color("#55FF55")));
+                    ctx.sendMessage(Message.raw("Babies will grow into adults over time.").color("#AAAAAA"));
+                } else {
+                    ctx.sendMessage(Message.raw("Baby growth: ").color("#AAAAAA")
+                            .insert(Message.raw("DISABLED").color("#FF5555")));
+                    ctx.sendMessage(Message.raw("Babies will stay babies forever!").color("#AAAAAA"));
+                }
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        // --- Subcommand: tame ---
+        public static class BreedTameSubCommand extends AbstractCommand {
+            private final RequiredArg<String> nameArg;
+
+            public BreedTameSubCommand() {
+                super("tame", "Prepare to tame and name an animal");
+                nameArg = withRequiredArg("name", "Name for the animal", ArgTypes.STRING);
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = getInstance();
+                if (plugin == null || plugin.tamingManager == null) {
+                    ctx.sendMessage(Message.raw("Taming system not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String name = ctx.get(nameArg);
+                if (name.length() > 32) {
+                    ctx.sendMessage(Message.raw("Name too long (max 32 characters)").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                if (!ctx.isPlayer()) {
+                    ctx.sendMessage(Message.raw("This command can only be used by players").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                Player player = (Player) ctx.sender();
+                if (player == null) {
+                    ctx.sendMessage(Message.raw("Could not identify player").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                // Schedule UUID lookup on world thread
+                World world = Universe.get().getDefaultWorld();
+                if (world != null) {
+                    final String pendingName = name;
+                    final Player finalPlayer = player;
+                    world.execute(() -> {
+                        try {
+                            UUID playerUuid = plugin.getPlayerUuidFromEntity(finalPlayer);
+                            if (playerUuid != null) {
+                                plugin.tamingManager.setPendingNameTag(playerUuid, pendingName);
+                            }
+                        } catch (Exception e) {
+                            // Silent
+                        }
+                    });
+                }
+
+                // Also store by name as fallback
+                String playerName = player.getDisplayName();
+                if (playerName != null) {
+                    plugin.tamingManager.setPendingNameTagByName(playerName, name);
+                }
+
+                ctx.sendMessage(Message.raw("Name tag ready: ").color("#AAAAAA")
+                        .insert(Message.raw(name).color("#55FF55")));
+                ctx.sendMessage(Message.raw("Press F on an animal to tame it.").color("#AAAAAA"));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        // --- Subcommand: untame ---
+        public static class BreedUntameSubCommand extends AbstractCommand {
+            public BreedUntameSubCommand() {
+                super("untame", "Release a tamed animal");
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = getInstance();
+                if (plugin == null || plugin.tamingManager == null) {
+                    ctx.sendMessage(Message.raw("Taming system not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                if (!ctx.isPlayer()) {
+                    ctx.sendMessage(Message.raw("This command can only be used by players").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                Player player = (Player) ctx.sender();
+                String playerName = player != null ? player.getDisplayName() : null;
+                if (playerName == null) {
+                    ctx.sendMessage(Message.raw("Could not identify player").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                plugin.tamingManager.setPendingUntameByName(playerName);
+                ctx.sendMessage(Message.raw("Right-click a tamed animal to release it.").color("#FFAA00"));
+                ctx.sendMessage(Message.raw("(You can only untame animals you own.)").color("#AAAAAA"));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        // --- Subcommand: info ---
+        public static class BreedInfoSubCommand extends AbstractCommand {
+            public BreedInfoSubCommand() {
+                super("info", "Show taming information");
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = getInstance();
+                if (plugin == null || plugin.tamingManager == null) {
+                    ctx.sendMessage(Message.raw("Taming system not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                TamingManager taming = plugin.tamingManager;
+                ctx.sendMessage(Message.raw("=== Taming Status ===").color("#FF9900"));
+                ctx.sendMessage(Message.raw("Total tamed: ").color("#AAAAAA")
+                        .insert(Message.raw(String.valueOf(taming.getTamedCount())).color("#FFFFFF")));
+                ctx.sendMessage(Message.raw("Awaiting respawn: ").color("#AAAAAA")
+                        .insert(Message.raw(String.valueOf(taming.getDespawnedCount())).color("#FFFF55")));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        // --- Subcommand: settings ---
+        public static class BreedSettingsSubCommand extends AbstractCommand {
+            public BreedSettingsSubCommand() {
+                super("settings", "Taming settings");
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                ctx.sendMessage(Message.raw("This command is not yet available.").color("#FFFF55"));
+                ctx.sendMessage(Message.raw("By default, others CAN interact with your tamed animals.").color("#AAAAAA"));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        // --- Subcommand: custom (delegates to CustomAnimalCommand subcommands) ---
+        public static class BreedCustomSubCommand extends AbstractCommand {
+            public BreedCustomSubCommand() {
+                super("custom", "Manage custom animals from other mods");
+                addSubCommand(new CustomAnimalCommand.CustomAnimalAddCommand());
+                addSubCommand(new CustomAnimalCommand.CustomAnimalRemoveCommand());
+                addSubCommand(new CustomAnimalCommand.CustomAnimalListCommand());
+                addSubCommand(new CustomAnimalCommand.CustomAnimalInfoCommand());
+                addSubCommand(new CustomAnimalCommand.CustomAnimalEnableCommand());
+                addSubCommand(new CustomAnimalCommand.CustomAnimalDisableCommand());
+                addSubCommand(new CustomAnimalCommand.CustomAnimalAddFoodCommand());
+                addSubCommand(new CustomAnimalCommand.CustomAnimalRemoveFoodCommand());
+                addSubCommand(new CustomAnimalCommand.CustomAnimalScanCommand());
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                ctx.sendMessage(Message.raw("=== Custom Animal Commands ===").color("#FF9900"));
+                ctx.sendMessage(Message.raw("/breed custom scan").color("#FFFFFF")
+                        .insert(Message.raw(" - Find creature names in world").color("#AAAAAA")));
+                ctx.sendMessage(Message.raw("/breed custom add <model> <food>").color("#FFFFFF")
+                        .insert(Message.raw(" - Add custom animal").color("#AAAAAA")));
+                ctx.sendMessage(Message.raw("/breed custom remove <model>").color("#FFFFFF")
+                        .insert(Message.raw(" - Remove custom animal").color("#AAAAAA")));
+                ctx.sendMessage(Message.raw("/breed custom list").color("#FFFFFF")
+                        .insert(Message.raw(" - List added custom animals").color("#AAAAAA")));
+                ctx.sendMessage(Message.raw("/breed custom info <model>").color("#FFFFFF")
+                        .insert(Message.raw(" - Show details").color("#AAAAAA")));
+                ctx.sendMessage(Message.raw("Run ").color("#AAAAAA")
+                        .insert(Message.raw("/breed custom scan").color("#FFFF55"))
+                        .insert(Message.raw(" first to find creature names!").color("#AAAAAA")));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+    }
+
+    // ===========================================
+    // LEGACY COMMANDS (with deprecation warnings)
+    // ===========================================
+
     // ===========================================
     // TAMING COMMANDS
     // ===========================================
@@ -3152,12 +3527,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         private final RequiredArg<String> nameArg;
 
         public NameTagCommand() {
-            super("nametag", "Name and tame an animal");
+            super("nametag", "[Deprecated] Name and tame an animal - Use /breed tame instead");
             nameArg = withRequiredArg("name", "Name for the animal", ArgTypes.STRING);
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            ctx.sendMessage(Message.raw("[Deprecated] Use /breed tame <name> instead").color("#FFAA00"));
+
             LaitsBreedingPlugin plugin = getInstance();
             if (plugin == null || plugin.tamingManager == null) {
                 ctx.sendMessage(Message.raw("Taming system not initialized!").color("#FF5555"));
@@ -3234,11 +3611,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     public static class TamingInfoCommand extends AbstractCommand {
 
         public TamingInfoCommand() {
-            super("taminginfo", "Show taming information");
+            super("taminginfo", "[Deprecated] Show taming information - Use /breed info instead");
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            ctx.sendMessage(Message.raw("[Deprecated] Use /breed info instead").color("#FFAA00"));
+            ctx.sendMessage(Message.raw(""));
+
             LaitsBreedingPlugin plugin = getInstance();
             if (plugin == null || plugin.tamingManager == null) {
                 ctx.sendMessage(Message.raw("Taming system not initialized!").color("#FF5555"));
@@ -3269,11 +3649,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     public static class TamingSettingsCommand extends AbstractCommand {
 
         public TamingSettingsCommand() {
-            super("tamingsettings", "Toggle interaction permission for your tamed animals");
+            super("tamingsettings", "[Deprecated] Taming settings - Use /breed settings instead");
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            ctx.sendMessage(Message.raw("[Deprecated] Use /breed settings instead").color("#FFAA00"));
+
             LaitsBreedingPlugin plugin = getInstance();
             if (plugin == null || plugin.tamingManager == null) {
                 ctx.sendMessage(Message.raw("Taming system not initialized!").color("#FF5555"));
@@ -3297,11 +3679,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     public static class UntameCommand extends AbstractCommand {
 
         public UntameCommand() {
-            super("untame", "Release a tamed animal (right-click to apply)");
+            super("untame", "[Deprecated] Release a tamed animal - Use /breed untame instead");
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            ctx.sendMessage(Message.raw("[Deprecated] Use /breed untame instead").color("#FFAA00"));
+
             LaitsBreedingPlugin plugin = getInstance();
             if (plugin == null || plugin.tamingManager == null) {
                 ctx.sendMessage(Message.raw("Taming system not initialized!").color("#FF5555"));
@@ -3343,11 +3727,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     public static class BreedingHelpCommand extends AbstractCommand {
 
         public BreedingHelpCommand() {
-            super("laitsbreeding", "Show Animal Breeding help");
+            super("laitsbreeding", "[Deprecated] Show Animal Breeding help - Use /breed instead");
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            ctx.sendMessage(Message.raw("[Deprecated] Use /breed instead").color("#FFAA00"));
+            ctx.sendMessage(Message.raw(""));
             ctx.sendMessage(Message.raw("=== Lait's Animal Breeding ===").color("#FF9900"));
             ctx.sendMessage(Message.raw("Version: ").color("#AAAAAA")
                     .insert(Message.raw(LaitsBreedingPlugin.VERSION).color("#FFFFFF")));
@@ -3390,11 +3776,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     public static class BreedingStatusCommand extends AbstractCommand {
 
         public BreedingStatusCommand() {
-            super("breedstatus", "Show breeding system status");
+            super("breedstatus", "[Deprecated] Show breeding system status - Use /breed status instead");
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            ctx.sendMessage(Message.raw("[Deprecated] Use /breed status instead").color("#FFAA00"));
+            ctx.sendMessage(Message.raw(""));
+
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null) {
                 ctx.sendMessage(Message.raw("Error: Plugin not initialized").color("#FF5555"));
@@ -3554,11 +3943,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     public static class BreedingGrowthCommand extends AbstractCommand {
 
         public BreedingGrowthCommand() {
-            super("breedgrowth", "Toggle baby animal growth on/off");
+            super("breedgrowth", "[Deprecated] Toggle baby animal growth - Use /breed growth instead");
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            ctx.sendMessage(Message.raw("[Deprecated] Use /breed growth instead").color("#FFAA00"));
+
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.configManager == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized").color("#FF5555"));
@@ -3821,7 +4212,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     public static class BreedingConfigCommand extends AbstractCommand {
 
         public BreedingConfigCommand() {
-            super("breedconfig", "Manage breeding plugin configuration");
+            super("breedconfig", "[Deprecated] Manage breeding configuration - Use /breed config instead");
 
             // Register all sub-commands
             addSubCommand(new ReloadSubCommand());
@@ -3838,6 +4229,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            ctx.sendMessage(Message.raw("[Deprecated] Use /breed config instead").color("#FFAA00"));
+            ctx.sendMessage(Message.raw(""));
+
             // Called when /breedconfig is run with no sub-command - show summary
             LaitsBreedingPlugin plugin = getInstance();
             if (plugin == null) {
@@ -4558,11 +4952,463 @@ public class LaitsBreedingPlugin extends JavaPlugin {
          * Resolve a food shortcut to its full item ID.
          * If the input doesn't match any shortcut, returns the input unchanged.
          */
-        private static String resolveFoodShortcut(String input) {
+        static String resolveFoodShortcut(String input) {
             if (input == null)
                 return null;
             String resolved = FOOD_SHORTCUTS.get(input.toLowerCase());
             return resolved != null ? resolved : input;
+        }
+    }
+
+    // ==================== Custom Animal Command ====================
+
+    /**
+     * /customanimal - Manage custom animals from other mods.
+     * Usage:
+     *   /customanimal add <modelAssetId> <food1> [food2] [food3] - Add a custom animal
+     *   /customanimal remove <modelAssetId> - Remove a custom animal
+     *   /customanimal list - List all custom animals
+     *   /customanimal info <modelAssetId> - Show info about a custom animal
+     *   /customanimal enable <modelAssetId> - Enable a custom animal
+     *   /customanimal disable <modelAssetId> - Disable a custom animal
+     *   /customanimal addfood <modelAssetId> <food> - Add a breeding food
+     *   /customanimal removefood <modelAssetId> <food> - Remove a breeding food
+     */
+    public static class CustomAnimalCommand extends AbstractCommand {
+        public CustomAnimalCommand() {
+            super("customanimal", "[Deprecated] Manage custom animals - Use /breed custom instead");
+            addSubCommand(new CustomAnimalAddCommand());
+            addSubCommand(new CustomAnimalRemoveCommand());
+            addSubCommand(new CustomAnimalListCommand());
+            addSubCommand(new CustomAnimalInfoCommand());
+            addSubCommand(new CustomAnimalEnableCommand());
+            addSubCommand(new CustomAnimalDisableCommand());
+            addSubCommand(new CustomAnimalAddFoodCommand());
+            addSubCommand(new CustomAnimalRemoveFoodCommand());
+            addSubCommand(new CustomAnimalScanCommand());
+        }
+
+        @Override
+        protected CompletableFuture<Void> execute(CommandContext ctx) {
+            ctx.sendMessage(Message.raw("[Deprecated] Use /breed custom instead").color("#FFAA00"));
+            ctx.sendMessage(Message.raw(""));
+            ctx.sendMessage(Message.raw("=== Custom Animal Commands ===").color("#FF9900"));
+            ctx.sendMessage(Message.raw("/customanimal add <model> <food> ").color("#AAAAAA")
+                    .insert(Message.raw("- Add custom animal").color("#FFFFFF")));
+            ctx.sendMessage(Message.raw("/customanimal remove <model> ").color("#AAAAAA")
+                    .insert(Message.raw("- Remove custom animal").color("#FFFFFF")));
+            ctx.sendMessage(Message.raw("/customanimal list ").color("#AAAAAA")
+                    .insert(Message.raw("- List all custom animals").color("#FFFFFF")));
+            ctx.sendMessage(Message.raw("/customanimal info <model> ").color("#AAAAAA")
+                    .insert(Message.raw("- Show custom animal info").color("#FFFFFF")));
+            ctx.sendMessage(Message.raw("/customanimal enable/disable <model> ").color("#AAAAAA")
+                    .insert(Message.raw("- Toggle enabled").color("#FFFFFF")));
+            ctx.sendMessage(Message.raw("/customanimal addfood/removefood <model> <food> ").color("#AAAAAA")
+                    .insert(Message.raw("- Modify foods").color("#FFFFFF")));
+            ctx.sendMessage(Message.raw("Use /breedconfig save after changes to persist!").color("#FFAA00"));
+            return CompletableFuture.completedFuture(null);
+        }
+
+        /** /customanimal add <modelAssetId> <food1> [food2] [food3] */
+        public static class CustomAnimalAddCommand extends AbstractCommand {
+            private final RequiredArg<String> modelArg;
+            private final RequiredArg<String> food1Arg;
+            private final OptionalArg<String> food2Arg;
+            private final OptionalArg<String> food3Arg;
+
+            public CustomAnimalAddCommand() {
+                super("add", "Add a custom animal");
+                modelArg = withRequiredArg("modelAssetId", "Exact model asset ID of the creature", ArgTypes.STRING);
+                food1Arg = withRequiredArg("food1", "Primary breeding food item ID", ArgTypes.STRING);
+                food2Arg = withOptionalArg("food2", "Optional second food", ArgTypes.STRING);
+                food3Arg = withOptionalArg("food3", "Optional third food", ArgTypes.STRING);
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String modelId = ctx.get(modelArg);
+                String food1 = BreedingConfigCommand.resolveFoodShortcut(ctx.get(food1Arg));
+
+                java.util.List<String> foods = new java.util.ArrayList<>();
+                foods.add(food1);
+
+                String food2 = ctx.get(food2Arg);
+                if (food2 != null && !food2.isEmpty()) {
+                    foods.add(BreedingConfigCommand.resolveFoodShortcut(food2));
+                }
+                String food3 = ctx.get(food3Arg);
+                if (food3 != null && !food3.isEmpty()) {
+                    foods.add(BreedingConfigCommand.resolveFoodShortcut(food3));
+                }
+
+                // Check if already exists
+                if (plugin.getConfigManager().isCustomAnimal(modelId)) {
+                    ctx.sendMessage(Message.raw("Custom animal '" + modelId + "' already exists! Use remove first.").color("#FFAA00"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                plugin.getConfigManager().addCustomAnimal(modelId, foods);
+                ctx.sendMessage(Message.raw("Added custom animal: ").color("#55FF55")
+                        .insert(Message.raw(modelId).color("#FFFFFF")));
+                ctx.sendMessage(Message.raw("  Foods: ").color("#AAAAAA")
+                        .insert(Message.raw(String.join(", ", foods)).color("#FFFFFF")));
+                ctx.sendMessage(Message.raw("Scanning world for creatures...").color("#AAAAAA"));
+
+                // Trigger rescan to set up interactions
+                plugin.autoSetupNearbyAnimals();
+
+                ctx.sendMessage(Message.raw("Interactions set up! Feed the creature to breed.").color("#55FF55"));
+                ctx.sendMessage(Message.raw("Use ").color("#AAAAAA")
+                        .insert(Message.raw("/breedconfig save").color("#FFFFFF"))
+                        .insert(Message.raw(" to persist changes.").color("#AAAAAA")));
+                ctx.sendMessage(Message.raw("If not working, try ").color("#AAAAAA")
+                        .insert(Message.raw("/breedlogs on").color("#FFFF55"))
+                        .insert(Message.raw(" then ").color("#AAAAAA"))
+                        .insert(Message.raw("/breedscan").color("#FFFF55"))
+                        .insert(Message.raw(" to debug.").color("#AAAAAA")));
+
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        /** /customanimal remove <modelAssetId> */
+        public static class CustomAnimalRemoveCommand extends AbstractCommand {
+            private final RequiredArg<String> modelArg;
+
+            public CustomAnimalRemoveCommand() {
+                super("remove", "Remove a custom animal");
+                modelArg = withRequiredArg("modelAssetId", "Model asset ID to remove", ArgTypes.STRING);
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String modelId = ctx.get(modelArg);
+                if (plugin.getConfigManager().removeCustomAnimal(modelId)) {
+                    ctx.sendMessage(Message.raw("Removed custom animal: ").color("#55FF55")
+                            .insert(Message.raw(modelId).color("#FFFFFF")));
+                    ctx.sendMessage(Message.raw("Use /breedconfig save to persist changes!").color("#FFAA00"));
+                } else {
+                    ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
+                }
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        /** /customanimal list */
+        public static class CustomAnimalListCommand extends AbstractCommand {
+            public CustomAnimalListCommand() {
+                super("list", "List all custom animals");
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                java.util.Map<String, CustomAnimalConfig> customs = plugin.getConfigManager().getCustomAnimals();
+                if (customs.isEmpty()) {
+                    ctx.sendMessage(Message.raw("No custom animals defined.").color("#AAAAAA"));
+                    ctx.sendMessage(Message.raw("Use /customanimal add <model> <food> to add one!").color("#FFAA00"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                ctx.sendMessage(Message.raw("=== Custom Animals (" + customs.size() + ") ===").color("#FF9900"));
+                for (CustomAnimalConfig custom : customs.values()) {
+                    String status = custom.isEnabled() ? "[ON]" : "[OFF]";
+                    String statusColor = custom.isEnabled() ? "#55FF55" : "#FF5555";
+                    ctx.sendMessage(Message.raw(status).color(statusColor)
+                            .insert(Message.raw(" " + custom.getModelAssetId()).color("#FFFFFF"))
+                            .insert(Message.raw(" - " + custom.getBreedingFoods().size() + " foods").color("#AAAAAA")));
+                }
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        /** /customanimal info <modelAssetId> */
+        public static class CustomAnimalInfoCommand extends AbstractCommand {
+            private final RequiredArg<String> modelArg;
+
+            public CustomAnimalInfoCommand() {
+                super("info", "Show info about a custom animal");
+                modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String modelId = ctx.get(modelArg);
+                CustomAnimalConfig custom = plugin.getConfigManager().getCustomAnimal(modelId);
+                if (custom == null) {
+                    ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                ctx.sendMessage(Message.raw("=== " + custom.getDisplayName() + " ===").color("#FF9900"));
+                ctx.sendMessage(Message.raw("Model ID: ").color("#AAAAAA")
+                        .insert(Message.raw(custom.getModelAssetId()).color("#FFFFFF")));
+                ctx.sendMessage(Message.raw("Enabled: ").color("#AAAAAA")
+                        .insert(Message.raw(custom.isEnabled() ? "Yes" : "No").color(custom.isEnabled() ? "#55FF55" : "#FF5555")));
+                ctx.sendMessage(Message.raw("Mountable: ").color("#AAAAAA")
+                        .insert(Message.raw(custom.isMountable() ? "Yes" : "No").color("#FFFFFF")));
+                ctx.sendMessage(Message.raw("Growth Time: ").color("#AAAAAA")
+                        .insert(Message.raw(custom.getGrowthTimeMinutes() + " min").color("#FFFFFF")));
+                ctx.sendMessage(Message.raw("Breed Cooldown: ").color("#AAAAAA")
+                        .insert(Message.raw(custom.getBreedCooldownMinutes() + " min").color("#FFFFFF")));
+                ctx.sendMessage(Message.raw("Breeding Foods:").color("#AAAAAA"));
+                for (String food : custom.getBreedingFoods()) {
+                    ctx.sendMessage(Message.raw("  - " + food).color("#FFFFFF"));
+                }
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        /** /customanimal enable <modelAssetId> */
+        public static class CustomAnimalEnableCommand extends AbstractCommand {
+            private final RequiredArg<String> modelArg;
+
+            public CustomAnimalEnableCommand() {
+                super("enable", "Enable a custom animal");
+                modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String modelId = ctx.get(modelArg);
+                if (!plugin.getConfigManager().isCustomAnimal(modelId)) {
+                    ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                plugin.getConfigManager().setCustomAnimalEnabled(modelId, true);
+                ctx.sendMessage(Message.raw("Enabled custom animal: ").color("#55FF55")
+                        .insert(Message.raw(modelId).color("#FFFFFF")));
+                plugin.autoSetupNearbyAnimals();
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        /** /customanimal disable <modelAssetId> */
+        public static class CustomAnimalDisableCommand extends AbstractCommand {
+            private final RequiredArg<String> modelArg;
+
+            public CustomAnimalDisableCommand() {
+                super("disable", "Disable a custom animal");
+                modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String modelId = ctx.get(modelArg);
+                if (!plugin.getConfigManager().isCustomAnimal(modelId)) {
+                    ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                plugin.getConfigManager().setCustomAnimalEnabled(modelId, false);
+                ctx.sendMessage(Message.raw("Disabled custom animal: ").color("#FF5555")
+                        .insert(Message.raw(modelId).color("#FFFFFF")));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        /** /customanimal addfood <modelAssetId> <food> */
+        public static class CustomAnimalAddFoodCommand extends AbstractCommand {
+            private final RequiredArg<String> modelArg;
+            private final RequiredArg<String> foodArg;
+
+            public CustomAnimalAddFoodCommand() {
+                super("addfood", "Add a breeding food to a custom animal");
+                modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
+                foodArg = withRequiredArg("food", "Food item ID to add", ArgTypes.STRING);
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String modelId = ctx.get(modelArg);
+                if (!plugin.getConfigManager().isCustomAnimal(modelId)) {
+                    ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String food = BreedingConfigCommand.resolveFoodShortcut(ctx.get(foodArg));
+                plugin.getConfigManager().addCustomAnimalFood(modelId, food);
+                ctx.sendMessage(Message.raw("Added food ").color("#55FF55")
+                        .insert(Message.raw(food).color("#FFFFFF"))
+                        .insert(Message.raw(" to " + modelId).color("#AAAAAA")));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        /** /customanimal removefood <modelAssetId> <food> */
+        public static class CustomAnimalRemoveFoodCommand extends AbstractCommand {
+            private final RequiredArg<String> modelArg;
+            private final RequiredArg<String> foodArg;
+
+            public CustomAnimalRemoveFoodCommand() {
+                super("removefood", "Remove a breeding food from a custom animal");
+                modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
+                foodArg = withRequiredArg("food", "Food item ID to remove", ArgTypes.STRING);
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String modelId = ctx.get(modelArg);
+                if (!plugin.getConfigManager().isCustomAnimal(modelId)) {
+                    ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String food = BreedingConfigCommand.resolveFoodShortcut(ctx.get(foodArg));
+                plugin.getConfigManager().removeCustomAnimalFood(modelId, food);
+                ctx.sendMessage(Message.raw("Removed food ").color("#FF5555")
+                        .insert(Message.raw(food).color("#FFFFFF"))
+                        .insert(Message.raw(" from " + modelId).color("#AAAAAA")));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        /**
+         * Scan the world for all entities and show their modelAssetIds.
+         * Helps users find the exact name to use for custom animals.
+         */
+        public static class CustomAnimalScanCommand extends AbstractCommand {
+            public CustomAnimalScanCommand() {
+                super("scan", "Scan world for all creature modelAssetIds");
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = getInstance();
+                if (plugin == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                ctx.sendMessage(Message.raw("Scanning world for creatures...").color("#FFFF55"));
+
+                World world = Universe.get().getDefaultWorld();
+                if (world == null) {
+                    ctx.sendMessage(Message.raw("No world available!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                // Find ALL entities with ModelComponent
+                AnimalFinder.findAnimals(world, false, animals -> {
+                    if (animals.isEmpty()) {
+                        ctx.sendMessage(Message.raw("No creatures found in the world.").color("#AAAAAA"));
+                        return;
+                    }
+
+                    // Group by modelAssetId and count
+                    java.util.Map<String, Integer> counts = new java.util.TreeMap<>();
+                    for (AnimalFinder.FoundAnimal animal : animals) {
+                        String id = animal.getModelAssetId();
+                        counts.merge(id, 1, Integer::sum);
+                    }
+
+                    ctx.sendMessage(Message.raw("=== Detected Creatures (" + counts.size() + " types) ===").color("#FF9900"));
+
+                    // Show built-in animals first
+                    ctx.sendMessage(Message.raw("Built-in animals:").color("#55FF55"));
+                    int builtInCount = 0;
+                    for (java.util.Map.Entry<String, Integer> entry : counts.entrySet()) {
+                        AnimalType type = AnimalType.fromModelAssetId(entry.getKey());
+                        if (type != null) {
+                            ctx.sendMessage(Message.raw("  " + entry.getKey()).color("#AAAAAA")
+                                    .insert(Message.raw(" x" + entry.getValue()).color("#FFFFFF"))
+                                    .insert(Message.raw(" [" + type + "]").color("#55FF55")));
+                            builtInCount++;
+                        }
+                    }
+                    if (builtInCount == 0) {
+                        ctx.sendMessage(Message.raw("  (none found)").color("#AAAAAA"));
+                    }
+
+                    // Show other creatures (potential custom animals)
+                    ctx.sendMessage(Message.raw("Other creatures (can add as custom):").color("#FFAA00"));
+                    int otherCount = 0;
+                    for (java.util.Map.Entry<String, Integer> entry : counts.entrySet()) {
+                        AnimalType type = AnimalType.fromModelAssetId(entry.getKey());
+                        if (type == null) {
+                            // Check if already added as custom
+                            boolean isCustom = plugin.getConfigManager().isCustomAnimal(entry.getKey());
+                            String status = isCustom ? " [ADDED]" : "";
+                            String statusColor = isCustom ? "#55FF55" : "#FFAA00";
+                            ctx.sendMessage(Message.raw("  " + entry.getKey()).color("#FFFFFF")
+                                    .insert(Message.raw(" x" + entry.getValue()).color("#AAAAAA"))
+                                    .insert(Message.raw(status).color(statusColor)));
+                            otherCount++;
+                        }
+                    }
+                    if (otherCount == 0) {
+                        ctx.sendMessage(Message.raw("  (none found)").color("#AAAAAA"));
+                    }
+
+                    ctx.sendMessage(Message.raw("Use ").color("#AAAAAA")
+                            .insert(Message.raw("/breed custom add <name> <food>").color("#FFFFFF"))
+                            .insert(Message.raw(" to add a creature").color("#AAAAAA")));
+
+                    // Show registered custom animals for comparison
+                    java.util.Map<String, CustomAnimalConfig> customAnimals = plugin.getConfigManager().getCustomAnimals();
+                    if (!customAnimals.isEmpty()) {
+                        ctx.sendMessage(Message.raw(""));
+                        ctx.sendMessage(Message.raw("Registered custom animals:").color("#55FFFF"));
+                        for (String registeredName : customAnimals.keySet()) {
+                            boolean foundInWorld = counts.containsKey(registeredName);
+                            String foundStatus = foundInWorld ? " [IN WORLD]" : " [NOT FOUND]";
+                            String foundColor = foundInWorld ? "#55FF55" : "#FF5555";
+                            ctx.sendMessage(Message.raw("  " + registeredName).color("#FFFFFF")
+                                    .insert(Message.raw(foundStatus).color(foundColor)));
+                        }
+                    }
+                });
+
+                return CompletableFuture.completedFuture(null);
+            }
         }
     }
 }
