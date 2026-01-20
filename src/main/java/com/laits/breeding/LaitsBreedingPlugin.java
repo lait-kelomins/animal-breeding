@@ -71,8 +71,10 @@ import com.laits.breeding.models.GrowthStage;
 import com.laits.breeding.util.ConfigManager;
 import com.laits.breeding.util.AnimalFinder;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -80,6 +82,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -107,6 +110,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private TamingManager tamingManager;
     private PersistenceManager persistenceManager;
     private ScheduledExecutorService tickScheduler;
+    private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
     private NewAnimalSpawnDetector spawnDetector;
 
     // Getter for tick scheduler (used by commands)
@@ -562,7 +566,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Start tick scheduler for pregnancy and growth updates
         tickScheduler = Executors.newSingleThreadScheduledExecutor();
-        tickScheduler.scheduleAtFixedRate(() -> {
+        scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
             try {
                 breedingManager.tickPregnancies();
                 growthManager.tickGrowth();
@@ -572,7 +576,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 getLogger().atWarning().log("[Tick] Error: " + e.getMessage());
                 e.printStackTrace();
             }
-        }, 1, 1, TimeUnit.SECONDS);
+        }, 1, 1, TimeUnit.SECONDS));
 
         // Start taming persistence auto-save (every 5 minutes)
         if (persistenceManager != null && tamingManager != null) {
@@ -582,13 +586,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         }
 
         // Start respawn check tick (every 5 seconds)
-        tickScheduler.scheduleAtFixedRate(() -> {
+        scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
             try {
                 checkAndRespawnTamedAnimals();
             } catch (Exception e) {
                 // Silent - respawn errors shouldn't crash the plugin
             }
-        }, 5, 5, TimeUnit.SECONDS);
+        }, 5, 5, TimeUnit.SECONDS));
 
         // Attach Root_FeedAnimal interaction to all breedable animals
         attachInteractionsToAnimals();
@@ -604,7 +608,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             logVerbose("NewAnimalSpawnDetector system registered in start()");
 
             // Periodically update player UUIDs for the spawn detector to exclude players
-            tickScheduler.scheduleAtFixedRate(() -> {
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
                 try {
                     if (spawnDetector != null) {
                         Set<UUID> currentPlayerUuids = ConcurrentHashMap.newKeySet();
@@ -622,10 +626,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 } catch (Exception e) {
                     // Silent
                 }
-            }, 0, 5, TimeUnit.SECONDS);
+            }, 0, 5, TimeUnit.SECONDS));
 
             // Periodically clear the processedEntities cache to prevent memory leak
-            tickScheduler.scheduleAtFixedRate(() -> {
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
                 try {
                     if (spawnDetector != null) {
                         int cacheSize = spawnDetector.getProcessedCacheSize();
@@ -637,10 +641,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 } catch (Exception e) {
                     // Silent
                 }
-            }, 5, 5, TimeUnit.MINUTES);
+            }, 5, 5, TimeUnit.MINUTES));
 
             // Periodically clean up originalInteractions map (safety net for missed EntityRemoveEvents)
-            tickScheduler.scheduleAtFixedRate(() -> {
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
                 try {
                     int removed = cleanupStaleOriginalInteractions();
                     if (removed > 0) {
@@ -649,10 +653,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 } catch (Exception e) {
                     // Silent
                 }
-            }, 10, 10, TimeUnit.MINUTES);
+            }, 10, 10, TimeUnit.MINUTES));
 
             // Periodically clean up stale breeding data
-            tickScheduler.scheduleAtFixedRate(() -> {
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
                 try {
                     int removed = breedingManager.cleanupStaleEntries();
                     if (removed > 0) {
@@ -661,10 +665,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 } catch (Exception e) {
                     // Silent
                 }
-            }, 5, 5, TimeUnit.MINUTES);
+            }, 5, 5, TimeUnit.MINUTES));
 
             // Periodically clean up expired pending taming entries
-            tickScheduler.scheduleAtFixedRate(() -> {
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
                 try {
                     if (tamingManager != null) {
                         int removed = tamingManager.cleanupExpiredPending();
@@ -675,7 +679,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 } catch (Exception e) {
                     // Silent
                 }
-            }, 5, 5, TimeUnit.MINUTES);
+            }, 5, 5, TimeUnit.MINUTES));
         } catch (Exception e) {
             logWarning("NewAnimalSpawnDetector registration failed: " + e.getMessage());
             spawnDetector = null;
@@ -729,13 +733,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Safety net: Periodic scan every 30 seconds (primary detection via
         // NewAnimalSpawnDetector)
-        tickScheduler.scheduleAtFixedRate(() -> {
+        scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
             try {
                 autoSetupNearbyAnimals();
             } catch (Exception e) {
                 // Silent
             }
-        }, 30, 30, TimeUnit.SECONDS);
+        }, 30, 30, TimeUnit.SECONDS));
     }
 
     /**
@@ -3168,6 +3172,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Stop tick scheduler and wait for tasks to finish
         if (tickScheduler != null) {
+            // Cancel all scheduled tasks first
+            for (ScheduledFuture<?> task : scheduledTasks) {
+                task.cancel(false);
+            }
+            scheduledTasks.clear();
+
             tickScheduler.shutdown();
             try {
                 if (!tickScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
