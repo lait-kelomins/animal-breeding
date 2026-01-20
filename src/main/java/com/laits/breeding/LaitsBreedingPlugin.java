@@ -980,11 +980,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      */
     private void setupCustomAnimalInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef, CustomAnimalConfig customAnimal) {
         String animalName = customAnimal.getModelAssetId();
+        getLogger().atInfo().log("[CustomAnimal] setupCustomAnimalInteractions CALLED for: %s", animalName);
         try {
             Object interactableType = getInteractableComponentType();
             Object interactionsType = getInteractionsComponentType();
-            if (interactionsType == null)
+            if (interactionsType == null) {
+                getLogger().atWarning().log("[CustomAnimal] %s: interactionsType is NULL, aborting", animalName);
                 return;
+            }
 
             java.lang.reflect.Method ensureMethod = null;
             for (java.lang.reflect.Method m : store.getClass().getMethods()) {
@@ -1022,14 +1025,25 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             java.lang.reflect.Method getIntId = interactions.getClass().getMethod(
                     "getInteractionId", interactionTypeClass);
             String currentUse = (String) getIntId.invoke(interactions, useType);
+            getLogger().atInfo().log("[CustomAnimal] %s: currentUse='%s', feedInteractionId='%s'", animalName, currentUse, feedInteractionId);
 
             if (currentUse == null || !currentUse.equals(feedInteractionId)) {
                 // Store original - SAME as built-in (unconditional)
                 storeOriginalInteractionId(entityRef, currentUse, null);
-                getLogger().atInfo().log("[CustomAnimal] %s: set interaction to %s (was: %s)", animalName, feedInteractionId, currentUse);
+                getLogger().atInfo().log("[CustomAnimal] %s: SETTING interaction to %s (was: %s)", animalName, feedInteractionId, currentUse);
 
                 java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
                         "setInteractionId", interactionTypeClass, String.class);
+
+                // FIX: Clear the *UseNPC interaction first (set to null like built-in animals)
+                // Built-in animals have null as original interaction, custom NPCs have *UseNPC
+                // The NPC system may intercept *UseNPC before our override takes effect
+                if (currentUse != null && currentUse.startsWith("*")) {
+                    setIntId.invoke(interactions, useType, null);
+                    getLogger().atInfo().log("[CustomAnimal] %s: cleared special interaction '%s' to null", animalName, currentUse);
+                }
+
+                // Now set our interaction
                 setIntId.invoke(interactions, useType, feedInteractionId);
             }
 
@@ -1271,10 +1285,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Package-private so it can be called from the BreedingScanCommand.
      */
     void autoSetupNearbyAnimals() {
+        getLogger().atInfo().log("[AutoScan] autoSetupNearbyAnimals CALLED");
         try {
             World world = Universe.get().getDefaultWorld();
-            if (world == null)
+            if (world == null) {
+                getLogger().atWarning().log("[AutoScan] world is NULL, aborting");
                 return;
+            }
 
             // Collect player UUIDs to exclude from animal detection
             final Set<UUID> playerUuids = new HashSet<>();
@@ -1286,10 +1303,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
 
             // Find all farm animals (including babies)
-            logVerbose("Starting animal scan...");
+            getLogger().atInfo().log("[AutoScan] Starting animal scan (customAnimals registered: %d)",
+                configManager.getCustomAnimals().size());
             AnimalFinder.findAnimals(world, false, animals -> {
                 try {
-                    logVerbose("Found " + animals.size() + " animals total");
+                    getLogger().atInfo().log("[AutoScan] Found %d animals total", animals.size());
                     if (animals.isEmpty())
                         return;
 
@@ -1298,9 +1316,19 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     int skippedDisabled = 0;
                     int skippedBaby = 0;
 
+                    // Log the registered custom animals for debugging
+                    getLogger().atInfo().log("[AutoScan] Registered custom animals: %s",
+                        String.join(", ", configManager.getCustomAnimals().keySet()));
+
                     for (AnimalFinder.FoundAnimal animal : animals) {
                         Object entityRef = animal.getEntityRef();
                         AnimalType animalType = animal.getAnimalType();
+                        String modelId = animal.getModelAssetId();
+
+                        // Check if this modelId matches any registered custom animal
+                        if (configManager.isCustomAnimal(modelId)) {
+                            getLogger().atInfo().log("[AutoScan] Processing potential custom animal: '%s' (animalType=%s)", modelId, animalType);
+                        }
 
                         // Skip if this is a player entity (prevents attaching interactions to players with animal models)
                         if (entityRef instanceof Ref) {
@@ -1318,29 +1346,39 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                     }
                                 }
                             } catch (Exception e) {
-                                // Entity ref may be stale, skip it
-                                // Log first few to help debug
-                                if (skippedNull < 3) {
-                                    getLogger().atWarning().log("[AnimalScan] Entity ref error for %s: %s",
-                                        animal.getModelAssetId(), e.getMessage());
+                                // Entity ref may be stale, skip it - BUT NOT custom animals
+                                // Custom NPCs may not have UUID components, so proceed anyway
+                                if (configManager.isCustomAnimal(modelId)) {
+                                    getLogger().atInfo().log("[CustomAnimal] '%s' has no UUID component (expected for custom NPCs), proceeding with setup",
+                                        modelId);
+                                    // Don't skip - continue to custom animal setup
+                                } else {
+                                    if (skippedNull < 3) {
+                                        getLogger().atWarning().log("[AnimalScan] Entity ref error for %s: %s",
+                                            animal.getModelAssetId(), e.getMessage());
+                                    }
+                                    skippedNull++; // Count these as skipped
+                                    continue;
                                 }
-                                skippedNull++; // Count these as skipped
-                                continue;
                             }
                         }
 
                         // Check if it's a custom animal (from config)
                         CustomAnimalConfig customAnimal = null;
                         if (animalType == null) {
-                            String modelId = animal.getModelAssetId();
                             customAnimal = configManager.getCustomAnimal(modelId);
                             // Debug: log custom animal lookup attempts
                             if (customAnimal != null) {
-                                getLogger().atInfo().log("[CustomAnimal] Found match for '%s'", modelId);
+                                getLogger().atInfo().log("[CustomAnimal] Found match for '%s' (enabled=%s)", modelId, customAnimal.isEnabled());
                             } else if (configManager.getCustomAnimals().size() > 0) {
-                                // Only log if there are custom animals registered
-                                logVerbose("[CustomAnimal] No match for '" + modelId + "' (registered: " +
-                                    String.join(", ", configManager.getCustomAnimals().keySet()) + ")");
+                                // Only log if there are custom animals registered - ALWAYS LOG THIS
+                                getLogger().atInfo().log("[CustomAnimal] No match for '%s' (registered: %s)",
+                                    modelId, String.join(", ", configManager.getCustomAnimals().keySet()));
+                            }
+                        } else {
+                            // Log if a potential custom animal is being detected as built-in
+                            if (configManager.isCustomAnimal(modelId)) {
+                                getLogger().atWarning().log("[CustomAnimal] '%s' matched as built-in %s instead of custom!", modelId, animalType);
                             }
                         }
 
@@ -1381,12 +1419,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                             + animalType + ")");
                                     setupEntityInteractions(refStore, ref, animalType);
                                 } else if (customAnimal != null) {
-                                    logVerbose("Setting up interactions for custom animal: " + animal.getModelAssetId());
+                                    getLogger().atInfo().log("[CustomAnimal] ABOUT TO CALL setupCustomAnimalInteractions for: %s", animal.getModelAssetId());
                                     setupCustomAnimalInteractions(refStore, ref, customAnimal);
                                 }
                                 processedCount++;
+                            } else {
+                                getLogger().atWarning().log("[CustomAnimal] refStore is NULL for: %s", animal.getModelAssetId());
                             }
                         } else {
+                            if (customAnimal != null) {
+                                getLogger().atInfo().log("[CustomAnimal] Skipping baby custom animal: %s", animal.getModelAssetId());
+                            }
                             skippedBaby++;
                         }
                     }
@@ -5404,6 +5447,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             ctx.sendMessage(Message.raw("  " + registeredName).color("#FFFFFF")
                                     .insert(Message.raw(foundStatus).color(foundColor)));
                         }
+
+                        // Trigger interaction setup for any custom animals found in world
+                        ctx.sendMessage(Message.raw("Setting up interactions for custom animals...").color("#AAAAAA"));
+                        plugin.autoSetupNearbyAnimals();
                     }
                 });
 
