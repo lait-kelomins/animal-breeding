@@ -1,5 +1,41 @@
 # Changelog
 
+## v1.3.0 - Taming & Entity Persistence
+
+### New Features
+
+#### Animal Taming System
+- **Name Tag taming** - Use `/nametag <name>` then right-click an animal while holding a Name Tag item to tame it
+- **Ownership system** - Tamed animals belong to the player who tamed them
+- **Interaction permissions** - Use `/tamingsettings` to toggle whether other players can interact with your animals
+- **Taming info** - Use `/taminginfo` to see all your tamed animals and their status
+- **Release animals** - Use `/untame` then right-click to release a tamed animal
+
+#### Save System
+- **Persistent taming data** - Tamed animals are saved to `tamed_animals.json` and survive server restarts
+- **Auto-save** - Data auto-saves every 5 minutes
+- **Shutdown save** - Data is always saved on server shutdown
+
+#### Entity Persistence
+- **Respawn system** - Tamed animals that despawn will respawn at their last position when a player approaches (64 block radius)
+- **State preservation** - Growth stage, breeding cooldowns, and all taming data are preserved across respawns
+
+### New Commands
+| Command | Description |
+|---------|-------------|
+| `/nametag <name>` | Set pending name tag, then right-click animal to tame |
+| `/taminginfo` | Show taming stats and list your tamed animals |
+| `/tamingsettings` | Toggle whether others can interact with your animals |
+| `/untame` | Right-click to release a tamed animal (owner only) |
+
+### New Files
+- `TamedAnimalData.java` - Data model for tamed animals
+- `TamingManager.java` - Manages taming state and ownership
+- `PersistenceManager.java` - JSON save/load system
+- `Server/Item/Items/Misc/NameTag.json` - Name Tag item asset
+
+---
+
 ## v1.2.1 - Heart Particles & Spawn Detection
 
 ### New Features

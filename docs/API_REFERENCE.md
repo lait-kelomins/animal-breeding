@@ -443,12 +443,128 @@ import com.hypixel.hytale.protocol.SoundCategory;
 
 ### Playing Sounds
 ```java
-int soundId = SoundEvent.getAssetMap().getIndex("SFX_Consume_Bread");
+int soundId = SoundEvent.getAssetMap().getIndex("SFX_MyCustomSound");
 Vector3d pos = transform.getPosition();
 
 // Play 3D sound at position
 SoundUtil.playSoundEvent3d(soundId, SoundCategory.SFX,
     pos.getX(), pos.getY(), pos.getZ(), store);
+```
+
+### Custom Sound Assets
+
+To add custom sounds to your mod:
+
+**1. Add the sound file (.ogg format):**
+```
+src/main/resources/
+└── Common/
+    └── Sounds/
+        └── MyCustomSound.ogg
+```
+
+**2. Create a SoundEvent JSON:**
+```
+src/main/resources/
+└── Server/
+    └── Audio/
+        └── SoundEvents/
+            └── SFX_MyCustomSound.json
+```
+
+**SoundEvent JSON structure:**
+```json
+{
+  "Layers": [
+    {
+      "Files": ["Sounds/MyCustomSound.ogg"],
+      "Volume": 0,
+      "RandomSettings": {
+        "MinPitch": -1,
+        "MaxPitch": 1,
+        "MinVolume": -2
+      }
+    }
+  ],
+  "Volume": 0,
+  "Parent": "SFX_Attn_Moderate",
+  "PreventSoundInterruption": false
+}
+```
+
+**3. Reference in code by filename (without .json):**
+```java
+int soundId = SoundEvent.getAssetMap().getIndex("SFX_MyCustomSound");
+```
+
+### SoundEvent Properties
+
+| Property | Description |
+|----------|-------------|
+| `Files` | Array of `.ogg` files (picks randomly if multiple) |
+| `Volume` | Decibels (0 = normal, negative = quieter, positive = louder) |
+| `Parent` | Attenuation preset (see below) |
+| `RandomSettings.MinPitch` | Minimum pitch variation |
+| `RandomSettings.MaxPitch` | Maximum pitch variation |
+| `RandomSettings.MinVolume` | Minimum volume variation |
+| `StartDelay` | Delay in seconds before playing |
+| `PreventSoundInterruption` | If true, sound won't be cut off by new sounds |
+
+### Attenuation Presets
+
+| Preset | Use Case |
+|--------|----------|
+| `SFX_Attn_VeryQuiet` | Subtle sounds, short range |
+| `SFX_Attn_Quiet` | Quiet sounds |
+| `SFX_Attn_Moderate` | Standard sound effects |
+| `SFX_Attn_Loud` | Loud sounds, longer range |
+| `SFX_Attn_VeryLoud` | Very loud sounds, maximum range |
+
+### Sound Categories
+
+| Category | Use Case |
+|----------|----------|
+| `SoundCategory.SFX` | Sound effects |
+| `SoundCategory.MUSIC` | Background music |
+| `SoundCategory.AMBIENT` | Ambient/environmental |
+
+### Multiple Sound Variations
+
+For random variation, add multiple files:
+```json
+{
+  "Layers": [
+    {
+      "Files": [
+        "Sounds/MySound_01.ogg",
+        "Sounds/MySound_02.ogg",
+        "Sounds/MySound_03.ogg"
+      ],
+      "Volume": 0
+    }
+  ],
+  "Parent": "SFX_Attn_Moderate"
+}
+```
+
+### Layered Sounds
+
+Add multiple layers for complex sounds:
+```json
+{
+  "Layers": [
+    {
+      "Files": ["Sounds/MainSound.ogg"],
+      "Volume": 0
+    },
+    {
+      "Files": ["Sounds/Sweetener.ogg"],
+      "Volume": -6,
+      "Probability": 50
+    }
+  ],
+  "Parent": "SFX_Attn_Moderate"
+}
 ```
 
 ---

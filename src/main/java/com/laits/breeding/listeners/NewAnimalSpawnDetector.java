@@ -14,9 +14,11 @@ import com.laits.breeding.models.AnimalType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
+
 import java.lang.reflect.Field;
-import java.util.HashSet;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -31,12 +33,16 @@ import java.util.concurrent.ConcurrentHashMap;
 public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
 
     private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
+    private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
 
     // NewSpawnComponent type - obtained via reflection since it may not be public API
     private static ComponentType<EntityStore, ?> newSpawnComponentType = null;
 
     // Track processed entities to avoid duplicate processing
     private final Set<String> processedEntities = ConcurrentHashMap.newKeySet();
+
+    // Player UUIDs to exclude from animal detection (updated by main plugin)
+    private volatile Set<UUID> playerUuids = ConcurrentHashMap.newKeySet();
 
     // Statistics
     private static int detectedCount = 0;
@@ -70,6 +76,14 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
     public static long getLastDetectionTime() { return lastDetectionTime; }
     public static String getLastDetectedAnimal() { return lastDetectedAnimal; }
 
+    /**
+     * Update the set of player UUIDs to exclude from animal detection.
+     * Called periodically by the main plugin.
+     */
+    public void updatePlayerUuids(Set<UUID> uuids) {
+        this.playerUuids = uuids != null ? uuids : ConcurrentHashMap.newKeySet();
+    }
+
     @Override
     public void tick(
             float deltaTime,
@@ -93,6 +107,18 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
             // Create unique key to avoid reprocessing
             String refKey = entityRef.toString();
             if (processedEntities.contains(refKey)) return;
+
+            // Check if this is a player entity (skip players with animal models)
+            try {
+                UUIDComponent uuidComp = store.getComponent(entityRef, UUID_TYPE);
+                if (uuidComp != null && uuidComp.getUuid() != null) {
+                    if (playerUuids.contains(uuidComp.getUuid())) {
+                        return; // Skip player entities
+                    }
+                }
+            } catch (Exception e) {
+                // Ignore - entity ref may be invalid
+            }
 
             // Check if entity has a model (indicates it's a visual entity)
             ModelComponent modelComp = chunk.getComponent(entityIndex, MODEL_TYPE);

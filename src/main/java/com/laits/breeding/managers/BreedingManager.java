@@ -61,6 +61,38 @@ public class BreedingManager {
     }
 
     /**
+     * Clean up stale entries where entity refs are no longer valid.
+     * This is a safety net for missed EntityRemoveEvents.
+     * @return Number of entries removed
+     */
+    public int cleanupStaleEntries() {
+        int removed = 0;
+        java.util.Iterator<Map.Entry<UUID, BreedingData>> it = breedingDataMap.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<UUID, BreedingData> entry = it.next();
+            BreedingData data = entry.getValue();
+            Object entityRef = data.getEntityRef();
+            if (entityRef != null) {
+                try {
+                    // Attempt to access the entity - will throw if ref is stale/invalid
+                    Object store = entityRef.getClass().getMethod("getStore").invoke(entityRef);
+                    if (store == null) {
+                        it.remove();
+                        removed++;
+                        debug("Removed stale breeding entry: " + entry.getKey());
+                    }
+                } catch (Exception e) {
+                    // Entity ref is invalid - remove the entry
+                    it.remove();
+                    removed++;
+                    debug("Removed stale breeding entry (exception): " + entry.getKey());
+                }
+            }
+        }
+        return removed;
+    }
+
+    /**
      * Register a spawned baby animal for growth tracking.
      * @param babyId The baby's UUID
      * @param animalType The type of animal

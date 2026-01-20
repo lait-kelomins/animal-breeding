@@ -28,9 +28,11 @@ import com.hypixel.hytale.server.npc.NPCPlugin;
 
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.managers.BreedingManager;
+import com.laits.breeding.managers.TamingManager;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.GrowthStage;
+import com.laits.breeding.models.TamedAnimalData;
 
 import java.lang.reflect.Field;
 import java.util.UUID;
@@ -100,6 +102,14 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     return;
                 }
 
+                // Safety check: Skip if target is a player (prevents treating players with animal models as animals)
+                // Option B: Just return without triggering fallback - let native Hytale behavior (mounting, etc.) work
+                if (isPlayerEntity(targetRef)) {
+                    log("Target is a player entity, skipping FeedAnimal interaction");
+                    shouldFail = true;
+                    return;
+                }
+
                 ItemStack heldItem = context.getHeldItem();
                 String itemId = heldItem != null ? heldItem.getItemId() : null;
                 log("Held item: " + (heldItem != null ? heldItem.getClass().getSimpleName() : "null") + ", itemId: " + itemId);
@@ -113,6 +123,112 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     failedTargetRef = targetRef;
                     triggerFallbackInteraction(context, targetRef);
                     return;
+                }
+
+                // Check for taming: player has pending name tag AND is holding Name Tag item
+                TamingManager tamingManager = plugin.getTamingManager();
+                UUID playerUuid = getPlayerUuid(context);
+                String playerName = getPlayerName(context);
+
+                // Debug logging
+                log("[TamingDebug] playerUuid=" + playerUuid + ", playerName=" + playerName + ", itemId=" + itemId);
+                if (tamingManager != null) {
+                    boolean hasNameTagUuid = playerUuid != null && tamingManager.hasPendingNameTag(playerUuid);
+                    boolean hasNameTagName = playerName != null && tamingManager.hasPendingNameTagByName(playerName);
+                    log("[TamingDebug] hasPendingNameTag(uuid)=" + hasNameTagUuid + ", hasPendingNameTag(name)=" + hasNameTagName);
+                }
+
+                if (tamingManager != null && playerUuid != null) {
+                    // Check for pending untame (check both UUID-based and name-based)
+                    boolean hasPendingUntame = tamingManager.hasPendingUntame(playerUuid) ||
+                            (playerName != null && tamingManager.hasPendingUntameByName(playerName));
+                    if (hasPendingUntame) {
+                        UUID animalUuid = getUuidFromRef(targetRef);
+                        if (tamingManager.untameAnimal(animalUuid, playerUuid)) {
+                            tamingManager.consumePendingUntame(playerUuid);
+                            if (playerName != null) tamingManager.consumePendingUntameByName(playerName);
+                            sendPlayerMessage(context, "Animal released!", "#55FF55");
+                            playTamingSound(targetRef);
+                            // Also clear taming from breeding data
+                            BreedingData bData = breeding.getData(animalUuid);
+                            if (bData != null) {
+                                bData.setTamed(false, null);
+                            }
+                        } else {
+                            tamingManager.consumePendingUntame(playerUuid);
+                            if (playerName != null) tamingManager.consumePendingUntameByName(playerName);
+                            TamedAnimalData tamedData = tamingManager.getTamedData(animalUuid);
+                            if (tamedData != null && !tamedData.isOwnedBy(playerUuid)) {
+                                sendPlayerMessage(context, "This animal belongs to someone else!", "#FF5555");
+                            } else {
+                                sendPlayerMessage(context, "This animal is not tamed.", "#FFAA00");
+                            }
+                        }
+                        shouldFail = true;
+                        return;
+                    }
+
+                    // Check for pending name tag (no item requirement - just /nametag command)
+                    boolean hasPendingNameTag = tamingManager.hasPendingNameTag(playerUuid) ||
+                            (playerName != null && tamingManager.hasPendingNameTagByName(playerName));
+                    if (hasPendingNameTag) {
+                        // Try to get pending name from either source
+                        String pendingName = tamingManager.consumePendingNameTag(playerUuid);
+                        if (pendingName == null && playerName != null) {
+                            pendingName = tamingManager.consumePendingNameTagByName(playerName);
+                        } else if (playerName != null) {
+                            // Also clear name-based if we consumed UUID-based
+                            tamingManager.consumePendingNameTagByName(playerName);
+                        }
+                        UUID animalUuid = getUuidFromRef(targetRef);
+
+                        // Check if already tamed by someone else
+                        TamedAnimalData existingTamed = tamingManager.getTamedData(animalUuid);
+                        if (existingTamed != null && !existingTamed.isOwnedBy(playerUuid)) {
+                            sendPlayerMessage(context, "This animal belongs to " + existingTamed.getOwnerUuid() + "!", "#FF5555");
+                            shouldFail = true;
+                            return;
+                        }
+
+                        // Tame the animal
+                        TamedAnimalData tamedData = tamingManager.tameAnimal(animalUuid, playerUuid, pendingName, animalType);
+                        if (tamedData != null) {
+                            // Update breeding data too
+                            BreedingData bData = breeding.getOrCreateData(animalUuid, animalType);
+                            bData.setTamed(true, playerUuid);
+                            bData.setCustomName(pendingName);
+                            bData.setEntityRef(targetRef);
+
+                            // Update position in tamed data
+                            Vector3d pos = getEntityPosition(targetRef);
+                            if (pos != null) {
+                                tamedData.setLastPosition(pos.getX(), pos.getY(), pos.getZ());
+                            }
+                            tamedData.setEntityRef(targetRef);
+
+                            // Consume name tag item
+                            consumePlayerHeldItem(context);
+
+                            // Feedback
+                            sendPlayerMessage(context, pendingName + " is now yours!", "#55FF55");
+                            playTamingSound(targetRef);
+                            spawnHeartParticles(targetRef);
+
+                            log("Tamed animal: " + pendingName + " (" + animalType + ")");
+                        }
+                        shouldFail = true; // Don't proceed with feeding
+                        return;
+                    }
+
+                    // Check interaction permission for tamed animals
+                    UUID animalUuid = getUuidFromRef(targetRef);
+                    if (!tamingManager.canPlayerInteract(animalUuid, playerUuid)) {
+                        TamedAnimalData tamedData = tamingManager.getTamedData(animalUuid);
+                        String ownerName = tamedData != null ? tamedData.getOwnerUuid().toString().substring(0, 8) + "..." : "someone";
+                        sendPlayerMessage(context, "This animal belongs to " + ownerName + "!", "#FF5555");
+                        shouldFail = true;
+                        return;
+                    }
                 }
 
                 // Check if holding correct food
@@ -600,6 +716,29 @@ public class FeedAnimalInteraction extends SimpleInteraction {
         return UUID.nameUUIDFromBytes(ref.toString().getBytes());
     }
 
+    /**
+     * Check if an entity ref corresponds to a player (prevents treating players with animal models as animals).
+     */
+    private boolean isPlayerEntity(Ref<EntityStore> ref) {
+        try {
+            UUID entityUuid = getUuidFromRef(ref);
+            if (entityUuid == null) return false;
+
+            World world = Universe.get().getDefaultWorld();
+            if (world == null) return false;
+
+            for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
+                UUID playerUuid = getPlayerUuidFromPlayer(player);
+                if (entityUuid.equals(playerUuid)) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            // Silent - assume not a player if we can't check
+        }
+        return false;
+    }
+
     private AnimalType getAnimalTypeFromEntity(Ref<EntityStore> targetRef) {
         try {
             Store<EntityStore> store = targetRef.getStore();
@@ -626,6 +765,157 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    // ===========================================
+    // TAMING HELPER METHODS
+    // ===========================================
+
+    /**
+     * Get the player's UUID from the interaction context.
+     */
+    private UUID getPlayerUuid(InteractionContext context) {
+        try {
+            Ref<EntityStore> entityRef = context.getEntity();
+            if (entityRef == null) return null;
+
+            Store<EntityStore> store = entityRef.getStore();
+            if (store == null) return null;
+
+            UUIDComponent uuidComp = store.getComponent(entityRef, UUID_TYPE);
+            if (uuidComp != null && uuidComp.getUuid() != null) {
+                return uuidComp.getUuid();
+            }
+        } catch (Exception e) {
+            log("getPlayerUuid error: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Get the player's display name from the interaction context.
+     * Since context.getEntity() returns a Ref, we look up the player by UUID.
+     */
+    private String getPlayerName(InteractionContext context) {
+        try {
+            // First get the player's UUID
+            UUID playerUuid = getPlayerUuid(context);
+            if (playerUuid == null) {
+                log("getPlayerName: playerUuid is null");
+                return null;
+            }
+
+            // Look up the player by UUID from the world's players
+            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+            if (plugin != null) {
+                World world = com.hypixel.hytale.server.core.universe.Universe.get().getDefaultWorld();
+                if (world != null) {
+                    for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
+                        // Compare UUIDs
+                        UUID pUuid = getPlayerUuidFromPlayer(player);
+                        if (playerUuid.equals(pUuid)) {
+                            String name = player.getDisplayName();
+                            log("getPlayerName: found player " + name);
+                            return name;
+                        }
+                    }
+                }
+            }
+            log("getPlayerName: player not found in world");
+        } catch (Exception e) {
+            log("getPlayerName error: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Get UUID from a Player entity.
+     */
+    @SuppressWarnings("unchecked")
+    private UUID getPlayerUuidFromPlayer(com.hypixel.hytale.server.core.entity.entities.Player player) {
+        try {
+            Object entityRef = player.getReference();
+            if (entityRef != null && entityRef instanceof Ref) {
+                Store<EntityStore> store = ((Ref<EntityStore>) entityRef).getStore();
+                if (store != null) {
+                    UUIDComponent uuidComp = store.getComponent((Ref<EntityStore>) entityRef, UUID_TYPE);
+                    if (uuidComp != null) {
+                        return uuidComp.getUuid();
+                    }
+                }
+            }
+        } catch (Exception e) {
+            // Silent
+        }
+        return null;
+    }
+
+    /**
+     * Check if the item ID is a Name Tag item.
+     */
+    private boolean isHoldingNameTag(String itemId) {
+        if (itemId == null) return false;
+        // Check for various possible Name Tag item IDs
+        return itemId.equalsIgnoreCase("NameTag") ||
+               itemId.equalsIgnoreCase("Name_Tag") ||
+               itemId.equalsIgnoreCase("Misc_NameTag") ||
+               itemId.toLowerCase().contains("nametag");
+    }
+
+    /**
+     * Send a message to the player.
+     */
+    private void sendPlayerMessage(InteractionContext context, String message, String color) {
+        try {
+            Ref<EntityStore> entityRef = context.getEntity();
+            if (entityRef == null) return;
+
+            // Try to send message via reflection
+            for (java.lang.reflect.Method m : entityRef.getClass().getMethods()) {
+                if (m.getName().equals("sendMessage") && m.getParameterCount() == 1) {
+                    com.hypixel.hytale.server.core.Message msg =
+                        com.hypixel.hytale.server.core.Message.raw(message).color(color);
+                    m.invoke(entityRef, msg);
+                    return;
+                }
+            }
+        } catch (Exception e) {
+            log("sendPlayerMessage error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Play taming sound at entity position.
+     */
+    private void playTamingSound(Ref<EntityStore> targetRef) {
+        try {
+            Vector3d pos = getEntityPosition(targetRef);
+            if (pos == null) return;
+
+            Store<EntityStore> store = targetRef.getStore();
+            if (store == null) return;
+
+            // Try "SFX_LevelUp" or similar success sound
+            int soundId = SoundEvent.getAssetMap().getIndex("SFX_LevelUp");
+            if (soundId < 0) {
+                soundId = SoundEvent.getAssetMap().getIndex("SFX_Consume_Bread");
+            }
+            if (soundId < 0) return;
+
+            // Play 3D sound
+            for (java.lang.reflect.Method m : SoundUtil.class.getMethods()) {
+                if (m.getName().equals("playSoundEvent3d") && m.getParameterCount() == 6) {
+                    Class<?>[] paramTypes = m.getParameterTypes();
+                    if (paramTypes[0] == int.class && paramTypes[1] == double.class) {
+                        Predicate<Object> allPlayers = p -> true;
+                        m.invoke(null, soundId, pos.getX(), pos.getY(), pos.getZ(), allPlayers, store);
+                        return;
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log("playTamingSound error: " + e.getMessage());
         }
     }
 }

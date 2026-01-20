@@ -5,7 +5,12 @@ import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.EntityEventSystem;
+import com.hypixel.hytale.protocol.PickupLocation;
 import com.hypixel.hytale.server.core.event.events.ecs.UseBlockEvent;
+import com.hypixel.hytale.server.core.modules.entity.component.RespondToHit;
+import com.hypixel.hytale.server.core.modules.entity.damage.DeathComponent;
+import com.hypixel.hytale.server.core.modules.entity.player.PlayerCreativeSettings;
+import com.hypixel.hytale.server.core.modules.entity.player.PlayerSettings;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import org.jetbrains.annotations.NotNull;
@@ -24,9 +29,17 @@ public class UseBlockHandler extends EntityEventSystem<EntityStore, UseBlockEven
         super(UseBlockEvent.class);
     }
 
-    public static int getEventCount() { return eventCount; }
-    public static String getLastPlayer() { return lastPlayer; }
-    public static long getLastEventTime() { return lastEventTime; }
+    public static int getEventCount() {
+        return eventCount;
+    }
+
+    public static String getLastPlayer() {
+        return lastPlayer;
+    }
+
+    public static long getLastEventTime() {
+        return lastEventTime;
+    }
 
     @Override
     public void handle(
@@ -34,8 +47,7 @@ public class UseBlockHandler extends EntityEventSystem<EntityStore, UseBlockEven
             @NotNull ArchetypeChunk<EntityStore> chunk,
             @NotNull Store<EntityStore> store,
             @NotNull CommandBuffer<EntityStore> buffer,
-            @NotNull UseBlockEvent event
-    ) {
+            @NotNull UseBlockEvent event) {
         eventCount++;
         lastEventTime = System.currentTimeMillis();
 

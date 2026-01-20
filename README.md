@@ -16,7 +16,15 @@
 
 ***
 
-## What's New in v1.2.0
+## What's New in v1.3.0
+
+# 1.3.0 - Taming & Entity Persistence
+
+*   **Animal Taming** - Use `/nametag <name>` then right-click an animal while holding a Name Tag item to tame and name it
+*   **Ownership System** - Tamed animals belong to you; use `/tamingsettings` to control whether others can interact
+*   **Persistent Saves** - Tamed animals are saved to disk and survive server restarts
+*   **Entity Respawning** - Tamed animals that despawn will respawn at their last position when you approach
+*   **New Commands** - `/nametag`, `/taminginfo`, `/tamingsettings`, `/untame`
 
 # 1.2.1
 
