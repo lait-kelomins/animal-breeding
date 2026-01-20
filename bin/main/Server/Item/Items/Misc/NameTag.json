@@ -1,0 +1,7 @@
+{
+    "DisplayName": "Name Tag",
+    "Description": "Use /nametag <name> then right-click an animal to tame it",
+    "MaxStackSize": 64,
+    "Rarity": "Uncommon",
+    "Category": "Misc"
+}

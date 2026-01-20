@@ -2277,6 +2277,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
         }
 
+        // Also process custom animals in love mode
+        breedingManager.tickCustomAnimalLove(); // Expire old love modes
+        for (BreedingManager.CustomAnimalLoveData customData : breedingManager.getCustomAnimalsInLove()) {
+            if (customData.getEntityRef() != null) {
+                inLoveEntityRefs.add(customData.getEntityRef());
+                inLoveWithRef++;
+            } else {
+                inLoveNoRef++;
+            }
+        }
+
         // Debug: Log love status every tick
         if (inLoveWithRef > 0 || inLoveNoRef > 0) {
             getLogger().atInfo().log("[Hearts] Tracked: " + trackedCount +

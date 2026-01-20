@@ -18,8 +18,12 @@ public class BreedingManager {
     private final ConfigManager config;
     private final Map<UUID, BreedingData> breedingDataMap = new ConcurrentHashMap<>();
 
+    // Custom animal love mode tracking (separate from enum-based animals)
+    private final Map<UUID, CustomAnimalLoveData> customAnimalsInLove = new ConcurrentHashMap<>();
+
     // Callbacks for game integration
     private Consumer<BirthEvent> onBirthCallback;
+    private Consumer<CustomBirthEvent> onCustomBirthCallback;
     private Consumer<String> debugLogger;
 
     public BreedingManager(ConfigManager config) {
@@ -374,5 +378,192 @@ public class BreedingManager {
         public AnimalType getAnimalType() {
             return animalType;
         }
+    }
+
+    // ==================== CUSTOM ANIMAL BREEDING ====================
+
+    /**
+     * Try to feed a custom animal (put it in love mode).
+     * @param animalId The animal's UUID
+     * @param modelAssetId The custom animal's model asset ID
+     * @param entityRef The entity reference (for heart particles)
+     * @return Result of the feeding attempt
+     */
+    public FeedResult tryFeedCustomAnimal(UUID animalId, String modelAssetId, Object entityRef) {
+        // Check if already in love
+        CustomAnimalLoveData existing = customAnimalsInLove.get(animalId);
+        if (existing != null && existing.isInLove()) {
+            return FeedResult.ALREADY_IN_LOVE;
+        }
+
+        // Check cooldown
+        if (existing != null && !existing.canBreed(config.getCustomAnimalBreedingCooldown(modelAssetId))) {
+            return FeedResult.ON_COOLDOWN;
+        }
+
+        // Put in love mode
+        CustomAnimalLoveData loveData = new CustomAnimalLoveData(animalId, modelAssetId, entityRef);
+        loveData.setInLove(true);
+        customAnimalsInLove.put(animalId, loveData);
+
+        debug("Custom animal " + animalId + " (" + modelAssetId + ") is now in love!");
+        return FeedResult.SUCCESS;
+    }
+
+    /**
+     * Check if a custom animal is in love mode.
+     */
+    public boolean isCustomAnimalInLove(UUID animalId) {
+        CustomAnimalLoveData data = customAnimalsInLove.get(animalId);
+        return data != null && data.isInLove();
+    }
+
+    /**
+     * Get custom animal love data.
+     */
+    public CustomAnimalLoveData getCustomAnimalLoveData(UUID animalId) {
+        return customAnimalsInLove.get(animalId);
+    }
+
+    /**
+     * Get all custom animals currently in love mode (for heart particle spawning).
+     */
+    public Iterable<CustomAnimalLoveData> getCustomAnimalsInLove() {
+        return customAnimalsInLove.values().stream()
+            .filter(CustomAnimalLoveData::isInLove)
+            .toList();
+    }
+
+    /**
+     * Try to breed two custom animals of the same type.
+     */
+    public boolean tryBreedCustomAnimals(UUID animal1Id, UUID animal2Id, String modelAssetId) {
+        CustomAnimalLoveData data1 = customAnimalsInLove.get(animal1Id);
+        CustomAnimalLoveData data2 = customAnimalsInLove.get(animal2Id);
+
+        if (data1 == null || data2 == null) {
+            debug("Cannot breed custom animals: one or both not tracked");
+            return false;
+        }
+
+        // Both must be in love
+        if (!data1.isInLove() || !data2.isInLove()) {
+            debug("Cannot breed custom animals: both must be in love");
+            return false;
+        }
+
+        // Must be same type
+        if (!data1.getModelAssetId().equals(data2.getModelAssetId())) {
+            debug("Cannot breed custom animals: different types");
+            return false;
+        }
+
+        // Complete breeding - reset love mode and set cooldown
+        data1.completeBreeding();
+        data2.completeBreeding();
+
+        debug("Custom animal breeding complete! " + modelAssetId);
+
+        // Fire callback for baby spawning
+        if (onCustomBirthCallback != null) {
+            UUID babyId = UUID.randomUUID();
+            CustomBirthEvent event = new CustomBirthEvent(animal1Id, animal2Id, babyId, modelAssetId, data1.getEntityRef());
+            onCustomBirthCallback.accept(event);
+        }
+
+        return true;
+    }
+
+    /**
+     * Set callback for custom animal births.
+     */
+    public void setOnCustomBirthCallback(Consumer<CustomBirthEvent> callback) {
+        this.onCustomBirthCallback = callback;
+    }
+
+    /**
+     * Clean up expired love modes for custom animals.
+     * Love mode expires after 30 seconds by default.
+     */
+    public void tickCustomAnimalLove() {
+        long now = System.currentTimeMillis();
+        long loveDuration = 30_000; // 30 seconds
+
+        for (CustomAnimalLoveData data : customAnimalsInLove.values()) {
+            if (data.isInLove() && (now - data.getLoveStartTime()) > loveDuration) {
+                data.setInLove(false);
+                debug("Custom animal " + data.getAnimalId() + " love mode expired");
+            }
+        }
+    }
+
+    /**
+     * Data class for tracking custom animal love mode.
+     */
+    public static class CustomAnimalLoveData {
+        private final UUID animalId;
+        private final String modelAssetId;
+        private Object entityRef;
+        private boolean inLove;
+        private long loveStartTime;
+        private long lastBreedTime;
+
+        public CustomAnimalLoveData(UUID animalId, String modelAssetId, Object entityRef) {
+            this.animalId = animalId;
+            this.modelAssetId = modelAssetId;
+            this.entityRef = entityRef;
+            this.inLove = false;
+            this.loveStartTime = 0;
+            this.lastBreedTime = 0;
+        }
+
+        public UUID getAnimalId() { return animalId; }
+        public String getModelAssetId() { return modelAssetId; }
+        public Object getEntityRef() { return entityRef; }
+        public void setEntityRef(Object ref) { this.entityRef = ref; }
+
+        public boolean isInLove() { return inLove; }
+        public long getLoveStartTime() { return loveStartTime; }
+
+        public void setInLove(boolean inLove) {
+            this.inLove = inLove;
+            if (inLove) {
+                this.loveStartTime = System.currentTimeMillis();
+            }
+        }
+
+        public boolean canBreed(long cooldownMs) {
+            return (System.currentTimeMillis() - lastBreedTime) >= cooldownMs;
+        }
+
+        public void completeBreeding() {
+            this.inLove = false;
+            this.lastBreedTime = System.currentTimeMillis();
+        }
+    }
+
+    /**
+     * Event data for a custom animal birth.
+     */
+    public static class CustomBirthEvent {
+        private final UUID parent1Id;
+        private final UUID parent2Id;
+        private final UUID babyId;
+        private final String modelAssetId;
+        private final Object parentEntityRef;
+
+        public CustomBirthEvent(UUID parent1Id, UUID parent2Id, UUID babyId, String modelAssetId, Object parentEntityRef) {
+            this.parent1Id = parent1Id;
+            this.parent2Id = parent2Id;
+            this.babyId = babyId;
+            this.modelAssetId = modelAssetId;
+            this.parentEntityRef = parentEntityRef;
+        }
+
+        public UUID getParent1Id() { return parent1Id; }
+        public UUID getParent2Id() { return parent2Id; }
+        public UUID getBabyId() { return babyId; }
+        public String getModelAssetId() { return modelAssetId; }
+        public Object getParentEntityRef() { return parentEntityRef; }
     }
 }

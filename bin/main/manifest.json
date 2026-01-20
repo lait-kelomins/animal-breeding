@@ -1,0 +1,17 @@
+{
+    "Group": "Lait",
+    "Name": "AnimalBreeding",
+    "Version": "${version}",
+    "Description": "Adds realistic breeding mechanics for farm animals",
+    "Authors": [
+        {
+            "Name": "Lait",
+            "Email": "lait.kelomins@gmail.com",
+            "Url": ""
+        }
+    ],
+    "Website": "",
+    "Main": "com.laits.breeding.LaitsBreedingPlugin",
+    "ServerVersion": "*",
+    "IncludesAssetPack": true
+}
