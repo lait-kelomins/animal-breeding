@@ -140,6 +140,11 @@ processResources {
     }
 }
 
+// Disable default jar task - we only use shadowJar
+jar {
+    enabled = false
+}
+
 shadowJar {
     // Default build has no classifier, experimental has -experimental in version
     archiveClassifier.set('')
