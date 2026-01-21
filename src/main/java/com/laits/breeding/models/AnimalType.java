@@ -384,17 +384,6 @@ public enum AnimalType {
     }
 
     /**
-     * Get the default interaction ID for mountable animals.
-     * This is used as a fallback when the player doesn't have breeding food.
-     */
-    public String getDefaultInteractionId() {
-        if (isMountable()) {
-            return "Root_Mount";  // Standard mount interaction
-        }
-        return null;
-    }
-
-    /**
      * Get the modelAssetId used in the ECS system.
      */
     public String getModelAssetId() {

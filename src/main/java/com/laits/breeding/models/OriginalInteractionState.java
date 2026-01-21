@@ -6,7 +6,7 @@ package com.laits.breeding.models;
  * (e.g., animal in love mode or on breeding cooldown).
  */
 public class OriginalInteractionState {
-    private final String interactionId;  // e.g., "Root_Mount"
+    private final String interactionId;  // The original interaction ID before we overrode it
     private final String hint;           // e.g., "Press F to Mount"
 
     public OriginalInteractionState(String interactionId, String hint) {

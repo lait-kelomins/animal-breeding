@@ -1,0 +1,97 @@
+{
+  "TranslationProperties": {
+    "Name": "server.items.Template_Food.name"
+  },
+  "Quality": "Template",
+  "Icon": "Icons/ItemsGenerated/Plant_Crop_Corn.png",
+  "Categories": [
+    "Items.Foods"
+  ],
+  "BlockType": {
+    "Material": "Empty",
+    "DrawType": "Model",
+    "HitboxType": "Food_Large",
+    "CustomModel": "Resources/Ingredients/Corn.blockymodel",
+    "CustomModelTexture": [
+      {
+        "Texture": "Resources/Ingredients/Corn_Texture.png",
+        "Weight": 1
+      }
+    ],
+    "ParticleColor": "#cabc3f",
+    "RandomRotation": "YawStep1",
+    "Gathering": {
+      "Harvest": {},
+      "Soft": {}
+    }
+  },
+  "ItemLevel": 10,
+  "ResourceTypes": [
+    {
+      "Id": "Foods"
+    }
+  ],
+  "Utility": {
+    "Compatible": true
+  },
+  "PlayerAnimationsId": "Item",
+  "IconProperties": {
+    "Rotation": [
+      0,
+      250,
+      320
+    ],
+    "Scale": 0.65,
+    "Translation": [
+      0,
+      -5.4
+    ]
+  },
+  "Scale": 1.2,
+  "Interactions": {
+    "Secondary": "Root_Secondary_Consume_Food_T1",
+    "Ability2": "Root_FeedAnimal"
+  },
+  "InteractionVars": {
+    "Effect": {
+      "Interactions": [
+        {
+          "Type": "ApplyEffect",
+          "EffectId": "Food_Health_Regen_Small"
+        }
+      ]
+    },
+    "ConsumeSFX": {
+      "Interactions": [
+        {
+          "Parent": "Consume_SFX",
+          "Effects": {
+            "LocalSoundEventId": "SFX_Consume_Bread_Local"
+          }
+        }
+      ]
+    },
+    "ConsumedSFX": {
+      "Interactions": [
+        {
+          "Parent": "Consumed_SFX",
+          "Effects": {
+            "LocalSoundEventId": "SFX_Consume_Bread_Local"
+          }
+        }
+      ]
+    }
+  },
+  "InteractionConfig": {
+    "Priorities": {
+      "Secondary": 1
+    }
+  },
+  "Consumable": true,
+  "Tags": {
+    "Type": [
+      "Food"
+    ]
+  },
+  "MaxStack": 25
+}

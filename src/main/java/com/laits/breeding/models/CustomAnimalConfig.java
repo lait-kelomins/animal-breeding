@@ -104,13 +104,6 @@ public class CustomAnimalConfig {
     }
 
     /**
-     * Get the default interaction ID for mountable animals.
-     */
-    public String getDefaultInteractionId() {
-        return mountable ? "Root_Mount" : null;
-    }
-
-    /**
      * Get the scale for a baby of this custom animal.
      * Only used for creatures WITHOUT baby NPC variants.
      */
