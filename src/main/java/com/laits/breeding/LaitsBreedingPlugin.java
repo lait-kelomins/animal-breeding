@@ -68,6 +68,7 @@ import com.laits.breeding.models.CustomAnimalConfig;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.Interaction;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.GrowthStage;
+import com.laits.breeding.models.OriginalInteractionState;
 import com.laits.breeding.util.ConfigManager;
 import com.laits.breeding.util.AnimalFinder;
 
@@ -218,7 +219,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // When true: Sets "Press [F] to Feed" hints directly on animal entities (Use key)
     // When false: Uses item-based Ability2 interactions (food templates have Ability2: Root_FeedAnimal)
     // Default is false - using item-based Ability2 approach to avoid conflicts with NPC default hints
-    private static final boolean USE_ENTITY_BASED_INTERACTIONS = false;
+    private static final boolean USE_ENTITY_BASED_INTERACTIONS = true;
 
     // Show interaction hints on animals even when using item-based Ability2
     // When true: Animals show "Press [Ability2] to Feed" hint (but actual feeding is via item)
@@ -226,11 +227,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // Only applies when USE_ENTITY_BASED_INTERACTIONS is false
     private static final boolean SHOW_ABILITY2_HINTS_ON_ENTITIES = true;
 
-    // Store original interaction IDs before we override them (for fallback, e.g.,
-    // horse mounting)
-    // Key is entity UUID string (stable across different Ref objects for same
-    // entity)
-    private static final Map<String, String> originalInteractions = new ConcurrentHashMap<>();
+    // Store original interaction state (ID + hint) before we override them
+    // Used to restore original behavior when feeding doesn't make sense (love mode, cooldown)
+    // Key is entity UUID string (stable across different Ref objects for same entity)
+    private static final Map<String, OriginalInteractionState> originalStates = new ConcurrentHashMap<>();
 
     /**
      * Get a stable key for an entity ref using UUIDComponent.
@@ -267,10 +267,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Get the original interaction ID for an entity (before we set
-     * Root_FeedAnimal).
-     * Used by FeedAnimalInteraction to fall back to default behavior (e.g.,
-     * mounting).
+     * Get the original interaction ID for an entity (before we set Root_FeedAnimal).
+     * Used by FeedAnimalInteraction to fall back to default behavior (e.g., mounting).
      */
     public static String getOriginalInteractionId(Object entityRef) {
         return getOriginalInteractionId(entityRef, null);
@@ -283,9 +281,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     public static String getOriginalInteractionId(Object entityRef, AnimalType animalType) {
         String key = getStableEntityKey(entityRef);
         if (key != null) {
-            String stored = originalInteractions.get(key);
-            if (stored != null) {
-                return stored;
+            OriginalInteractionState stored = originalStates.get(key);
+            if (stored != null && stored.hasInteraction()) {
+                return stored.getInteractionId();
             }
         }
 
@@ -297,45 +295,65 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Store the original interaction ID for an entity.
-     * For mountable animals (horses, camels), always stores a fallback even if
-     * currentUse is null.
+     * Get the full original interaction state for an entity.
      */
-    private static void storeOriginalInteractionId(Ref<EntityStore> entityRef, String interactionId,
+    public static OriginalInteractionState getOriginalState(Object entityRef) {
+        String key = getStableEntityKey(entityRef);
+        if (key != null) {
+            return originalStates.get(key);
+        }
+        return null;
+    }
+
+    /**
+     * Store the original interaction state (ID + hint) for an entity.
+     * For mountable animals (horses, camels), always stores a fallback even if currentUse is null.
+     */
+    private static void storeOriginalState(Ref<EntityStore> entityRef, String interactionId, String hint,
             AnimalType animalType) {
         String key = getStableEntityKey(entityRef);
         if (key == null)
             return;
 
-        String toStore = interactionId;
+        String idToStore = interactionId;
+        String hintToStore = hint;
 
-        // For mountable animals, always ensure we have a fallback
-        if ((toStore == null || toStore.isEmpty()) && animalType != null && animalType.isMountable()) {
-            toStore = animalType.getDefaultInteractionId();
+        // For mountable animals, always ensure we have a fallback interaction ID
+        if ((idToStore == null || idToStore.isEmpty()) && animalType != null && animalType.isMountable()) {
+            idToStore = animalType.getDefaultInteractionId();
         }
 
-        if (toStore != null && !toStore.isEmpty()) {
-            originalInteractions.put(key, toStore);
+        // Only store if we have at least an interaction ID
+        if (idToStore != null && !idToStore.isEmpty()) {
+            originalStates.put(key, new OriginalInteractionState(idToStore, hintToStore));
         }
+    }
+
+    /**
+     * Legacy overload for backwards compatibility - stores interaction ID without hint.
+     */
+    private static void storeOriginalInteractionId(Ref<EntityStore> entityRef, String interactionId,
+            AnimalType animalType) {
+        storeOriginalState(entityRef, interactionId, null, animalType);
     }
 
     /**
      * Legacy overload for backwards compatibility.
      */
     private static void storeOriginalInteractionId(Ref<EntityStore> entityRef, String interactionId) {
-        storeOriginalInteractionId(entityRef, interactionId, null);
+        storeOriginalState(entityRef, interactionId, null, null);
     }
 
     /**
-     * Clean up stale entries in originalInteractions map.
+     * Clean up stale entries in originalStates map.
      * Removes index-based keys (ephemeral) and validates UUID-based keys.
      * @return Number of entries removed
      */
     private int cleanupStaleOriginalInteractions() {
         int removed = 0;
-        Iterator<Map.Entry<String, String>> it = originalInteractions.entrySet().iterator();
+        Iterator<Map.Entry<String, OriginalInteractionState>> it = originalStates.entrySet().iterator();
         while (it.hasNext()) {
-            Map.Entry<String, String> entry = it.next();
+            Map.Entry<String, OriginalInteractionState> entry = it.next();
             String key = entry.getKey();
             // Index-based keys are ephemeral and should be cleaned up periodically
             if (key.startsWith("idx:")) {
@@ -348,10 +366,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Get the current size of the originalInteractions cache (for debugging).
+     * Get the current size of the originalStates cache (for debugging).
      */
     public static int getOriginalInteractionsCacheSize() {
-        return originalInteractions.size();
+        return originalStates.size();
     }
 
     /** Log verbose/debug message (only when verbose logging is enabled) */
@@ -597,6 +615,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 breedingManager.tickPregnancies();
                 growthManager.tickGrowth();
                 tickLoveAnimals();
+                updateTrackedAnimalStates(); // Dynamic hint switching based on love/cooldown
             } catch (Exception e) {
                 // Log tick errors for debugging
                 getLogger().atWarning().log("[Tick] Error: " + e.getMessage());
@@ -669,7 +688,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 }
             }, 5, 5, TimeUnit.MINUTES));
 
-            // Periodically clean up originalInteractions map (safety net for missed EntityRemoveEvents)
+            // Periodically clean up originalStates map (safety net for missed EntityRemoveEvents)
             scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
                 try {
                     int removed = cleanupStaleOriginalInteractions();
@@ -1011,10 +1030,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     "getInteractionId", interactionTypeClass);
             String currentUse = (String) getIntId.invoke(interactions, useType);
 
+            // Get current hint BEFORE overwriting (for restoration later)
+            java.lang.reflect.Method getHint = interactions.getClass().getMethod("getInteractionHint");
+            String currentHint = (String) getHint.invoke(interactions);
+
             if (currentUse == null || !currentUse.equals(feedInteractionId)) {
-                // Save original interaction ID for fallback (e.g., horse mounting)
-                storeOriginalInteractionId(entityRef, currentUse, animalType);
-                getLogger().atInfo().log("[BuiltIn] %s: set interaction to %s (was: %s)", animalType, feedInteractionId, currentUse);
+                // Save original interaction ID AND hint for fallback (e.g., horse mounting)
+                storeOriginalState(entityRef, currentUse, currentHint, animalType);
+                getLogger().atInfo().log("[BuiltIn] %s: set interaction to %s (was: %s, hint was: %s)",
+                    animalType, feedInteractionId, currentUse, currentHint);
 
                 java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
                         "setInteractionId", interactionTypeClass, String.class);
@@ -1024,9 +1048,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // ALWAYS set the interaction hint (even if interaction was already set)
             java.lang.reflect.Method setHint = interactions.getClass().getMethod(
                     "setInteractionHint", String.class);
+            // Use combined hint for mountable animals (Feed / Mount)
             String hintKey = animalType.isMountable()
-                    ? "server.interactionHints.feed"
-                    : "server.interactionHints.feed";
+                    ? "server.interactionHints.legacyFeedOrMount"
+                    : "server.interactionHints.legacyFeed";
             setHint.invoke(interactions, hintKey);
             getLogger().atInfo().log("[SetupInteraction] SUCCESS for %s: interactionId=%s, hint=%s", animalType, feedInteractionId, hintKey);
 
@@ -1086,12 +1111,18 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             java.lang.reflect.Method getIntId = interactions.getClass().getMethod(
                     "getInteractionId", interactionTypeClass);
             String currentUse = (String) getIntId.invoke(interactions, useType);
-            getLogger().atInfo().log("[CustomAnimal] %s: currentUse='%s', feedInteractionId='%s'", animalName, currentUse, feedInteractionId);
+
+            // Get current hint BEFORE overwriting (for restoration later)
+            java.lang.reflect.Method getHint = interactions.getClass().getMethod("getInteractionHint");
+            String currentHint = (String) getHint.invoke(interactions);
+            getLogger().atInfo().log("[CustomAnimal] %s: currentUse='%s', currentHint='%s', feedInteractionId='%s'",
+                animalName, currentUse, currentHint, feedInteractionId);
 
             if (currentUse == null || !currentUse.equals(feedInteractionId)) {
-                // Store original - SAME as built-in (unconditional)
-                storeOriginalInteractionId(entityRef, currentUse, null);
-                getLogger().atInfo().log("[CustomAnimal] %s: SETTING interaction to %s (was: %s)", animalName, feedInteractionId, currentUse);
+                // Store original interaction ID AND hint for fallback
+                storeOriginalState(entityRef, currentUse, currentHint, null);
+                getLogger().atInfo().log("[CustomAnimal] %s: SETTING interaction to %s (was: %s, hint was: %s)",
+                    animalName, feedInteractionId, currentUse, currentHint);
 
                 java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
                         "setInteractionId", interactionTypeClass, String.class);
@@ -1108,14 +1139,144 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 setIntId.invoke(interactions, useType, feedInteractionId);
             }
 
-            // ALWAYS set hint - SAME as built-in
+            // ALWAYS set hint - custom animals use standard feed hint (not mountable)
             java.lang.reflect.Method setHint = interactions.getClass().getMethod(
                     "setInteractionHint", String.class);
-            setHint.invoke(interactions, "server.interactionHints.feed");
+            setHint.invoke(interactions, "server.interactionHints.legacyFeed");
             getLogger().atInfo().log("[CustomAnimal] %s: setup complete", animalName);
 
         } catch (Exception e) {
             getLogger().atSevere().log("[CustomAnimal] %s: setup error: %s", animalName, e.getMessage());
+        }
+    }
+
+    /**
+     * Update an animal's interaction state based on whether feeding makes sense.
+     * Called periodically to switch between "feed mode" and "original mode".
+     *
+     * - FEED MODE: Animal can be fed (not in love, not on cooldown)
+     *   Shows "Press F to Feed" or "Press F to Feed / Mount"
+     *
+     * - ORIGINAL MODE: Feeding doesn't make sense (in love or on cooldown)
+     *   Shows original interaction (e.g., "Press F to Mount" for horses)
+     *
+     * @param entityRef The entity reference
+     * @param animalType The animal type
+     * @param data The breeding data for this animal
+     */
+    @SuppressWarnings("unchecked")
+    private void updateAnimalInteractionState(Ref<EntityStore> entityRef, AnimalType animalType, BreedingData data) {
+        if (!USE_ENTITY_BASED_INTERACTIONS) {
+            return; // Only applies to entity-based interactions
+        }
+
+        try {
+            Store<EntityStore> store = entityRef.getStore();
+            if (store == null) return;
+
+            // Determine if we should show feed interaction
+            boolean shouldShowFeed = true;
+            if (data != null) {
+                if (data.isInLove()) {
+                    shouldShowFeed = false;
+                }
+                // Check cooldown - if recently bred, don't show feed
+                long cooldown = configManager.getBreedingCooldown(animalType);
+                if (data.getCooldownRemaining(cooldown) > 0) {
+                    shouldShowFeed = false;
+                }
+            }
+
+            // Get interactions component
+            Object interactionsType = getInteractionsComponentType();
+            if (interactionsType == null) return;
+
+            java.lang.reflect.Method getCompMethod = null;
+            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
+                if (m.getName().equals("getComponent") && m.getParameterCount() == 2) {
+                    getCompMethod = m;
+                    break;
+                }
+            }
+            if (getCompMethod == null) return;
+
+            Object interactions = getCompMethod.invoke(store, entityRef, interactionsType);
+            if (interactions == null) return;
+
+            // Get InteractionType.Use enum value
+            Class<?> interactionTypeClass = Class.forName("com.hypixel.hytale.protocol.InteractionType");
+            Object useType = null;
+            for (Object enumConst : interactionTypeClass.getEnumConstants()) {
+                if (enumConst.toString().equals("Use")) {
+                    useType = enumConst;
+                    break;
+                }
+            }
+
+            java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
+                    "setInteractionId", interactionTypeClass, String.class);
+            java.lang.reflect.Method setHint = interactions.getClass().getMethod(
+                    "setInteractionHint", String.class);
+
+            String entityKey = getStableEntityKey(entityRef);
+
+            if (shouldShowFeed) {
+                // FEED MODE - show feed interaction
+                setIntId.invoke(interactions, useType, "Root_FeedAnimal");
+                String hintKey = animalType.isMountable()
+                        ? "server.interactionHints.legacyFeedOrMount"
+                        : "server.interactionHints.legacyFeed";
+                setHint.invoke(interactions, hintKey);
+            } else {
+                // ORIGINAL MODE - restore original interaction if available
+                OriginalInteractionState original = entityKey != null ? originalStates.get(entityKey) : null;
+                if (original != null && original.hasInteraction()) {
+                    setIntId.invoke(interactions, useType, original.getInteractionId());
+                    if (original.hasHint()) {
+                        setHint.invoke(interactions, original.getHint());
+                    }
+                    logVerbose(String.format("[StateUpdate] %s: restored original interaction=%s, hint=%s",
+                        animalType, original.getInteractionId(), original.getHint()));
+                } else if (animalType.isMountable()) {
+                    // Fallback for mountable animals without stored state
+                    String defaultId = animalType.getDefaultInteractionId();
+                    if (defaultId != null && !defaultId.isEmpty()) {
+                        setIntId.invoke(interactions, useType, defaultId);
+                        // Use generic mount hint as fallback
+                        setHint.invoke(interactions, ""); // Clear hint, let default show
+                        logVerbose(String.format("[StateUpdate] %s: fell back to default interaction=%s", animalType, defaultId));
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            // Entity may have despawned - ignore silently
+            logVerbose(String.format("[StateUpdate] Error updating %s: %s", animalType, e.getMessage()));
+        }
+    }
+
+    /**
+     * Update interaction states for all tracked animals.
+     * Called periodically from the tick loop.
+     */
+    private void updateTrackedAnimalStates() {
+        if (!USE_ENTITY_BASED_INTERACTIONS) {
+            return;
+        }
+
+        for (BreedingData data : breedingManager.getAllBreedingData()) {
+            Object refObj = data.getEntityRef();
+            AnimalType animalType = data.getAnimalType();
+
+            if (refObj == null || animalType == null) continue;
+
+            try {
+                @SuppressWarnings("unchecked")
+                Ref<EntityStore> entityRef = (Ref<EntityStore>) refObj;
+                updateAnimalInteractionState(entityRef, animalType, data);
+            } catch (Exception e) {
+                // Entity despawned or ref invalid - will be cleaned up by stale check
+            }
         }
     }
 
@@ -1190,7 +1351,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             return;
 
         if (originalId != null && !originalId.isEmpty()) {
-            originalInteractions.put(key, originalId);
+            originalStates.put(key, new OriginalInteractionState(originalId, null));
         }
     }
 
@@ -1239,13 +1400,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         breedingManager.removeData(entityId);
                     }
 
-                    // Clean up originalInteractions map to prevent memory leak
+                    // Clean up originalStates map to prevent memory leak
                     try {
                         Object ref = entity.getReference();
                         if (ref != null) {
                             String key = getStableEntityKey(ref);
                             if (key != null) {
-                                originalInteractions.remove(key);
+                                originalStates.remove(key);
                             }
                         }
                     } catch (Exception ex) {
@@ -4539,7 +4700,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
             // Original interactions cache
             int interactionsCacheSize = getOriginalInteractionsCacheSize();
-            ctx.sendMessage(Message.raw("  originalInteractions: ").color("#AAAAAA")
+            ctx.sendMessage(Message.raw("  originalStates: ").color("#AAAAAA")
                     .insert(Message.raw(String.valueOf(interactionsCacheSize)).color("#FFFFFF")));
 
             // Breeding data cache
