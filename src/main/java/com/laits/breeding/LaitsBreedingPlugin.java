@@ -215,11 +215,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         devMode = enabled;
     }
 
-    // Entity-based interaction system (legacy)
+    // Entity-based interaction system - controlled by build variant (see BuildConfig)
     // When true: Sets "Press [F] to Feed" hints directly on animal entities (Use key)
     // When false: Uses item-based Ability2 interactions (food templates have Ability2: Root_FeedAnimal)
-    // Default is false - using item-based Ability2 approach to avoid conflicts with NPC default hints
-    private static final boolean USE_ENTITY_BASED_INTERACTIONS = true;
+    // Value is set at build time via Gradle: buildAbility2 (false) or buildEntityBased (true)
+    private static final boolean USE_ENTITY_BASED_INTERACTIONS = BuildConfig.USE_ENTITY_BASED_INTERACTIONS;
 
     // Show interaction hints on animals even when using item-based Ability2
     // When true: Animals show "Press [Ability2] to Feed" hint (but actual feeding is via item)
@@ -493,6 +493,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     @Override
     protected void setup() {
+        // Log build variant info
+        getLogger().atInfo().log("=== Lait's Animal Breeding v%s ===", BuildConfig.VERSION);
+        getLogger().atInfo().log("Build variant: %s", BuildConfig.VARIANT);
+        getLogger().atInfo().log("Feeding mode: %s",
+            USE_ENTITY_BASED_INTERACTIONS ? "Entity-based (F key)" : "Item Ability2 (E key)");
+
         // Initialize config manager and load from file
         configManager = new ConfigManager();
         configManager.setLogger(msg -> getLogger().atInfo().log(msg));
