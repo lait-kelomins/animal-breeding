@@ -1,6 +1,6 @@
 {
     "Group": "Lait",
-    "Name": "AnimalBreeding",
+    "Name": "${modName}",
     "Version": "${version}",
     "Description": "Adds realistic breeding mechanics for farm animals",
     "Authors": [

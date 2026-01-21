@@ -22,11 +22,13 @@ docs/
 !docs/PRE_PUBLISH_CHECKLIST.md
 !docs/GAME_ASSETS_REFERENCE.md
 !docs/API_REFERENCE.md
+!docs/VERSIONING.md
 
 # Scripts (local dev only)
 *.ps1
 *.sh
 !gradlew
+!deploy.ps1
 
 # Deploy version tracking
 .deploy-version
