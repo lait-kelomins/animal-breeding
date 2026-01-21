@@ -214,6 +214,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         devMode = enabled;
     }
 
+    // Entity-based interaction system (legacy)
+    // When true: Sets "Press [F] to Feed" hints directly on animal entities
+    // When false: Uses item-based Ability2 interactions (food templates have Ability2: Root_FeedAnimal)
+    // Default is false - using item-based Ability2 approach to avoid conflicts with NPC default hints
+    private static final boolean USE_ENTITY_BASED_INTERACTIONS = false;
+
     // Store original interaction IDs before we override them (for fallback, e.g.,
     // horse mounting)
     // Key is entity UUID string (stable across different Ref objects for same
@@ -858,11 +864,39 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 }
             }
 
-            // NOTE: Entity-based interactions disabled - using item-based Ability2 instead
-            // The item templates (Template_Crop_Item, Template_Food) now have Ability2: Root_FeedAnimal
-            // Adult animals are tracked but no longer get entity interactions set up
+            // Set up interactions for adults - must be deferred to after the tick
+            // Component modifications during ECS tick may not work correctly
             if (!isBaby) {
-                logVerbose("New adult animal detected: " + modelAssetId + " (no entity interaction setup - using item Ability2)");
+                if (USE_ENTITY_BASED_INTERACTIONS) {
+                    final Ref<EntityStore> finalEntityRef = entityRef;
+                    final AnimalType finalAnimalType = animalType;
+                    final CustomAnimalConfig finalCustomAnimal = customAnimal;
+                    final String finalModelAssetId = modelAssetId;
+
+                    World world = Universe.get().getDefaultWorld();
+                    if (world != null) {
+                        world.execute(() -> {
+                            try {
+                                if (!finalEntityRef.isValid())
+                                    return;
+                                Store<EntityStore> worldStore = world.getEntityStore().getStore();
+
+                                // Set up interactions based on type
+                                if (finalAnimalType != null) {
+                                    setupEntityInteractions(worldStore, finalEntityRef, finalAnimalType);
+                                    logVerbose("Interactions set up for new animal: " + finalModelAssetId);
+                                } else if (finalCustomAnimal != null) {
+                                    setupCustomAnimalInteractions(worldStore, finalEntityRef, finalCustomAnimal);
+                                    getLogger().atInfo().log("[CustomAnimal] Interactions set up for: %s", finalModelAssetId);
+                                }
+                            } catch (Exception e) {
+                                logVerbose("Deferred interaction setup error: " + e.getMessage());
+                            }
+                        });
+                    }
+                } else {
+                    logVerbose("New adult animal detected: " + modelAssetId + " (using item-based Ability2)");
+                }
             }
 
         } catch (IllegalStateException e) {
@@ -1417,13 +1451,29 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             }
                         }
 
-                        // NOTE: Entity-based interactions disabled - using item-based Ability2 instead
-                        // The item templates (Template_Crop_Item, Template_Food) now have Ability2: Root_FeedAnimal
-                        // which triggers when player presses Ability2 while holding food
-
-                        // Track adults for breeding (but don't set up entity interactions)
+                        // Set up interactions for adults (babies can't breed)
                         if (!animal.isBaby()) {
-                            processedCount++;
+                            if (USE_ENTITY_BASED_INTERACTIONS) {
+                                @SuppressWarnings("unchecked")
+                                Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+                                Store<EntityStore> refStore = ref.getStore();
+                                if (refStore != null) {
+                                    if (animalType != null) {
+                                        logVerbose("Setting up interactions for adult: " + animal.getModelAssetId() + " (type: "
+                                                + animalType + ")");
+                                        setupEntityInteractions(refStore, ref, animalType);
+                                    } else if (customAnimal != null) {
+                                        getLogger().atInfo().log("[CustomAnimal] ABOUT TO CALL setupCustomAnimalInteractions for: %s", animal.getModelAssetId());
+                                        setupCustomAnimalInteractions(refStore, ref, customAnimal);
+                                    }
+                                    processedCount++;
+                                } else {
+                                    getLogger().atWarning().log("[CustomAnimal] refStore is NULL for: %s", animal.getModelAssetId());
+                                }
+                            } else {
+                                // Item-based Ability2 mode - just track the animal, no entity interactions
+                                processedCount++;
+                            }
                         } else {
                             if (customAnimal != null) {
                                 getLogger().atInfo().log("[CustomAnimal] Skipping baby custom animal: %s", animal.getModelAssetId());
