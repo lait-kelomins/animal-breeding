@@ -163,13 +163,36 @@ function Deploy {
         return $LASTEXITCODE
     } -ArgumentList $buildDir, $JAVA_HOME
 
-    # Wait for both jobs with progress indication
-    Write-Host "Building..." -NoNewline
+    # Wait for both jobs with animated progress bar
+    $spinner = @('|', '/', '-', '\')
+    $spinnerIndex = 0
+    $startTime = Get-Date
+    $barWidth = 30
+
+    Write-Host ""
     while (($defaultJob.State -eq 'Running') -or ($expJob.State -eq 'Running')) {
-        Write-Host "." -NoNewline
-        Start-Sleep -Milliseconds 500
+        $elapsed = ((Get-Date) - $startTime).TotalSeconds
+        $elapsedStr = "{0:mm\:ss}" -f ([TimeSpan]::FromSeconds($elapsed))
+
+        # Animated progress bar (fills over ~60 seconds estimate)
+        $estimatedTotal = 60
+        $progress = [Math]::Min($elapsed / $estimatedTotal, 0.95)  # Cap at 95% until done
+        $filled = [Math]::Floor($progress * $barWidth)
+        $empty = $barWidth - $filled
+        $bar = ("=" * $filled) + ">" + (" " * [Math]::Max(0, $empty - 1))
+
+        $spin = $spinner[$spinnerIndex % 4]
+        $spinnerIndex++
+
+        Write-Host "`r  $spin [$bar] $elapsedStr " -NoNewline -ForegroundColor Cyan
+        Start-Sleep -Milliseconds 150
     }
-    Write-Host " Done!"
+
+    # Complete the progress bar
+    $elapsed = ((Get-Date) - $startTime).TotalSeconds
+    $elapsedStr = "{0:mm\:ss}" -f ([TimeSpan]::FromSeconds($elapsed))
+    $bar = "=" * $barWidth
+    Write-Host "`r  * [$bar] $elapsedStr " -ForegroundColor Green
     Write-Host ""
 
     # Check results
