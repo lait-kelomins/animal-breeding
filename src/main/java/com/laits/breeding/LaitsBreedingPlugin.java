@@ -275,8 +275,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Get the original interaction ID for an entity, with animal type for fallback.
-     * If not found in cache but animal is mountable, returns "Root_Mount".
+     * Get the original interaction ID for an entity.
+     * Only returns an ID if we actually saved the original interaction when setting up the entity.
+     * Does NOT assume a fallback like "Root_Mount" as it may not exist in all versions.
      */
     public static String getOriginalInteractionId(Object entityRef, AnimalType animalType) {
         String key = getStableEntityKey(entityRef);
@@ -286,11 +287,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 return stored.getInteractionId();
             }
         }
-
-        // Fallback: if animal type is mountable, return default mount interaction
-        if (animalType != null && animalType.isMountable()) {
-            return animalType.getDefaultInteractionId();
-        }
+        // No fallback - if we didn't save the original, we don't know what it was
         return null;
     }
 
@@ -307,7 +304,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     /**
      * Store the original interaction state (ID + hint) for an entity.
-     * For mountable animals (horses, camels), always stores a fallback even if currentUse is null.
+     * Only stores actual values - does not assume fallbacks like "Root_Mount".
      */
     private static void storeOriginalState(Ref<EntityStore> entityRef, String interactionId, String hint,
             AnimalType animalType) {
@@ -315,17 +312,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         if (key == null)
             return;
 
-        String idToStore = interactionId;
-        String hintToStore = hint;
-
-        // For mountable animals, always ensure we have a fallback interaction ID
-        if ((idToStore == null || idToStore.isEmpty()) && animalType != null && animalType.isMountable()) {
-            idToStore = animalType.getDefaultInteractionId();
-        }
-
         // Only store if we have at least an interaction ID
-        if (idToStore != null && !idToStore.isEmpty()) {
-            originalStates.put(key, new OriginalInteractionState(idToStore, hintToStore));
+        // Don't assume fallbacks - we'll capture the actual interaction when setting up the entity
+        if (interactionId != null && !interactionId.isEmpty()) {
+            originalStates.put(key, new OriginalInteractionState(interactionId, hint));
         }
     }
 
@@ -1234,7 +1224,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         : "server.interactionHints.legacyFeed";
                 setHint.invoke(interactions, hintKey);
             } else {
-                // ORIGINAL MODE - restore original interaction if available
+                // ORIGINAL MODE - restore original interaction if we have it saved
                 OriginalInteractionState original = entityKey != null ? originalStates.get(entityKey) : null;
                 if (original != null && original.hasInteraction()) {
                     setIntId.invoke(interactions, useType, original.getInteractionId());
@@ -1243,16 +1233,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     }
                     logVerbose(String.format("[StateUpdate] %s: restored original interaction=%s, hint=%s",
                         animalType, original.getInteractionId(), original.getHint()));
-                } else if (animalType.isMountable()) {
-                    // Fallback for mountable animals without stored state
-                    String defaultId = animalType.getDefaultInteractionId();
-                    if (defaultId != null && !defaultId.isEmpty()) {
-                        setIntId.invoke(interactions, useType, defaultId);
-                        // Use generic mount hint as fallback
-                        setHint.invoke(interactions, ""); // Clear hint, let default show
-                        logVerbose(String.format("[StateUpdate] %s: fell back to default interaction=%s", animalType, defaultId));
-                    }
                 }
+                // If we don't have saved state, keep showing feed interaction
+                // (don't assume Root_Mount exists - it might not)
             }
 
         } catch (Exception e) {
@@ -1441,29 +1424,32 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         World world = Universe.get().getDefaultWorld();
         if (world == null) return;
 
-        double respawnRadius = 64.0; // Configurable in future
+        // Must run on world thread to access entity components
+        world.execute(() -> {
+            double respawnRadius = 64.0; // Configurable in future
 
-        try {
-            // Get all players
-            for (Player player : world.getPlayers()) {
-                try {
-                    Vector3d playerPos = player.getTransformComponent().getPosition();
-                    if (playerPos == null) continue;
+            try {
+                // Get all players
+                for (Player player : world.getPlayers()) {
+                    try {
+                        Vector3d playerPos = player.getTransformComponent().getPosition();
+                        if (playerPos == null) continue;
 
-                    // Find despawned tamed animals near this player
-                    java.util.List<TamedAnimalData> toRespawn = tamingManager.getDespawnedAnimalsInRegion(
-                            playerPos.getX(), playerPos.getZ(), respawnRadius);
+                        // Find despawned tamed animals near this player
+                        java.util.List<TamedAnimalData> toRespawn = tamingManager.getDespawnedAnimalsInRegion(
+                                playerPos.getX(), playerPos.getZ(), respawnRadius);
 
-                    for (TamedAnimalData tamedData : toRespawn) {
-                        respawnTamedAnimal(world, tamedData);
+                        for (TamedAnimalData tamedData : toRespawn) {
+                            respawnTamedAnimal(world, tamedData);
+                        }
+                    } catch (Exception e) {
+                        // Silent - skip this player
                     }
-                } catch (Exception e) {
-                    // Silent - skip this player
                 }
+            } catch (Exception e) {
+                // Silent
             }
-        } catch (Exception e) {
-            // Silent
-        }
+        });
     }
 
     /**
@@ -2235,7 +2221,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
             Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
             if (!ref.isValid()) {
-                getLogger().atWarning().log("[Hearts] ref is invalid");
+                // Expected when entity despawned - not a real error, just skip
+                logVerbose("[Hearts] ref is invalid (entity likely despawned)");
                 return;
             }
 
