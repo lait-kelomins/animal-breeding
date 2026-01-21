@@ -898,7 +898,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
                                 // Item-based with hints: Show Ability2 hint on animals
                                 String hintKey = (finalAnimalType != null && finalAnimalType.isMountable())
-                                        ? "server.interactionHints.feedOrMount"
+                                        ? "server.interactionHints.feed"
                                         : "server.interactionHints.feed";
                                 setupAbility2HintOnly(worldStore, finalEntityRef, hintKey);
                                 logVerbose("Ability2 hint set up for: " + finalModelAssetId);
@@ -1025,7 +1025,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             java.lang.reflect.Method setHint = interactions.getClass().getMethod(
                     "setInteractionHint", String.class);
             String hintKey = animalType.isMountable()
-                    ? "server.interactionHints.feedOrMount"
+                    ? "server.interactionHints.feed"
                     : "server.interactionHints.feed";
             setHint.invoke(interactions, hintKey);
             getLogger().atInfo().log("[SetupInteraction] SUCCESS for %s: interactionId=%s, hint=%s", animalType, feedInteractionId, hintKey);
@@ -1163,17 +1163,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 return;
             }
 
-            // Set a dummy/same interaction for Ability2 to make the hint show the Ability2 keybind
-            // The actual feeding is handled by the item's Ability2 interaction
+            // Set interaction for Ability2 (don't touch Use - it breaks other interactions)
             java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
                     "setInteractionId", interactionTypeClass, String.class);
             setIntId.invoke(interactions, ability2Type, "Root_FeedAnimal");
 
-            // Set the hint text
+            // Set the hint (API only supports simple string, no per-type hints)
             java.lang.reflect.Method setHint = interactions.getClass().getMethod(
                     "setInteractionHint", String.class);
             setHint.invoke(interactions, hintKey);
-
             logVerbose("Set up Ability2 hint: " + hintKey);
 
         } catch (Exception e) {
@@ -1545,7 +1543,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                 } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
                                     // Item-based with hints: Show Ability2 hint on animals
                                     String hintKey = (animalType != null && animalType.isMountable())
-                                            ? "server.interactionHints.feedOrMount"
+                                            ? "server.interactionHints.feed"
                                             : "server.interactionHints.feed";
                                     setupAbility2HintOnly(refStore, ref, hintKey);
                                 }
