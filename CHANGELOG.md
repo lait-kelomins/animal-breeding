@@ -20,6 +20,13 @@
 - **Respawn system** - Tamed animals that despawn will respawn at their last position when a player approaches (64 block radius)
 - **State preservation** - Growth stage, breeding cooldowns, and all taming data are preserved across respawns
 
+#### Custom Animal Improvements
+- **Role-first registration** - `/breed custom add <npcRole> <food>` now accepts NPC role instead of model
+- **Auto model discovery** - Plugin validates the role exists, spawns a temp entity, and auto-discovers the model asset ID
+- **Baby role mapping** - New `/breed custom setbaby <model> <babyRole>` command for dedicated baby NPC spawning
+- **Scaling fallback** - If no baby role defined, babies spawn as scaled-down adults (40% size)
+- **Custom animal spawn detection** - Custom animals are now detected immediately when they spawn (same as built-in animals)
+
 ### New Commands
 | Command | Description |
 |---------|-------------|
@@ -27,6 +34,7 @@
 | `/taminginfo` | Show taming stats and list your tamed animals |
 | `/tamingsettings` | Toggle whether others can interact with your animals |
 | `/untame` | Right-click to release a tamed animal (owner only) |
+| `/breed custom setbaby <model> <babyRole>` | Set baby NPC role for custom animal breeding |
 
 ### New Files
 - `TamedAnimalData.java` - Data model for tamed animals

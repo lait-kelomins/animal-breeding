@@ -831,16 +831,26 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
             logVerbose("NewAnimalSpawnDetector: Immediate detection of " + modelAssetId);
 
+            // Check if it's a custom animal (animalType will be null for custom)
+            CustomAnimalConfig customAnimal = null;
+            if (animalType == null) {
+                customAnimal = configManager.getCustomAnimal(modelAssetId);
+            }
+
             // Skip if breeding is disabled for this animal type
-            if (!configManager.isAnimalEnabled(animalType)) {
+            if (animalType != null && !configManager.isAnimalEnabled(animalType)) {
                 logVerbose("Skipping disabled animal: " + animalType);
+                return;
+            }
+            if (customAnimal != null && !customAnimal.isEnabled()) {
+                logVerbose("Skipping disabled custom animal: " + modelAssetId);
                 return;
             }
 
             boolean isBaby = AnimalType.isBabyVariant(modelAssetId);
 
             // Register babies for growth tracking (safe to do during tick)
-            if (isBaby) {
+            if (isBaby && animalType != null) {
                 UUID babyId = UUID.nameUUIDFromBytes(entityRef.toString().getBytes());
                 if (breedingManager.getData(babyId) == null) {
                     breedingManager.registerBaby(babyId, animalType, entityRef);
@@ -853,6 +863,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             if (!isBaby) {
                 final Ref<EntityStore> finalEntityRef = entityRef;
                 final AnimalType finalAnimalType = animalType;
+                final CustomAnimalConfig finalCustomAnimal = customAnimal;
                 final String finalModelAssetId = modelAssetId;
 
                 World world = Universe.get().getDefaultWorld();
@@ -862,8 +873,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             if (!finalEntityRef.isValid())
                                 return;
                             Store<EntityStore> worldStore = world.getEntityStore().getStore();
-                            setupEntityInteractions(worldStore, finalEntityRef, finalAnimalType);
-                            logVerbose("Interactions set up for new animal: " + finalModelAssetId);
+
+                            // Set up interactions based on type
+                            if (finalAnimalType != null) {
+                                setupEntityInteractions(worldStore, finalEntityRef, finalAnimalType);
+                                logVerbose("Interactions set up for new animal: " + finalModelAssetId);
+                            } else if (finalCustomAnimal != null) {
+                                setupCustomAnimalInteractions(worldStore, finalEntityRef, finalCustomAnimal);
+                                getLogger().atInfo().log("[CustomAnimal] Interactions set up for: %s", finalModelAssetId);
+                            }
                         } catch (Exception e) {
                             logVerbose("Deferred interaction setup error: " + e.getMessage());
                         }
@@ -3573,6 +3591,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 addSubCommand(new CustomAnimalCommand.CustomAnimalRemoveFoodCommand());
                 addSubCommand(new CustomAnimalCommand.CustomAnimalScanCommand());
                 addSubCommand(new CustomAnimalCommand.CustomAnimalSetRoleCommand());
+                addSubCommand(new CustomAnimalCommand.CustomAnimalSetBabyCommand());
                 addSubCommand(new CustomAnimalCommand.CustomAnimalSetGrowthCommand());
                 addSubCommand(new CustomAnimalCommand.CustomAnimalSetCooldownCommand());
             }
@@ -5140,6 +5159,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             addSubCommand(new CustomAnimalRemoveFoodCommand());
             addSubCommand(new CustomAnimalScanCommand());
             addSubCommand(new CustomAnimalSetRoleCommand());
+            addSubCommand(new CustomAnimalSetBabyCommand());
             addSubCommand(new CustomAnimalSetGrowthCommand());
             addSubCommand(new CustomAnimalSetCooldownCommand());
         }
@@ -5165,16 +5185,16 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             return CompletableFuture.completedFuture(null);
         }
 
-        /** /customanimal add <modelAssetId> <food1> [food2] [food3] */
+        /** /customanimal add <npcRole> <food1> [food2] [food3] */
         public static class CustomAnimalAddCommand extends AbstractCommand {
-            private final RequiredArg<String> modelArg;
+            private final RequiredArg<String> roleArg;
             private final RequiredArg<String> food1Arg;
             private final OptionalArg<String> food2Arg;
             private final OptionalArg<String> food3Arg;
 
             public CustomAnimalAddCommand() {
-                super("add", "Add a custom animal");
-                modelArg = withRequiredArg("modelAssetId", "Exact model asset ID of the creature", ArgTypes.STRING);
+                super("add", "Add a custom animal by NPC role");
+                roleArg = withRequiredArg("npcRole", "NPC role name (validates and auto-discovers model)", ArgTypes.STRING);
                 food1Arg = withRequiredArg("food1", "Primary breeding food item ID", ArgTypes.STRING);
                 food2Arg = withOptionalArg("food2", "Optional second food", ArgTypes.STRING);
                 food3Arg = withOptionalArg("food3", "Optional third food", ArgTypes.STRING);
@@ -5188,7 +5208,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     return CompletableFuture.completedFuture(null);
                 }
 
-                String modelId = ctx.get(modelArg);
+                String roleName = ctx.get(roleArg);
                 String food1 = BreedingConfigCommand.resolveFoodShortcut(ctx.get(food1Arg));
 
                 java.util.List<String> foods = new java.util.ArrayList<>();
@@ -5203,15 +5223,42 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     foods.add(BreedingConfigCommand.resolveFoodShortcut(food3));
                 }
 
-                // Check if already exists
-                if (plugin.getConfigManager().isCustomAnimal(modelId)) {
-                    ctx.sendMessage(Message.raw("Custom animal '" + modelId + "' already exists! Use remove first.").color("#FFAA00"));
+                // 1. Validate the NPC role exists
+                NPCPlugin npcPlugin = NPCPlugin.get();
+                int roleIndex = npcPlugin.getIndex(roleName);
+                if (roleIndex < 0) {
+                    ctx.sendMessage(Message.raw("NPC role not found: " + roleName).color("#FF5555"));
+                    ctx.sendMessage(Message.raw("Make sure this is a valid NPC role name.").color("#AAAAAA"));
+                    ctx.sendMessage(Message.raw("Use /breed custom scan to find creatures nearby.").color("#AAAAAA"));
                     return CompletableFuture.completedFuture(null);
                 }
 
-                plugin.getConfigManager().addCustomAnimal(modelId, foods);
-                ctx.sendMessage(Message.raw("Added custom animal: ").color("#55FF55")
-                        .insert(Message.raw(modelId).color("#FFFFFF")));
+                // 2. Discover model by spawning temp entity
+                ctx.sendMessage(Message.raw("Discovering model for role: " + roleName + "...").color("#AAAAAA"));
+
+                String modelAssetId = discoverModelFromRole(plugin, roleName, roleIndex);
+                if (modelAssetId == null) {
+                    ctx.sendMessage(Message.raw("Could not determine model for role: " + roleName).color("#FF5555"));
+                    ctx.sendMessage(Message.raw("The role exists but model discovery failed.").color("#AAAAAA"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                // 3. Check if model already registered
+                if (plugin.getConfigManager().isCustomAnimal(modelAssetId)) {
+                    ctx.sendMessage(Message.raw("Model '" + modelAssetId + "' already registered!").color("#FFAA00"));
+                    ctx.sendMessage(Message.raw("Use /breed custom remove " + modelAssetId + " first.").color("#AAAAAA"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                // 4. Store both model and role
+                plugin.getConfigManager().addCustomAnimal(modelAssetId, foods);
+                plugin.getConfigManager().setCustomAnimalNpcRole(modelAssetId, roleName);
+
+                ctx.sendMessage(Message.raw("Added custom animal!").color("#55FF55"));
+                ctx.sendMessage(Message.raw("  NPC Role: ").color("#AAAAAA")
+                        .insert(Message.raw(roleName).color("#FFFFFF")));
+                ctx.sendMessage(Message.raw("  Model: ").color("#AAAAAA")
+                        .insert(Message.raw(modelAssetId).color("#FFFFFF")));
                 ctx.sendMessage(Message.raw("  Foods: ").color("#AAAAAA")
                         .insert(Message.raw(String.join(", ", foods)).color("#FFFFFF")));
                 ctx.sendMessage(Message.raw("Scanning world for creatures...").color("#AAAAAA"));
@@ -5223,13 +5270,211 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 ctx.sendMessage(Message.raw("Use ").color("#AAAAAA")
                         .insert(Message.raw("/breedconfig save").color("#FFFFFF"))
                         .insert(Message.raw(" to persist changes.").color("#AAAAAA")));
-                ctx.sendMessage(Message.raw("If not working, try ").color("#AAAAAA")
-                        .insert(Message.raw("/breedlogs on").color("#FFFF55"))
-                        .insert(Message.raw(" then ").color("#AAAAAA"))
-                        .insert(Message.raw("/breedscan").color("#FFFF55"))
-                        .insert(Message.raw(" to debug.").color("#AAAAAA")));
+                ctx.sendMessage(Message.raw("To set a baby role: ").color("#AAAAAA")
+                        .insert(Message.raw("/breed custom setbaby " + modelAssetId + " <babyRole>").color("#FFFF55")));
 
                 return CompletableFuture.completedFuture(null);
+            }
+
+            /**
+             * Discover the model asset ID by spawning a temp entity and reading its ModelComponent.
+             */
+            private String discoverModelFromRole(LaitsBreedingPlugin plugin, String roleName, int roleIndex) {
+                try {
+                    World world = Universe.get().getDefaultWorld();
+
+                    // If getDefaultWorld fails, try to get the world from plugin's stored entities
+                    if (world == null) {
+                        plugin.getLogger().atInfo().log("[ModelDiscovery] getDefaultWorld returned null, trying alternative methods...");
+
+                        // Try getting world via reflection on Universe
+                        try {
+                            java.lang.reflect.Method getWorlds = Universe.class.getMethod("getWorlds");
+                            @SuppressWarnings("unchecked")
+                            java.util.Collection<World> worlds = (java.util.Collection<World>) getWorlds.invoke(Universe.get());
+                            if (worlds != null && !worlds.isEmpty()) {
+                                world = worlds.iterator().next();
+                                plugin.getLogger().atInfo().log("[ModelDiscovery] Got world from getWorlds()");
+                            }
+                        } catch (Exception e) {
+                            plugin.getLogger().atInfo().log("[ModelDiscovery] getWorlds() not available: %s", e.getMessage());
+                        }
+                    }
+
+                    if (world == null) {
+                        plugin.getLogger().atWarning().log("No world available for model discovery");
+                        return null;
+                    }
+
+                    // Make effectively final for lambda
+                    final World finalWorld = world;
+
+                    // Use a CompletableFuture to get result from world thread
+                    java.util.concurrent.CompletableFuture<String> future = new java.util.concurrent.CompletableFuture<>();
+
+                    plugin.getLogger().atInfo().log("[ModelDiscovery] Starting discovery for role: %s (index: %d)", roleName, roleIndex);
+
+                    finalWorld.execute(() -> {
+                        try {
+                            Store<EntityStore> store = finalWorld.getEntityStore().getStore();
+                            NPCPlugin npcPlugin = NPCPlugin.get();
+
+                            // Spawn at high Y location (above world) - negative Y may not work
+                            Vector3d tempPos = new Vector3d(0, 500, 0);
+                            Vector3f rotation = new Vector3f(0, 0, 0);
+
+                            plugin.getLogger().atInfo().log("[ModelDiscovery] Spawning temp entity at %s", tempPos);
+
+                            // Use reflection for spawnEntity
+                            boolean foundMethod = false;
+                            for (java.lang.reflect.Method m : NPCPlugin.class.getMethods()) {
+                                if (m.getName().equals("spawnEntity") && m.getParameterCount() == 6) {
+                                    foundMethod = true;
+                                    Class<?> triConsumerClass = m.getParameterTypes()[5];
+                                    Object noOpCallback = java.lang.reflect.Proxy.newProxyInstance(
+                                        triConsumerClass.getClassLoader(),
+                                        new Class<?>[] { triConsumerClass },
+                                        (proxy, method, args) -> null
+                                    );
+
+                                    Object result = m.invoke(npcPlugin, store, roleIndex, tempPos, rotation, null, noOpCallback);
+
+                                    if (result != null) {
+                                        plugin.getLogger().atInfo().log("[ModelDiscovery] Spawn succeeded, extracting model...");
+
+                                        // Result is Pair<Ref<EntityStore>, NPCEntity> - fastutil uses left()/right()
+                                        // Try multiple method names for compatibility
+                                        Object entityRef = null;
+                                        Object npcEntity = null;
+
+                                        // Try left()/right() first (fastutil ObjectObjectImmutablePair)
+                                        try {
+                                            java.lang.reflect.Method leftMethod = result.getClass().getMethod("left");
+                                            entityRef = leftMethod.invoke(result);
+                                            java.lang.reflect.Method rightMethod = result.getClass().getMethod("right");
+                                            npcEntity = rightMethod.invoke(result);
+                                        } catch (NoSuchMethodException e1) {
+                                            // Try first()/second()
+                                            try {
+                                                java.lang.reflect.Method firstMethod = result.getClass().getMethod("first");
+                                                entityRef = firstMethod.invoke(result);
+                                                java.lang.reflect.Method secondMethod = result.getClass().getMethod("second");
+                                                npcEntity = secondMethod.invoke(result);
+                                            } catch (NoSuchMethodException e2) {
+                                                // Try getFirst()/getSecond()
+                                                java.lang.reflect.Method getFirst = result.getClass().getMethod("getFirst");
+                                                entityRef = getFirst.invoke(result);
+                                                java.lang.reflect.Method getSecond = result.getClass().getMethod("getSecond");
+                                                npcEntity = getSecond.invoke(result);
+                                            }
+                                        }
+
+                                        if (entityRef != null) {
+                                            @SuppressWarnings("unchecked")
+                                            Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+                                            String modelId = extractModelFromRef(plugin, store, ref);
+
+                                            plugin.getLogger().atInfo().log("[ModelDiscovery] Extracted model: %s", modelId);
+
+                                            // Despawn the temp entity - try multiple method names
+                                            if (npcEntity != null) {
+                                                boolean despawned = false;
+                                                String[] despawnMethods = {"despawn", "remove", "kill", "delete", "destroy"};
+                                                for (String methodName : despawnMethods) {
+                                                    try {
+                                                        java.lang.reflect.Method despawnMethod = npcEntity.getClass().getMethod(methodName);
+                                                        despawnMethod.invoke(npcEntity);
+                                                        despawned = true;
+                                                        break;
+                                                    } catch (NoSuchMethodException ignored) {}
+                                                }
+                                                if (!despawned) {
+                                                    // Entity at y=500 will likely despawn naturally
+                                                    plugin.getLogger().atInfo().log("[ModelDiscovery] Note: temp entity at y=500 will timeout");
+                                                }
+                                            }
+
+                                            future.complete(modelId);
+                                            return;
+                                        } else {
+                                            plugin.getLogger().atWarning().log("[ModelDiscovery] entityRef is null");
+                                        }
+                                    } else {
+                                        plugin.getLogger().atWarning().log("[ModelDiscovery] spawnEntity returned null");
+                                    }
+                                    break;
+                                }
+                            }
+                            if (!foundMethod) {
+                                plugin.getLogger().atWarning().log("[ModelDiscovery] Could not find spawnEntity method");
+                            }
+                            future.complete(null);
+                        } catch (Exception e) {
+                            plugin.getLogger().atWarning().log("[ModelDiscovery] Error: %s", e.getMessage());
+                            e.printStackTrace();
+                            future.complete(null);
+                        }
+                    });
+
+                    // Wait for result with timeout
+                    return future.get(5, java.util.concurrent.TimeUnit.SECONDS);
+                } catch (Exception e) {
+                    plugin.getLogger().atWarning().log("Model discovery failed for %s: %s", roleName, e.getMessage());
+                    return null;
+                }
+            }
+
+            /**
+             * Extract model asset ID from entity reference using ModelComponent.
+             */
+            private String extractModelFromRef(LaitsBreedingPlugin plugin, Store<EntityStore> store, Ref<EntityStore> ref) {
+                try {
+                    ComponentType<EntityStore, ModelComponent> modelType = ModelComponent.getComponentType();
+                    ModelComponent modelComp = store.getComponent(ref, modelType);
+                    if (modelComp == null) {
+                        plugin.getLogger().atWarning().log("[ModelDiscovery] ModelComponent is null");
+                        return null;
+                    }
+
+                    java.lang.reflect.Field modelField = ModelComponent.class.getDeclaredField("model");
+                    modelField.setAccessible(true);
+                    Object model = modelField.get(modelComp);
+                    if (model == null) {
+                        plugin.getLogger().atWarning().log("[ModelDiscovery] model field is null");
+                        return null;
+                    }
+
+                    String modelStr = model.toString();
+                    plugin.getLogger().atInfo().log("[ModelDiscovery] Model toString: %s", modelStr);
+
+                    // Try modelAssetId='...' format
+                    int start = modelStr.indexOf("modelAssetId='");
+                    if (start >= 0) {
+                        start += 14;
+                        int end = modelStr.indexOf("'", start);
+                        if (end > start) {
+                            return modelStr.substring(start, end);
+                        }
+                    }
+
+                    // Try modelAssetId=... format (without quotes)
+                    start = modelStr.indexOf("modelAssetId=");
+                    if (start >= 0) {
+                        start += 13;
+                        int end = modelStr.indexOf(",", start);
+                        if (end < 0) end = modelStr.indexOf(")", start);
+                        if (end < 0) end = modelStr.indexOf("}", start);
+                        if (end > start) {
+                            return modelStr.substring(start, end).trim();
+                        }
+                    }
+
+                    plugin.getLogger().atWarning().log("[ModelDiscovery] Could not parse modelAssetId from: %s", modelStr);
+                    return null;
+                } catch (Exception e) {
+                    plugin.getLogger().atWarning().log("[ModelDiscovery] extractModelFromRef error: %s", e.getMessage());
+                    return null;
+                }
             }
         }
 
@@ -5604,6 +5849,54 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         .insert(Message.raw(modelId).color("#FFFFFF"))
                         .insert(Message.raw(" to ").color("#55FF55"))
                         .insert(Message.raw(roleId).color("#FFAA00")));
+                ctx.sendMessage(Message.raw("Use /breed config save to persist").color("#AAAAAA"));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        /** /customanimal setbaby <modelAssetId> <babyRoleId> - Set the baby NPC role */
+        public static class CustomAnimalSetBabyCommand extends AbstractCommand {
+            private final RequiredArg<String> modelArg;
+            private final RequiredArg<String> babyRoleArg;
+
+            public CustomAnimalSetBabyCommand() {
+                super("setbaby", "Set the NPC role for spawning babies");
+                modelArg = withRequiredArg("modelAssetId", "Model asset ID of the adult", ArgTypes.STRING);
+                babyRoleArg = withRequiredArg("babyRoleId", "NPC role ID for baby spawning", ArgTypes.STRING);
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getConfigManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                String modelId = ctx.get(modelArg);
+                String babyRoleId = ctx.get(babyRoleArg);
+
+                if (!plugin.getConfigManager().isCustomAnimal(modelId)) {
+                    ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
+                    ctx.sendMessage(Message.raw("Use /breed custom add first").color("#AAAAAA"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                // Validate the baby role exists
+                NPCPlugin npcPlugin = NPCPlugin.get();
+                int roleIndex = npcPlugin.getIndex(babyRoleId);
+                if (roleIndex < 0) {
+                    ctx.sendMessage(Message.raw("Baby NPC role not found: " + babyRoleId).color("#FF5555"));
+                    ctx.sendMessage(Message.raw("Make sure this is a valid NPC role name.").color("#AAAAAA"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                plugin.getConfigManager().setCustomAnimalBabyRole(modelId, babyRoleId);
+                ctx.sendMessage(Message.raw("Set baby NPC role for ").color("#55FF55")
+                        .insert(Message.raw(modelId).color("#FFFFFF"))
+                        .insert(Message.raw(" to ").color("#55FF55"))
+                        .insert(Message.raw(babyRoleId).color("#FFAA00")));
+                ctx.sendMessage(Message.raw("Babies will now spawn using this role instead of scaling.").color("#AAAAAA"));
                 ctx.sendMessage(Message.raw("Use /breed config save to persist").color("#AAAAAA"));
                 return CompletableFuture.completedFuture(null);
             }

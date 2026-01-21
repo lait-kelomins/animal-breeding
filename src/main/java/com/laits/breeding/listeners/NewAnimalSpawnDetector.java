@@ -161,9 +161,20 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
             String modelAssetId = extractModelAssetId(modelComp);
             if (modelAssetId == null) return;
 
-            // Check if it's an animal we care about
+            // Check if it's an animal we care about (built-in OR custom)
             AnimalType animalType = AnimalType.fromModelAssetId(modelAssetId);
-            if (animalType == null) return;
+            boolean isCustomAnimal = false;
+
+            // If not a built-in type, check if it's a registered custom animal
+            if (animalType == null) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin != null && plugin.getConfigManager() != null) {
+                    isCustomAnimal = plugin.getConfigManager().isCustomAnimal(modelAssetId);
+                }
+            }
+
+            // Skip if neither built-in nor custom animal
+            if (animalType == null && !isCustomAnimal) return;
 
             // Mark as processed with timestamp
             processedEntities.put(refKey, System.currentTimeMillis());
@@ -173,7 +184,8 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
             lastDetectionTime = System.currentTimeMillis();
             lastDetectedAnimal = modelAssetId;
 
-            log("Detected new animal spawn: " + modelAssetId + " (" + animalType + ")");
+            String typeDesc = animalType != null ? animalType.toString() : "CUSTOM";
+            log("Detected new animal spawn: " + modelAssetId + " (" + typeDesc + ")");
 
             // Notify the main plugin to set up interactions
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();

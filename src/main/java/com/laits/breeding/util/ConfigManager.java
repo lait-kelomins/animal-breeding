@@ -2170,6 +2170,30 @@ public class ConfigManager {
     }
 
     /**
+     * Set the baby NPC role for a custom animal.
+     * This allows spawning dedicated baby NPCs instead of using scaling.
+     * @param modelAssetId The model asset ID of the custom animal
+     * @param babyRoleId The NPC role ID for spawning babies (null to use scaling)
+     */
+    public void setCustomAnimalBabyRole(String modelAssetId, String babyRoleId) {
+        CustomAnimalConfig existing = customAnimals.get(modelAssetId);
+        if (existing != null) {
+            customAnimals.put(modelAssetId, new CustomAnimalConfig(
+                existing.getModelAssetId(),
+                existing.getDisplayName(),
+                existing.getBreedingFoods(),
+                existing.getGrowthTimeMinutes(),
+                existing.getBreedCooldownMinutes(),
+                babyRoleId,  // Set the new baby NPC role ID
+                existing.getAdultNpcRoleId(),
+                existing.isMountable(),
+                existing.isEnabled()
+            ));
+            log("Set baby NPC role for " + modelAssetId + " to: " + babyRoleId);
+        }
+    }
+
+    /**
      * Set the growth time for a custom animal in minutes.
      * @param modelAssetId The model asset ID of the custom animal
      * @param growthTimeMinutes The growth time in minutes

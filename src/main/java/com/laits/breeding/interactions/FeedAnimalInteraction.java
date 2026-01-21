@@ -732,7 +732,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
     /**
      * Spawn a baby custom animal at the given position.
-     * For custom animals, we spawn the same NPC at a smaller scale.
+     * If babyNpcRoleId is set, spawn using that role at full scale.
+     * Otherwise, use scaling fallback: spawn adult NPC at 40% scale.
      */
     private void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position) {
         try {
@@ -748,76 +749,63 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
                     NPCPlugin npcPlugin = NPCPlugin.get();
 
-                    // Try multiple role names in order of preference
                     int roleIndex = -1;
                     String usedRoleName = null;
+                    boolean usingBabyRole = false;
 
-                    // 1. Try configured adultNpcRoleId first
-                    if (finalConfig != null && finalConfig.getAdultNpcRoleId() != null) {
-                        roleIndex = npcPlugin.getIndex(finalConfig.getAdultNpcRoleId());
+                    // 1. First, check if we have a dedicated baby NPC role
+                    if (finalConfig != null && finalConfig.getBabyNpcRoleId() != null) {
+                        roleIndex = npcPlugin.getIndex(finalConfig.getBabyNpcRoleId());
                         if (roleIndex >= 0) {
-                            usedRoleName = finalConfig.getAdultNpcRoleId();
-                            log("Found NPC role via adultNpcRoleId: " + usedRoleName);
+                            usedRoleName = finalConfig.getBabyNpcRoleId();
+                            usingBabyRole = true;
+                            log("Using dedicated baby NPC role: " + usedRoleName);
+                        } else {
+                            log("Configured babyNpcRoleId not found: " + finalConfig.getBabyNpcRoleId() + ", falling back to scaling");
                         }
                     }
 
-                    // 2. Try the model asset ID directly
+                    // 2. If no baby role, use adult role with scaling fallback
+                    if (roleIndex < 0 && finalConfig != null && finalConfig.getAdultNpcRoleId() != null) {
+                        roleIndex = npcPlugin.getIndex(finalConfig.getAdultNpcRoleId());
+                        if (roleIndex >= 0) {
+                            usedRoleName = finalConfig.getAdultNpcRoleId();
+                            log("Using adult NPC role with scaling: " + usedRoleName);
+                        }
+                    }
+
+                    // 3. Fallback: try the model asset ID directly (legacy configs)
                     if (roleIndex < 0) {
                         roleIndex = npcPlugin.getIndex(finalModelAssetId);
                         if (roleIndex >= 0) {
                             usedRoleName = finalModelAssetId;
-                            log("Found NPC role via modelAssetId: " + usedRoleName);
-                        }
-                    }
-
-                    // 3. Try common variations - remove common prefixes
-                    if (roleIndex < 0) {
-                        String[] prefixesToRemove = {"VgSlime_", "MA_", "Vg_", "Mod_"};
-                        String baseName = finalModelAssetId;
-                        for (String prefix : prefixesToRemove) {
-                            if (baseName.startsWith(prefix)) {
-                                baseName = baseName.substring(prefix.length());
-                            }
-                        }
-                        if (!baseName.equals(finalModelAssetId)) {
-                            roleIndex = npcPlugin.getIndex(baseName);
-                            if (roleIndex >= 0) {
-                                usedRoleName = baseName;
-                                log("Found NPC role via simplified name: " + usedRoleName);
-                            }
-                        }
-                    }
-
-                    // 4. Try with _Adult suffix
-                    if (roleIndex < 0) {
-                        String adultName = finalModelAssetId + "_Adult";
-                        roleIndex = npcPlugin.getIndex(adultName);
-                        if (roleIndex >= 0) {
-                            usedRoleName = adultName;
-                            log("Found NPC role via _Adult suffix: " + usedRoleName);
+                            log("Using modelAssetId as role (legacy): " + usedRoleName);
                         }
                     }
 
                     if (roleIndex < 0) {
                         log("No NPC role found for custom animal: " + finalModelAssetId);
-                        log("  Tried: adultNpcRoleId=" + (finalConfig != null ? finalConfig.getAdultNpcRoleId() : "null"));
-                        log("  Tried: modelAssetId=" + finalModelAssetId);
-                        log("  TIP: Use '/breed custom setrole " + finalModelAssetId + " <role_name>' to set the NPC role");
+                        log("  adultNpcRoleId=" + (finalConfig != null ? finalConfig.getAdultNpcRoleId() : "null"));
+                        log("  babyNpcRoleId=" + (finalConfig != null ? finalConfig.getBabyNpcRoleId() : "null"));
+                        log("  TIP: Re-add the custom animal with: /breed custom add <npcRole> <food>");
                         return;
                     }
 
                     Vector3f rotation = new Vector3f(0, 0, 0);
 
-                    // Create scaled model (baby size)
-                    float babyScale = 0.5f;
+                    // If using baby role, spawn at full scale. Otherwise use scaling fallback (40%)
                     Model scaledModel = null;
-                    try {
-                        ModelAsset modelAsset = ModelAsset.getAssetMap().getAsset(finalModelAssetId);
-                        if (modelAsset != null) {
-                            scaledModel = Model.createScaledModel(modelAsset, babyScale);
+                    if (!usingBabyRole) {
+                        float babyScale = 0.4f;  // Scaling fallback: 40% size
+                        try {
+                            ModelAsset modelAsset = ModelAsset.getAssetMap().getAsset(finalModelAssetId);
+                            if (modelAsset != null) {
+                                scaledModel = Model.createScaledModel(modelAsset, babyScale);
+                                log("Created scaled model at " + (babyScale * 100) + "% size");
+                            }
+                        } catch (Exception e) {
+                            log("Could not create scaled model for custom baby: " + e.getMessage());
                         }
-                    } catch (Exception e) {
-                        log("Could not create scaled model for custom baby: " + e.getMessage());
                     }
 
                     // Use reflection for spawnEntity due to complex signature
@@ -833,7 +821,11 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                             Object result = m.invoke(npcPlugin, store, roleIndex, position, rotation, scaledModel, noOpCallback);
 
                             if (result != null) {
-                                log("Spawned custom animal baby: " + finalModelAssetId + " at " + position);
+                                if (usingBabyRole) {
+                                    log("Spawned custom baby (dedicated role): " + usedRoleName + " at " + position);
+                                } else {
+                                    log("Spawned custom baby (scaled adult): " + usedRoleName + " at " + position);
+                                }
 
                                 // Register baby for growth tracking
                                 LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();

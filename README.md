@@ -170,25 +170,31 @@ All commands use the unified `/breed` prefix for easy discovery.
 
 ### Custom Animals (Other Mods)
 
-Add creatures from other mods to the breeding system by their model asset ID.
+Add creatures from other mods to the breeding system. Simply provide the NPC role name and the plugin will auto-discover the model.
 
 ```
-/breed custom add <model> <food> [food2] [food3]   Add a custom animal
-/breed custom remove <model>                       Remove a custom animal
-/breed custom list                                 List all custom animals
-/breed custom info <model>                         Show custom animal details
-/breed custom enable <model>                       Enable a custom animal
-/breed custom disable <model>                      Disable a custom animal
-/breed custom addfood <model> <food>               Add a breeding food
-/breed custom removefood <model> <food>            Remove a breeding food
+/breed custom add <npcRole> <food> [food2] [food3]   Add by NPC role (auto-discovers model)
+/breed custom setbaby <model> <babyRole>             Set baby NPC role for dedicated baby spawning
+/breed custom remove <model>                         Remove a custom animal
+/breed custom list                                   List all custom animals
+/breed custom info <model>                           Show custom animal details
+/breed custom enable <model>                         Enable a custom animal
+/breed custom disable <model>                        Disable a custom animal
+/breed custom addfood <model> <food>                 Add a breeding food
+/breed custom removefood <model> <food>              Remove a breeding food
+/breed custom scan                                   Scan world for creatures
 ```
 
-**Example:** To add a creature called "Unicorn" from another mod:
+**Example:** To add a creature with NPC role "VgSlime_Npc_Guumi_Green":
 ```
-/breed custom add Unicorn apple carrot
+/breed custom add VgSlime_Npc_Guumi_Green apple
 ```
 
-Custom animals are saved to the config file and persist across restarts.
+The plugin validates the NPC role exists, spawns a temp entity to discover the model, and registers both for detection and spawning.
+
+**Baby spawning:** If you know the baby NPC role, set it with `/breed custom setbaby`. Otherwise, babies spawn as scaled-down adults (40% size).
+
+Custom animals are automatically detected when they spawn and saved to config.
 
 ### Legacy Commands (Deprecated)
 
