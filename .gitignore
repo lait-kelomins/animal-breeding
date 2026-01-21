@@ -1,8 +1,6 @@
 # Gradle
 .gradle/
 build/
-build-default/
-build-experimental/
 !gradle/wrapper/gradle-wrapper.jar
 
 # IDE
