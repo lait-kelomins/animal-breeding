@@ -171,7 +171,8 @@ function Deploy {
     Write-Host "Building EXPERIMENTAL version (E key)..." -ForegroundColor Cyan
 
     $startTime = Get-Date
-    & .\gradlew.bat clean build -PbuildVariant=experimental -x test --no-daemon -q
+    # No clean - JARs have different names, keep both in build/libs
+    & .\gradlew.bat build -PbuildVariant=experimental -x test --no-daemon -q
 
     if ($LASTEXITCODE -ne 0) {
         Write-Host "EXPERIMENTAL BUILD FAILED!" -ForegroundColor Red
