@@ -390,13 +390,26 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
             log("Triggering fallback interaction: " + originalInteractionId);
 
+            // Check if server is shutting down - Universe or World may be null/unavailable
+            if (Universe.get() == null || Universe.get().getDefaultWorld() == null) {
+                log("Server is shutting down, skipping fallback interaction");
+                return;
+            }
+
             Object interactionManager = context.getInteractionManager();
             if (interactionManager == null) {
                 log("InteractionManager is null");
                 return;
             }
 
-            RootInteraction rootInteraction = RootInteraction.getRootInteractionOrUnknown(originalInteractionId);
+            // Wrap in try-catch to handle shutdown race conditions
+            RootInteraction rootInteraction;
+            try {
+                rootInteraction = RootInteraction.getRootInteractionOrUnknown(originalInteractionId);
+            } catch (Exception e) {
+                log("Failed to get RootInteraction (likely server shutting down): " + e.getMessage());
+                return;
+            }
             if (rootInteraction == null) {
                 log("Could not find RootInteraction: " + originalInteractionId);
                 return;
