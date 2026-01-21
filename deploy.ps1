@@ -136,21 +136,73 @@ function Deploy {
     Write-Host ""
 
     # ========================================
-    # BUILD DEFAULT VERSION (F key)
+    # BUILD BOTH VERSIONS IN PARALLEL
     # ========================================
-    Write-Host "Building DEFAULT version (F key)..." -ForegroundColor Cyan
-    & .\gradlew.bat clean build -x test --no-daemon -q
+    # Use separate build directories to allow parallel builds
+    $buildDir = Get-Location
 
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host ""
+    Write-Host "Building BOTH versions in parallel..." -ForegroundColor Cyan
+    Write-Host "  - DEFAULT (F key) -> build-default/" -ForegroundColor DarkGray
+    Write-Host "  - EXPERIMENTAL (E key) -> build-experimental/" -ForegroundColor DarkGray
+    Write-Host ""
+
+    # Start both builds in parallel with separate build directories
+    $defaultJob = Start-Job -ScriptBlock {
+        param($dir, $javaHome)
+        Set-Location $dir
+        $env:JAVA_HOME = $javaHome
+        & .\gradlew.bat build -x test --no-daemon -q --build-dir=build-default 2>&1
+        return $LASTEXITCODE
+    } -ArgumentList $buildDir, $JAVA_HOME
+
+    $expJob = Start-Job -ScriptBlock {
+        param($dir, $javaHome)
+        Set-Location $dir
+        $env:JAVA_HOME = $javaHome
+        & .\gradlew.bat build -PbuildVariant=experimental -x test --no-daemon -q --build-dir=build-experimental 2>&1
+        return $LASTEXITCODE
+    } -ArgumentList $buildDir, $JAVA_HOME
+
+    # Wait for both jobs with progress indication
+    Write-Host "Building..." -NoNewline
+    while (($defaultJob.State -eq 'Running') -or ($expJob.State -eq 'Running')) {
+        Write-Host "." -NoNewline
+        Start-Sleep -Milliseconds 500
+    }
+    Write-Host " Done!"
+    Write-Host ""
+
+    # Check results
+    $defaultResult = Receive-Job -Job $defaultJob
+    $defaultExitCode = $defaultJob.ChildJobs[0].JobStateInfo.Reason.ExitCode
+    if ($null -eq $defaultExitCode) { $defaultExitCode = if ($defaultJob.State -eq 'Completed') { 0 } else { 1 } }
+
+    $expResult = Receive-Job -Job $expJob
+    $expExitCode = $expJob.ChildJobs[0].JobStateInfo.Reason.ExitCode
+    if ($null -eq $expExitCode) { $expExitCode = if ($expJob.State -eq 'Completed') { 0 } else { 1 } }
+
+    Remove-Job -Job $defaultJob, $expJob -Force
+
+    # Check for build failures
+    $defaultJar = "build-default\libs\$PLUGIN_NAME-$VERSION.jar"
+    $expJar = "build-experimental\libs\$PLUGIN_NAME-$VERSION-experimental.jar"
+
+    if (-not (Test-Path $defaultJar)) {
         Write-Host "DEFAULT BUILD FAILED!" -ForegroundColor Red
+        Write-Host $defaultResult -ForegroundColor DarkRed
         return $false
     }
-
     Write-Host "Default build successful!" -ForegroundColor Green
 
+    if (-not (Test-Path $expJar)) {
+        Write-Host "EXPERIMENTAL BUILD FAILED!" -ForegroundColor Red
+        Write-Host $expResult -ForegroundColor DarkRed
+        return $false
+    }
+    Write-Host "Experimental build successful!" -ForegroundColor Green
+    Write-Host ""
+
     # Copy default JAR
-    $defaultJar = "build\libs\$PLUGIN_NAME-$VERSION.jar"
     $defaultDestFile = Join-Path $dest "$PLUGIN_NAME-$VERSION.jar"
     Copy-Item $defaultJar $defaultDestFile -Force
     Write-Host "DEPLOYED: $defaultDestFile" -ForegroundColor Green
@@ -161,24 +213,7 @@ function Deploy {
         Write-Host "DEPLOYED (server): $serverDefaultFile" -ForegroundColor Green
     }
 
-    Write-Host ""
-
-    # ========================================
-    # BUILD EXPERIMENTAL VERSION (E key)
-    # ========================================
-    Write-Host "Building EXPERIMENTAL version (E key)..." -ForegroundColor Cyan
-    & .\gradlew.bat clean build -PbuildVariant=experimental -x test --no-daemon -q
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host ""
-        Write-Host "EXPERIMENTAL BUILD FAILED!" -ForegroundColor Red
-        return $false
-    }
-
-    Write-Host "Experimental build successful!" -ForegroundColor Green
-
     # Copy experimental JAR
-    $expJar = "build\libs\$PLUGIN_NAME-$VERSION-experimental.jar"
     $expDestFile = Join-Path $dest "$PLUGIN_NAME-$VERSION-experimental.jar"
     Copy-Item $expJar $expDestFile -Force
     Write-Host "DEPLOYED: $expDestFile" -ForegroundColor Green
