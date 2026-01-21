@@ -148,7 +148,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             try {
                 INTERACTIONS_COMP_TYPE = Interactions.class.getMethod("getComponentType").invoke(null);
             } catch (Exception e) {
-                // Silent
+                System.out.println("[LaitsBreeding] ERROR: Failed to get Interactions component type: " + e.getMessage());
             }
         }
         return INTERACTIONS_COMP_TYPE;
@@ -159,7 +159,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             try {
                 INTERACTABLE_COMP_TYPE = Interactable.class.getMethod("getComponentType").invoke(null);
             } catch (Exception e) {
-                // Silent
+                System.out.println("[LaitsBreeding] ERROR: Failed to get Interactable component type: " + e.getMessage());
             }
         }
         return INTERACTABLE_COMP_TYPE;
@@ -941,8 +941,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Get component types via reflection
             Object interactableType = getInteractableComponentType();
             Object interactionsType = getInteractionsComponentType();
-            if (interactionsType == null)
+            if (interactionsType == null) {
+                getLogger().atWarning().log("[SetupInteraction] interactionsType is NULL for %s", animalType);
                 return;
+            }
 
             // Find ensureAndGetComponent method
             java.lang.reflect.Method ensureMethod = null;
@@ -1003,10 +1005,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     ? "server.interactionHints.feedOrMount"
                     : "server.interactionHints.feed";
             setHint.invoke(interactions, hintKey);
-            logVerbose("Interaction setup complete for " + animalType + " (hint: " + hintKey + ")");
+            getLogger().atInfo().log("[SetupInteraction] SUCCESS for %s: interactionId=%s, hint=%s", animalType, feedInteractionId, hintKey);
 
         } catch (Exception e) {
-            logVerbose("setupEntityInteractions error: " + e.getMessage());
+            getLogger().atWarning().log("[SetupInteraction] ERROR for %s: %s", animalType, e.getMessage());
         }
     }
 
@@ -1382,20 +1384,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                     }
                                 }
                             } catch (Exception e) {
-                                // Entity ref may be stale, skip it - BUT NOT custom animals
-                                // Custom NPCs may not have UUID components, so proceed anyway
+                                // UUID check failed - this happens when UUIDComponent doesn't exist
+                                // This is OK: the check is only to filter players, not to validate animals
+                                // Don't skip any animals - proceed with interaction setup
                                 if (configManager.isCustomAnimal(modelId)) {
-                                    getLogger().atInfo().log("[CustomAnimal] '%s' has no UUID component (expected for custom NPCs), proceeding with setup",
-                                        modelId);
-                                    // Don't skip - continue to custom animal setup
+                                    logVerbose("[CustomAnimal] " + modelId + " has no UUID component (expected for custom NPCs), proceeding");
                                 } else {
-                                    if (skippedNull < 3) {
-                                        getLogger().atWarning().log("[AnimalScan] Entity ref error for %s: %s",
-                                            animal.getModelAssetId(), e.getMessage());
-                                    }
-                                    skippedNull++; // Count these as skipped
-                                    continue;
+                                    logVerbose("[AnimalScan] UUID check failed for " + animal.getModelAssetId() + " (proceeding anyway): " + e.getMessage());
                                 }
+                                // Note: Do NOT skip - both built-in and custom animals should proceed
                             }
                         }
 
@@ -2413,6 +2410,192 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     // Silent
                 }
             });
+        }
+
+        // Also check custom animal breeding (same logic, different data source)
+        checkCustomAnimalBreeding(world);
+    }
+
+    /**
+     * Check for custom animals in love that are close enough to breed.
+     * Similar to built-in animal breeding, but uses CustomAnimalLoveData.
+     */
+    private void checkCustomAnimalBreeding(World world) {
+        // Group custom animals in love by modelAssetId
+        java.util.Map<String, java.util.List<BreedingManager.CustomAnimalLoveData>> byType = new java.util.HashMap<>();
+        for (BreedingManager.CustomAnimalLoveData data : breedingManager.getCustomAnimalsInLove()) {
+            if (data.isInLove() && data.getEntityRef() != null) {
+                byType.computeIfAbsent(data.getModelAssetId(), k -> new java.util.ArrayList<>()).add(data);
+            }
+        }
+
+        // For each type with 2+ animals in love, check distance
+        for (java.util.Map.Entry<String, java.util.List<BreedingManager.CustomAnimalLoveData>> entry : byType.entrySet()) {
+            java.util.List<BreedingManager.CustomAnimalLoveData> animalsOfType = entry.getValue();
+            if (animalsOfType.size() < 2) continue;
+
+            BreedingManager.CustomAnimalLoveData animal1 = animalsOfType.get(0);
+            BreedingManager.CustomAnimalLoveData animal2 = animalsOfType.get(1);
+
+            if (animal1.getEntityRef() == null || animal2.getEntityRef() == null) continue;
+
+            final BreedingManager.CustomAnimalLoveData finalAnimal1 = animal1;
+            final BreedingManager.CustomAnimalLoveData finalAnimal2 = animal2;
+            final String modelAssetId = entry.getKey();
+
+            // Execute on world thread for ECS access
+            world.execute(() -> {
+                try {
+                    Store<EntityStore> store = world.getEntityStore().getStore();
+
+                    Vector3d pos1 = getPositionOnWorldThread(store, finalAnimal1.getEntityRef());
+                    Vector3d pos2 = getPositionOnWorldThread(store, finalAnimal2.getEntityRef());
+
+                    if (pos1 == null || pos2 == null) return;
+
+                    double distance = calculateDistance(pos1, pos2);
+
+                    if (distance <= BREEDING_DISTANCE) {
+                        getLogger().atInfo().log("[CustomBreed] Breeding %s at distance %.1f", modelAssetId, distance);
+
+                        finalAnimal1.completeBreeding();
+                        finalAnimal2.completeBreeding();
+
+                        // Spawn baby at midpoint between the two parents
+                        Vector3d midpoint = new Vector3d(
+                            (pos1.getX() + pos2.getX()) / 2.0,
+                            (pos1.getY() + pos2.getY()) / 2.0,
+                            (pos1.getZ() + pos2.getZ()) / 2.0);
+
+                        // Get custom animal config for baby spawning
+                        CustomAnimalConfig customConfig = configManager.getCustomAnimal(modelAssetId);
+                        spawnCustomAnimalBaby(modelAssetId, customConfig, midpoint);
+                    }
+                } catch (Exception e) {
+                    // Silent
+                }
+            });
+        }
+    }
+
+    /**
+     * Spawn a baby custom animal at the given position.
+     * If babyNpcRoleId is set, spawn using that role at full scale.
+     * Otherwise, use scaling fallback: spawn adult NPC at 40% scale.
+     */
+    private void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position) {
+        try {
+            World world = Universe.get().getDefaultWorld();
+            if (world == null) return;
+
+            final String finalModelAssetId = modelAssetId;
+            final CustomAnimalConfig finalConfig = customConfig;
+            final Vector3d spawnPos = position;
+
+            world.execute(() -> {
+                try {
+                    Store<EntityStore> store = world.getEntityStore().getStore();
+
+                    // Use reflection to access NPCPlugin
+                    Class<?> npcPluginClass = Class.forName("com.hypixel.hytale.server.npc.NPCPlugin");
+                    java.lang.reflect.Method getInstance = npcPluginClass.getMethod("get");
+                    Object npcPlugin = getInstance.invoke(null);
+
+                    String usedRoleName = null;
+                    boolean usingBabyRole = false;
+                    boolean roleExists = false;
+
+                    // 1. First, check if we have a dedicated baby NPC role
+                    if (finalConfig != null && finalConfig.getBabyNpcRoleId() != null) {
+                        java.lang.reflect.Method hasRoleName = npcPluginClass.getMethod("hasRoleName", String.class);
+                        roleExists = (boolean) hasRoleName.invoke(npcPlugin, finalConfig.getBabyNpcRoleId());
+                        if (roleExists) {
+                            usedRoleName = finalConfig.getBabyNpcRoleId();
+                            usingBabyRole = true;
+                            logVerbose("Using dedicated baby NPC role: " + usedRoleName);
+                        }
+                    }
+
+                    // 2. If no baby role, use adult role with scaling fallback
+                    if (!roleExists) {
+                        String adultRole = finalConfig != null ? finalConfig.getAdultNpcRoleId() : null;
+                        if (adultRole == null) adultRole = finalModelAssetId;
+
+                        java.lang.reflect.Method hasRoleName = npcPluginClass.getMethod("hasRoleName", String.class);
+                        roleExists = (boolean) hasRoleName.invoke(npcPlugin, adultRole);
+                        if (roleExists) {
+                            usedRoleName = adultRole;
+                            logVerbose("Using adult NPC role with scaling: " + usedRoleName);
+                        }
+                    }
+
+                    if (!roleExists || usedRoleName == null) {
+                        getLogger().atWarning().log("[CustomBreed] No valid NPC role found for: " + finalModelAssetId);
+                        return;
+                    }
+
+                    // Find spawnNPC method via reflection
+                    java.lang.reflect.Method spawnNPC = null;
+                    for (java.lang.reflect.Method m : npcPluginClass.getMethods()) {
+                        if (m.getName().equals("spawnNPC")) {
+                            spawnNPC = m;
+                            break;
+                        }
+                    }
+
+                    if (spawnNPC == null) {
+                        getLogger().atWarning().log("[CustomBreed] Could not find spawnNPC method");
+                        return;
+                    }
+
+                    // Spawn the entity
+                    Vector3f rotation = new Vector3f(0, 0, 0);
+                    Object result = spawnNPC.invoke(npcPlugin, usedRoleName, spawnPos, rotation, null);
+
+                    if (result == null) {
+                        getLogger().atWarning().log("[CustomBreed] Failed to spawn baby: " + usedRoleName);
+                        return;
+                    }
+
+                    // Get the entity reference from the result
+                    @SuppressWarnings("unchecked")
+                    Ref<EntityStore> babyRef = null;
+                    try {
+                        java.lang.reflect.Method getFirst = result.getClass().getMethod("getFirst");
+                        babyRef = (Ref<EntityStore>) getFirst.invoke(result);
+                    } catch (Exception e) {
+                        logVerbose("Could not get entity ref from spawn result: " + e.getMessage());
+                    }
+
+                    // Apply scaling if not using baby role (40% size)
+                    if (!usingBabyRole && babyRef != null) {
+                        float babyScale = 0.4f;
+                        try {
+                            ModelComponent modelComp = store.getComponent(babyRef, ModelComponent.getComponentType());
+                            if (modelComp != null) {
+                                java.lang.reflect.Method setScale = modelComp.getClass().getMethod("setScale", float.class);
+                                setScale.invoke(modelComp, babyScale);
+                                logVerbose("Applied baby scale " + babyScale + " to custom animal");
+                            }
+                        } catch (Exception e) {
+                            logVerbose("Could not apply scale: " + e.getMessage());
+                        }
+                    }
+
+                    // Set up interactions for the baby
+                    if (finalConfig != null && babyRef != null) {
+                        setupCustomAnimalInteractions(store, babyRef, finalConfig);
+                    }
+
+                    getLogger().atInfo().log("[CustomBreed] Spawned baby %s at (%.1f, %.1f, %.1f)",
+                        finalModelAssetId, spawnPos.getX(), spawnPos.getY(), spawnPos.getZ());
+
+                } catch (Exception e) {
+                    getLogger().atWarning().log("[CustomBreed] Error spawning baby: " + e.getMessage());
+                }
+            });
+        } catch (Exception e) {
+            getLogger().atWarning().log("[CustomBreed] Error in spawnCustomAnimalBaby: " + e.getMessage());
         }
     }
 
