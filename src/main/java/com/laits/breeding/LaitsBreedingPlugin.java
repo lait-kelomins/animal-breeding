@@ -858,35 +858,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 }
             }
 
-            // Set up interactions for adults - must be deferred to after the tick
-            // Component modifications during ECS tick may not work correctly
+            // NOTE: Entity-based interactions disabled - using item-based Ability2 instead
+            // The item templates (Template_Crop_Item, Template_Food) now have Ability2: Root_FeedAnimal
+            // Adult animals are tracked but no longer get entity interactions set up
             if (!isBaby) {
-                final Ref<EntityStore> finalEntityRef = entityRef;
-                final AnimalType finalAnimalType = animalType;
-                final CustomAnimalConfig finalCustomAnimal = customAnimal;
-                final String finalModelAssetId = modelAssetId;
-
-                World world = Universe.get().getDefaultWorld();
-                if (world != null) {
-                    world.execute(() -> {
-                        try {
-                            if (!finalEntityRef.isValid())
-                                return;
-                            Store<EntityStore> worldStore = world.getEntityStore().getStore();
-
-                            // Set up interactions based on type
-                            if (finalAnimalType != null) {
-                                setupEntityInteractions(worldStore, finalEntityRef, finalAnimalType);
-                                logVerbose("Interactions set up for new animal: " + finalModelAssetId);
-                            } else if (finalCustomAnimal != null) {
-                                setupCustomAnimalInteractions(worldStore, finalEntityRef, finalCustomAnimal);
-                                getLogger().atInfo().log("[CustomAnimal] Interactions set up for: %s", finalModelAssetId);
-                            }
-                        } catch (Exception e) {
-                            logVerbose("Deferred interaction setup error: " + e.getMessage());
-                        }
-                    });
-                }
+                logVerbose("New adult animal detected: " + modelAssetId + " (no entity interaction setup - using item Ability2)");
             }
 
         } catch (IllegalStateException e) {
@@ -1441,24 +1417,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             }
                         }
 
-                        // Set up interactions for adults (babies can't breed)
+                        // NOTE: Entity-based interactions disabled - using item-based Ability2 instead
+                        // The item templates (Template_Crop_Item, Template_Food) now have Ability2: Root_FeedAnimal
+                        // which triggers when player presses Ability2 while holding food
+
+                        // Track adults for breeding (but don't set up entity interactions)
                         if (!animal.isBaby()) {
-                            @SuppressWarnings("unchecked")
-                            Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
-                            Store<EntityStore> refStore = ref.getStore();
-                            if (refStore != null) {
-                                if (animalType != null) {
-                                    logVerbose("Setting up interactions for adult: " + animal.getModelAssetId() + " (type: "
-                                            + animalType + ")");
-                                    setupEntityInteractions(refStore, ref, animalType);
-                                } else if (customAnimal != null) {
-                                    getLogger().atInfo().log("[CustomAnimal] ABOUT TO CALL setupCustomAnimalInteractions for: %s", animal.getModelAssetId());
-                                    setupCustomAnimalInteractions(refStore, ref, customAnimal);
-                                }
-                                processedCount++;
-                            } else {
-                                getLogger().atWarning().log("[CustomAnimal] refStore is NULL for: %s", animal.getModelAssetId());
-                            }
+                            processedCount++;
                         } else {
                             if (customAnimal != null) {
                                 getLogger().atInfo().log("[CustomAnimal] Skipping baby custom animal: %s", animal.getModelAssetId());
