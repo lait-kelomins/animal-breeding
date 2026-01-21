@@ -215,10 +215,16 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     // Entity-based interaction system (legacy)
-    // When true: Sets "Press [F] to Feed" hints directly on animal entities
+    // When true: Sets "Press [F] to Feed" hints directly on animal entities (Use key)
     // When false: Uses item-based Ability2 interactions (food templates have Ability2: Root_FeedAnimal)
     // Default is false - using item-based Ability2 approach to avoid conflicts with NPC default hints
     private static final boolean USE_ENTITY_BASED_INTERACTIONS = false;
+
+    // Show interaction hints on animals even when using item-based Ability2
+    // When true: Animals show "Press [Ability2] to Feed" hint (but actual feeding is via item)
+    // When false: No hints on animals (player must know to use Ability2)
+    // Only applies when USE_ENTITY_BASED_INTERACTIONS is false
+    private static final boolean SHOW_ABILITY2_HINTS_ON_ENTITIES = true;
 
     // Store original interaction IDs before we override them (for fallback, e.g.,
     // horse mounting)
@@ -867,21 +873,21 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Set up interactions for adults - must be deferred to after the tick
             // Component modifications during ECS tick may not work correctly
             if (!isBaby) {
-                if (USE_ENTITY_BASED_INTERACTIONS) {
-                    final Ref<EntityStore> finalEntityRef = entityRef;
-                    final AnimalType finalAnimalType = animalType;
-                    final CustomAnimalConfig finalCustomAnimal = customAnimal;
-                    final String finalModelAssetId = modelAssetId;
+                final Ref<EntityStore> finalEntityRef = entityRef;
+                final AnimalType finalAnimalType = animalType;
+                final CustomAnimalConfig finalCustomAnimal = customAnimal;
+                final String finalModelAssetId = modelAssetId;
 
-                    World world = Universe.get().getDefaultWorld();
-                    if (world != null) {
-                        world.execute(() -> {
-                            try {
-                                if (!finalEntityRef.isValid())
-                                    return;
-                                Store<EntityStore> worldStore = world.getEntityStore().getStore();
+                World world = Universe.get().getDefaultWorld();
+                if (world != null) {
+                    world.execute(() -> {
+                        try {
+                            if (!finalEntityRef.isValid())
+                                return;
+                            Store<EntityStore> worldStore = world.getEntityStore().getStore();
 
-                                // Set up interactions based on type
+                            if (USE_ENTITY_BASED_INTERACTIONS) {
+                                // Legacy: Set up entity-based interactions (Use key)
                                 if (finalAnimalType != null) {
                                     setupEntityInteractions(worldStore, finalEntityRef, finalAnimalType);
                                     logVerbose("Interactions set up for new animal: " + finalModelAssetId);
@@ -889,13 +895,20 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                     setupCustomAnimalInteractions(worldStore, finalEntityRef, finalCustomAnimal);
                                     getLogger().atInfo().log("[CustomAnimal] Interactions set up for: %s", finalModelAssetId);
                                 }
-                            } catch (Exception e) {
-                                logVerbose("Deferred interaction setup error: " + e.getMessage());
+                            } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
+                                // Item-based with hints: Show Ability2 hint on animals
+                                String hintKey = (finalAnimalType != null && finalAnimalType.isMountable())
+                                        ? "server.interactionHints.feedOrMount"
+                                        : "server.interactionHints.feed";
+                                setupAbility2HintOnly(worldStore, finalEntityRef, hintKey);
+                                logVerbose("Ability2 hint set up for: " + finalModelAssetId);
+                            } else {
+                                logVerbose("New adult animal detected: " + finalModelAssetId + " (no hints)");
                             }
-                        });
-                    }
-                } else {
-                    logVerbose("New adult animal detected: " + modelAssetId + " (using item-based Ability2)");
+                        } catch (Exception e) {
+                            logVerbose("Deferred interaction setup error: " + e.getMessage());
+                        }
+                    });
                 }
             }
 
@@ -1103,6 +1116,68 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         } catch (Exception e) {
             getLogger().atSevere().log("[CustomAnimal] %s: setup error: %s", animalName, e.getMessage());
+        }
+    }
+
+    /**
+     * Set up Ability2 hint on an entity (for item-based feeding).
+     * This only sets up the hint display - the actual interaction is handled by the item's Ability2.
+     * Shows "Press [Ability2 key] to Feed" when player looks at the animal.
+     */
+    private void setupAbility2HintOnly(Store<EntityStore> store, Ref<EntityStore> entityRef, String hintKey) {
+        try {
+            Object interactableType = getInteractableComponentType();
+            Object interactionsType = getInteractionsComponentType();
+
+            if (interactableType == null || interactionsType == null) {
+                return;
+            }
+
+            java.lang.reflect.Method ensureMethod = store.getClass().getMethod(
+                    "ensureAndGetComponent", Ref.class, ComponentType.class);
+
+            // Ensure entity has Interactable component (enables hint display)
+            try {
+                ensureMethod.invoke(store, entityRef, interactableType);
+            } catch (Exception e) {
+                // Silent - may already have component
+            }
+
+            // Ensure entity has Interactions component
+            Object interactions = ensureMethod.invoke(store, entityRef, interactionsType);
+            if (interactions == null)
+                return;
+
+            // Get Ability2 enum value
+            Class<?> interactionTypeClass = Class.forName("com.hypixel.hytale.protocol.InteractionType");
+            Object ability2Type = null;
+            for (Object enumConst : interactionTypeClass.getEnumConstants()) {
+                if (enumConst.toString().equals("Ability2")) {
+                    ability2Type = enumConst;
+                    break;
+                }
+            }
+
+            if (ability2Type == null) {
+                logVerbose("Could not find Ability2 InteractionType");
+                return;
+            }
+
+            // Set a dummy/same interaction for Ability2 to make the hint show the Ability2 keybind
+            // The actual feeding is handled by the item's Ability2 interaction
+            java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
+                    "setInteractionId", interactionTypeClass, String.class);
+            setIntId.invoke(interactions, ability2Type, "Root_FeedAnimal");
+
+            // Set the hint text
+            java.lang.reflect.Method setHint = interactions.getClass().getMethod(
+                    "setInteractionHint", String.class);
+            setHint.invoke(interactions, hintKey);
+
+            logVerbose("Set up Ability2 hint: " + hintKey);
+
+        } catch (Exception e) {
+            logVerbose("setupAbility2HintOnly error: " + e.getMessage());
         }
     }
 
@@ -1453,11 +1528,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                         // Set up interactions for adults (babies can't breed)
                         if (!animal.isBaby()) {
-                            if (USE_ENTITY_BASED_INTERACTIONS) {
-                                @SuppressWarnings("unchecked")
-                                Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
-                                Store<EntityStore> refStore = ref.getStore();
-                                if (refStore != null) {
+                            @SuppressWarnings("unchecked")
+                            Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+                            Store<EntityStore> refStore = ref.getStore();
+                            if (refStore != null) {
+                                if (USE_ENTITY_BASED_INTERACTIONS) {
+                                    // Legacy: Set up entity-based interactions (Use key)
                                     if (animalType != null) {
                                         logVerbose("Setting up interactions for adult: " + animal.getModelAssetId() + " (type: "
                                                 + animalType + ")");
@@ -1466,13 +1542,16 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                         getLogger().atInfo().log("[CustomAnimal] ABOUT TO CALL setupCustomAnimalInteractions for: %s", animal.getModelAssetId());
                                         setupCustomAnimalInteractions(refStore, ref, customAnimal);
                                     }
-                                    processedCount++;
-                                } else {
-                                    getLogger().atWarning().log("[CustomAnimal] refStore is NULL for: %s", animal.getModelAssetId());
+                                } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
+                                    // Item-based with hints: Show Ability2 hint on animals
+                                    String hintKey = (animalType != null && animalType.isMountable())
+                                            ? "server.interactionHints.feedOrMount"
+                                            : "server.interactionHints.feed";
+                                    setupAbility2HintOnly(refStore, ref, hintKey);
                                 }
-                            } else {
-                                // Item-based Ability2 mode - just track the animal, no entity interactions
                                 processedCount++;
+                            } else {
+                                getLogger().atWarning().log("[CustomAnimal] refStore is NULL for: %s", animal.getModelAssetId());
                             }
                         } else {
                             if (customAnimal != null) {
