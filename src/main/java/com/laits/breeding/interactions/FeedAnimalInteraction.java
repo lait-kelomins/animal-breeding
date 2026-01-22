@@ -161,6 +161,13 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     return;
                 }
 
+                // Skip babies - they can't breed
+                if (modelAssetId != null && AnimalType.isBabyVariant(modelAssetId)) {
+                    log("Target is a baby animal, skipping feed interaction");
+                    shouldFail = true;
+                    return;
+                }
+
                 // Check for taming: player has pending name tag AND is holding Name Tag item
                 TamingManager tamingManager = plugin.getTamingManager();
                 UUID playerUuid = getPlayerUuid(context);
