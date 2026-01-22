@@ -1,0 +1,78 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Create libs directory
+        run: mkdir -p libs
+
+      - name: Download HytaleServer.jar
+        env:
+          HYTALE_SERVER_URL: ${{ secrets.HYTALE_SERVER_URL }}
+        run: |
+          if [ -n "$HYTALE_SERVER_URL" ]; then
+            curl -sL "$HYTALE_SERVER_URL" -o libs/HytaleServer.jar
+          else
+            echo "::error::HYTALE_SERVER_URL secret required for releases"
+            exit 1
+          fi
+
+      - name: Build with Gradle
+        run: ./gradlew build -x test
+
+      - name: Get version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get commits since last tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s" $PREV_TAG..HEAD)
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s" HEAD~10..HEAD)
+          fi
+          echo "changelog<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGELOG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ steps.version.outputs.version }}
+          body: |
+            ## Changes in ${{ steps.version.outputs.version }}
+
+            ${{ steps.changelog.outputs.changelog }}
+
+            ---
+            Download the JAR below and place it in your server's `mods/` folder.
+          files: build/libs/*.jar
+          draft: false
+          prerelease: false
