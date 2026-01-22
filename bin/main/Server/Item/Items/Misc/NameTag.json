@@ -1,0 +1,49 @@
+{
+    "Quality": "Common",
+    "PlayerAnimationsId": "Item",
+    "DisplayName": "Name Tag",
+    "Description": "Use to tame an animal",
+    "MaxStackSize": 64,
+    "Rarity": "Uncommon",
+    "Category": "Misc",
+    "Model": "Resources/AnimalBreeding/NameTag/NameTag.blockymodel",
+    "Texture": "Resources/AnimalBreeding/NameTag/NameTag.png",
+    "Icon": "Icons/ItemsGenerated/NameTag.png",
+    "Recipe": {
+        "TimeSeconds": 1,
+        "KnowledgeRequired": false,
+        "Input": [
+            {
+                "ItemId": "Ingredient_Fabric_Scrap_Linen",
+                "Quantity": 5   
+            }
+        ],
+        "BenchRequirement": [
+            {
+                "Type": "Crafting",
+                "Categories": [
+                    "Farming"
+                ],
+                "Id": "Farmingbench"
+            }
+        ]
+    },
+    "Interactions": {
+        "Primary": {
+            "Interactions": [
+                {
+                    "Type": "NameAnimal"
+                }
+            ]
+        }
+    },
+    "Tags": {
+        "Type": [
+            "Tool"
+        ]
+    },
+    "TranslationProperties": {
+        "Name": "animalbreeding.items.AB_Name_Tag.name",
+        "Description": "animalbreeding.items.AB_Name_Tag.description"
+    }
+}

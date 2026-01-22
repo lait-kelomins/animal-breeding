@@ -30,6 +30,11 @@ public class GrowthManager {
      * Called periodically to update growth stages for all tracked animals.
      */
     public void tickGrowth() {
+        // Skip if growth is disabled globally
+        if (!config.isGrowthEnabled()) {
+            return;
+        }
+
         for (UUID animalId : getTrackedAnimalIds()) {
             BreedingData data = breedingManager.getData(animalId);
             if (data != null && data.getGrowthStage().hasNextStage()) {

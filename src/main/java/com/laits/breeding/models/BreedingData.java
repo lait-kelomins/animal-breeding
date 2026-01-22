@@ -17,6 +17,13 @@ public class BreedingData {
     private long loveStartTime;
     private Object entityRef;  // Ref<EntityStore> for entity manipulation
 
+    // Taming fields
+    private boolean tamed;
+    private UUID ownerUuid;
+    private String customName;
+    private long tamedTime;
+    private boolean allowInteraction = true;
+
     /**
      * Create breeding data for a new adult animal.
      */
@@ -194,5 +201,97 @@ public class BreedingData {
      */
     public void setEntityRef(Object entityRef) {
         this.entityRef = entityRef;
+    }
+
+    // ===========================================
+    // TAMING METHODS
+    // ===========================================
+
+    /**
+     * Check if this animal is tamed.
+     */
+    public boolean isTamed() {
+        return tamed;
+    }
+
+    /**
+     * Set tamed status.
+     * @param tamed Whether the animal is tamed
+     * @param owner The owner's UUID (required if tamed is true)
+     */
+    public void setTamed(boolean tamed, UUID owner) {
+        this.tamed = tamed;
+        this.ownerUuid = owner;
+        if (tamed && tamedTime == 0) {
+            this.tamedTime = System.currentTimeMillis();
+        }
+        if (!tamed) {
+            this.ownerUuid = null;
+            this.customName = null;
+            this.tamedTime = 0;
+        }
+    }
+
+    /**
+     * Get the owner's UUID.
+     */
+    public UUID getOwnerUuid() {
+        return ownerUuid;
+    }
+
+    /**
+     * Get the custom name assigned by the owner.
+     */
+    public String getCustomName() {
+        return customName;
+    }
+
+    /**
+     * Set the custom name.
+     */
+    public void setCustomName(String customName) {
+        this.customName = customName;
+    }
+
+    /**
+     * Get the time when this animal was tamed.
+     */
+    public long getTamedTime() {
+        return tamedTime;
+    }
+
+    /**
+     * Check if this animal is owned by the given player.
+     */
+    public boolean isOwnedBy(UUID playerUuid) {
+        return ownerUuid != null && ownerUuid.equals(playerUuid);
+    }
+
+    /**
+     * Check if other players can interact with this tamed animal.
+     */
+    public boolean isAllowInteraction() {
+        return allowInteraction;
+    }
+
+    /**
+     * Set whether other players can interact with this tamed animal.
+     */
+    public void setAllowInteraction(boolean allowInteraction) {
+        this.allowInteraction = allowInteraction;
+    }
+
+    /**
+     * Check if the given player can interact with this animal.
+     * Returns true if: not tamed, or player is owner, or allowInteraction is true.
+     */
+    public boolean canInteract(UUID playerUuid) {
+        if (!tamed) {
+            return true;
+        }
+        if (isOwnedBy(playerUuid)) {
+            return true;
+        }
+        return allowInteraction;
     }
 }
