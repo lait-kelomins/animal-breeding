@@ -1,60 +1,53 @@
 # Changelog
 
-## v1.3.0 - Dynamic Interactions & Dual Build System
-
-### New Features
-
-#### Dynamic Interaction System
-- **Fixed horse mounting** - Horses are now properly mountable when on breeding cooldown or in love mode
-- **Dynamic hint switching** - "Press F to Feed" hint only shows when the animal can actually be fed
-  - In love mode: restores original hint (e.g., "Press F to Mount" for horses)
-  - On breeding cooldown: restores original hint
-  - Can be fed: shows "Press F to Feed" or "Press F to Feed / Mount"
-- **Player model protection** - Players wearing animal models (e.g., horse costume) no longer show feed hints
-
-#### Dual Build System
-- **Default build (F key)** - Uses entity-based interactions, recommended for most users
-  - Feed animals by pressing F while holding their favorite food
-  - Dynamic hints based on animal state
-- **Experimental build (E key)** - Uses item ability-based interactions
-  - Feed animals by pressing E while holding food
-  - Shows "(Experimental)" suffix in mod list
-- Build both variants with `deploy.ps1` script
+## v1.3.1 - Bug Fixes & Logging Cleanup
 
 ### Fixed
-- Horse not mountable when on breeding cooldown
-- Horse not mountable when in love mode
-- "Press F to Feed" showing on players with animal models
-- Duplicate JAR output in experimental build
+- Debug logs now only print when verbose mode is enabled (`/breedlogs` command)
+- Reduced console spam during normal gameplay
+- Startup/shutdown messages remain visible
 
 ---
 
-## v1.3.0-pre - Taming & Entity Persistence
+## v1.3.0 - Fixes + Preview for Taming & Entity Persistence
 
-### New Features
+#### Deprecated Commands
+The following legacy commands still work but show deprecation warnings. Use the unified `/breed` command instead:
+
+- `/laitsbreeding` → `/breed help`
+- `/breedstatus` → `/breed status`
+- `/breedconfig` → `/breed config`
+
+### Fixed
+- Various performance improvements
+- Various bug fixes
+- Horse feeding and mounting should now work (might still need to hit them once like in the base game)
+- Various bugs caused by changing the model of the player or spawning a model 
+
+### New Features Preview (some features might not work)
 
 #### Animal Taming System
-- **Name Tag taming** - Use `/nametag <name>` then right-click an animal while holding a Name Tag item to tame it
+- **Name Tags** - You can now craft name tags at the farming bench and tame an animal
+- **Random cute names** - Animals get random names like Fluffy, Spot, Buddy, Luna, etc.
 - **Ownership system** - Tamed animals belong to the player who tamed them
-- **Interaction permissions** - Use `/tamingsettings` to toggle whether other players can interact with your animals
-- **Taming info** - Use `/taminginfo` to see all your tamed animals and their status
-- **Release animals** - Use `/untame` then right-click to release a tamed animal
 
-#### Save System
+#### Entity Persistence
 - **Persistent taming data** - Tamed animals are saved to `tamed_animals.json` and survive server restarts
+- **Respawn system** - Tamed animals that despawn will respawn at their last position when a player approaches (64 block radius)
+- **State preservation** - Growth stage, breeding cooldowns, and all taming data are preserved across respawns
 - **Auto-save** - Data auto-saves every 5 minutes
 - **Shutdown save** - Data is always saved on server shutdown
 
-#### Entity Persistence
-- **Respawn system** - Tamed animals that despawn will respawn at their last position when a player approaches (64 block radius)
-- **State preservation** - Growth stage, breeding cooldowns, and all taming data are preserved across respawns
-
-#### Custom Animal Improvements
-- **Role-first registration** - `/breed custom add <npcRole> <food>` now accepts NPC role instead of model
+#### Custom Animals (from other mods or future updates)
+- **Role-first registration** - `/breed custom add <npcRole> <food>` register by NPC role
 - **Auto model discovery** - Plugin validates the role exists, spawns a temp entity, and auto-discovers the model asset ID
 - **Baby role mapping** - New `/breed custom setbaby <model> <babyRole>` command for dedicated baby NPC spawning
 - **Scaling fallback** - If no baby role defined, babies spawn as scaled-down adults (40% size)
 - **Custom animal spawn detection** - Custom animals are now detected immediately when they spawn (same as built-in animals)
+
+---
+
+## v1.3.0-pre - Taming & Entity Persistence
 
 ### New Commands
 | Command | Description |
