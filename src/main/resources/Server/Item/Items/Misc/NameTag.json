@@ -43,7 +43,7 @@
         ]
     },
     "TranslationProperties": {
-        "Name": "server.items.AB_Name_Tag.name",
-        "Description": "server.items.AB_Name_Tag.description"
+        "Name": "animalbreeding.items.AB_Name_Tag.name",
+        "Description": "animalbreeding.items.AB_Name_Tag.description"
     }
 }

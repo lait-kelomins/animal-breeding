@@ -1,48 +1,96 @@
-![Lait's Animal Breeding with a family of sheeps and a family of cows in an animal pen](https://media.forgecdn.net/attachments/description/1431060/description_a865b611-7b51-4d79-8ce7-7c705a9e5498.png)
-
-[![alt text](https://img.shields.io/badge/@lait__kelomins-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins) [![alt text](https://img.shields.io/badge/@lait__kelomins-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/NXExAtes)
-
 # **Lait's Animal Breeding**
+
+[![X Twitter profile](https://img.shields.io/badge/@lait__kelomins-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins) [![Personal discord](https://img.shields.io/badge/Join%20my%20Discord-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/uSKWDCq8e) [![Mod%20Community%20Discord](https://img.shields.io/discord/1461295822137327673?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Mod%20Community)](https://discord.gg/UKQCgN5SJ)</br>
+This mod is actively being developed. For issues or suggestions, click on one of the links above or add me on Discord: **lait\_kelomins**
+
+## Quick Overview
 
 **Animal breeding and baby growth for Hytale to expand your farm.**
 
-> **Note:** This mod prioritizes making livestock reproduction possible. I recommend keeping animals in a pen and close together for best results. Always make a backup before trying new mods - though this one only spawns entities and doesn't modify save data for now.
+> **Disclaimer:** This mod prioritizes making livestock reproduction possible. I recommend keeping animals in a pen and close together for best results. Always make a backup before trying new mods - though this one only spawns entities and doesn't modify save data for now.
+
+**What It Does**
+
+*   Feed two animals to breed them (press F with appropriate food)
+*   Babies spawn and grow into adults over time
+*   All creatures in the base game supported
+*   Fully configurable via commands or JSON
+*   Add custom animals from other mods
+
+**What It Can't Do (Yet)**
+
+*   Define which foods attract animals (uses base game foods)
+*   Name animals and persist them through game restarts
+*   Make animals follow you (taming planned)
+*   Feed babies to speed up growth (planned)
+*   Interrupt animals that are fleeing or sleeping (the mod doesn't change animal behavior)
+
+**Quick Start:** Find two animals → feed each one their favorite food → they breed → baby grows up.
+
+**Useful commands:** `/breed config info Cow` (check foods) · `/breed config preset apply zoo` (enable all real animals)
+
+![Lait's Animal Breeding with a family of sheeps and a family of cows in an animal pen](https://media.forgecdn.net/attachments/description/1431060/description_a865b611-7b51-4d79-8ce7-7c705a9e5498.png)
 
 ***
 
+# Releasing 1.3.0 in early state with some bug and stability fixes. It contains **features in preview** that may not work or are incomplete such as **name tags**
+
+**Known mod incompatibility:**
+
+*   More mounts
+
+***
+
+## What's New in v1.3.2
+
+*   Fixed interaction hints not showing in solo/local server mode
+*   Fixed log spam from stale entity references (Rabbit errors, etc.)
+*   Improved stability when animals despawn
+
+## What's New in v1.3.1
+
+*   Removed excessive logging in the server console
+
 ## What's New in v1.3.0
 
-# 1.3.0 - Dynamic Interactions & Dual Build System
+#### Deprecated Commands
 
-*   **Fixed horse mounting** - Horses are now mountable when on breeding cooldown or in love mode
-*   **Dynamic hints** - "Press F to Feed" only shows when animal can be fed; restores original hint otherwise
-*   **Player model fix** - Players with animal models (e.g., horse costume) no longer show feed hint
-*   **Dual build system** - Two variants available:
-    *   **Default (F key)** - Entity-based feeding, recommended for most users
-    *   **Experimental (E key)** - Item ability-based feeding, for testing
+The following legacy commands still work but show deprecation warnings. Use the unified `/breed` command instead:
 
-### Previous 1.3.0 Features
+*   `/laitsbreeding` → `/breed help`
+*   `/breedstatus` → `/breed status`
+*   `/breedconfig` → `/breed config`
 
-*   **Animal Taming** - Use `/nametag <name>` then right-click an animal while holding a Name Tag item to tame and name it
-*   **Ownership System** - Tamed animals belong to you; use `/tamingsettings` to control whether others can interact
-*   **Persistent Saves** - Tamed animals are saved to disk and survive server restarts
-*   **Entity Respawning** - Tamed animals that despawn will respawn at their last position when you approach
-*   **New Commands** - `/nametag`, `/taminginfo`, `/tamingsettings`, `/untame`
+### Fixed
 
-# 1.2.1
+*   Various performance improvements
+*   Various bug fixes including handling multiple worlds, potential memory leaks, potential server crashes
+*   Horse feeding and mounting should now work (might still need to hit them once like in the base game)
+*   Various bugs caused by changing the model of the player or spawning a model
 
-*   **Heart particles** - Pink hearts now appear above animals when they're in love mode
-*   **Bug fixes** - Partially fixed horse interaction
-*   **All creatures** - All creatures including humanoids are now in the `all` preset. I decline any responsibility with what happens in your worlds, in a future update you will be able to add any NPC you want including from mods or future game updates.
+## New Features Preview (some features might not work)
 
-# 1.2.0
+#### Animal Taming System
 
-*   **119 animals** - Every creature in Hytale is now configurable for breeding (includes bosses and new creatures)
-*   **New `all` preset** - Enable all 119 animals at once with `/breedconfig preset apply all`
-*   **Auto-update presets** - Existing preset files automatically gain new animals on startup
-*   **Restore command** - Reset built-in presets to defaults with `/breedconfig preset restore <name>`
-*   **Fixed food items** - Removed wrong item IDs that didn't exist in the game
-*   **Disable baby growth** - Use `/breedgrowth` to freeze babies so they never grow up
+*   **Name Tags** - You can now craft name tags at the farming bench and tame an animal
+*   **Random cute names** - Animals get random names like Fluffy, Spot, Buddy, Luna, etc.
+*   **Ownership system** - Tamed animals belong to the player who tamed them
+
+#### Entity Persistence
+
+*   **Persistent taming data** - Tamed animals are saved to `tamed_animals.json` and survive server restarts
+*   **Respawn system** - Tamed animals that despawn will respawn at their last position when a player approaches (64 block radius)
+*   **State preservation** - Growth stage, breeding cooldowns, and all taming data are preserved across respawns
+*   **Auto-save** - Data auto-saves every 5 minutes
+*   **Shutdown save** - Data is always saved on server shutdown
+
+#### Custom Animals (from other mods or future updates)
+
+*   **Role-first registration** - `/breed custom add <npcRole> <food>` register by NPC role
+*   **Auto model discovery** - Plugin validates the role exists, spawns a temp entity, and auto-discovers the model asset ID
+*   **Baby role mapping** - New `/breed custom setbaby <model> <babyRole>` command for dedicated baby NPC spawning
+*   **Scaling fallback** - If no baby role defined, babies spawn as scaled-down adults (40% size)
+*   **Custom animal spawn detection** - Custom animals are now detected immediately when they spawn (same as built-in animals)
 
 ***
 
@@ -53,9 +101,9 @@
 *   **Baby animals** - Breeding produces baby animals that grow into adults over time
 *   **Wild baby growth** - Wild baby animals found in the world also grow into adults
 *   **Breeding cooldown** - Parents need time to rest before breeding again
-*   **49 animal types** - All livestock plus wild animals (wolves, bears, deer, birds, etc.)
+*   **All creatures in the base game** - All livestock in the base presets, as well as wild animals and all other creatures in the base game
+*   **Any custom creature from mods** - You can add any creature you added from any other mod (and if there is a baby version of the creature you can also register it)
 *   **Multiple breeding foods** - Each animal can accept multiple food items
-*   **Custom animals** - Add creatures from other mods via `/customanimal` commands
 *   **Preset system** - Quick configuration with built-in presets
 *   **Fully configurable** - Customize everything via JSON config or in-game commands
 
@@ -188,7 +236,8 @@ Add creatures from other mods to the breeding system. Simply provide the NPC rol
 /breed custom scan                                   Scan world for creatures
 ```
 
-**Example:** To add a creature with NPC role "VgSlime_Npc_Guumi_Green":
+**Example:** To add a creature with NPC role "VgSlime\_Npc\_Guumi\_Green":
+
 ```
 /breed custom add VgSlime_Npc_Guumi_Green apple
 ```
@@ -203,17 +252,10 @@ Custom animals are automatically detected when they spawn and saved to config.
 
 The following commands still work but show deprecation warnings:
 
-| Old Command | New Command |
-|-------------|-------------|
-| `/laitsbreeding` | `/breed` |
-| `/breedstatus` | `/breed status` |
-| `/breedgrowth` | `/breed growth` |
-| `/breedconfig` | `/breed config` |
-| `/nametag` | `/breed tame` |
-| `/untame` | `/breed untame` |
-| `/taminginfo` | `/breed info` |
-| `/tamingsettings` | `/breed settings` |
-| `/customanimal` | `/breed custom` |
+*   `/laitsbreeding` → `/breed`
+*   `/breedstatus` → `/breed status`
+*   `/breedgrowth` → `/breed growth`
+*   `/breedconfig` → `/breed config`
 
 ***
 
@@ -244,20 +286,23 @@ Config file: `mods/laits-breeding-config.json`
 
 ## Roadmap
 
-**Done:** Configurable timing, multiple breeding foods, external preset files, all creatures breeding, heart particles, custom animals from other mods
+**Done:** Configurable timing, multiple breeding foods, external preset files, all creatures breeding, heart particles
 
 **Planned:**
 
+*   Taming to make domesticated animals follow you
 *   Feed babies to make them grow faster
 *   Advanced config (custom scales per growth stage, baby models/NPCs, offsprings count)
 *   Animal wellness (pet your animals, build trust, mood affects breeding)
 *   Genetics system (babies inherit traits and appearance from parents)
+*   Cross-compatibility testing with other mods
 
 ***
 
 ## Known Issues
 
 *   **Animations don't interrupt** - Feeding while an animal is fleeing or sleeping won't interrupt them
+*   **Growth time setting** - May not work reliably in all cases (investigating)
 *   **Wild baby animals** - May sometimes not grow into adults
 *   **Single world only** - Only works with the default world (multi-world not supported)
 
@@ -265,6 +310,8 @@ Config file: `mods/laits-breeding-config.json`
 
 ## Contact
 
-This mod is actively being developed. For issues or suggestions, add me on Discord: **lait\_kelomins**
+This mod is actively being developed. For issues or suggestions, click on one of the links below add me on Discord: **lait\_kelomins**
 
-[![alt text](https://img.shields.io/badge/@lait__kelomins-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins) [![alt text](https://img.shields.io/badge/@lait__kelomins-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/NXExAtes)
+[![X Twitter profile](https://img.shields.io/badge/@lait__kelomins-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins) [![Personal discord](https://img.shields.io/badge/Join%20my%20Discord-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/uSKWDCq8e) [![Mod%20Community%20Discord](https://img.shields.io/discord/1461295822137327673?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Mod%20Community)](https://discord.gg/UKQCgN5SJ)
+
+[![BisectHosting partnership program, code lait for 25% discount on a gaming server](https://www.bisecthosting.com/partners/custom-banners/2aa6078b-c5d0-416b-89a6-347d410d20cb.webp)](https://bisecthosting.com/lait)

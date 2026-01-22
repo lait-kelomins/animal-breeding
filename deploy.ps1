@@ -10,7 +10,15 @@ $ErrorActionPreference = "Stop"
 # ============================================
 
 $PLUGIN_NAME = "laits-animal-breeding"
-$VERSION = "1.3.0"
+
+# Read version from build.gradle automatically
+$buildGradle = Get-Content "build.gradle" -Raw
+if ($buildGradle -match "version\s*=\s*'([^']+)'") {
+    $VERSION = $matches[1]
+} else {
+    Write-Host "ERROR: Could not read version from build.gradle" -ForegroundColor Red
+    exit 1
+}
 
 function Get-ConfigValue {
     param(
@@ -87,6 +95,9 @@ $env:JAVA_HOME = $JAVA_HOME
 $dest = "$HYTALE_INSTALL_PATH\UserData\Mods"
 $serverDest = $SERVER_PATH
 
+# Which build to deploy to server: "default" or "experimental"
+$script:serverBuildType = "default"
+
 function Deploy {
     Clear-Host
     Write-Host ""
@@ -151,17 +162,11 @@ function Deploy {
     $elapsed = ((Get-Date) - $startTime).TotalSeconds
     Write-Host "Default build successful! ($([Math]::Round($elapsed))s)" -ForegroundColor Green
 
-    # Copy default JAR
+    # Copy default JAR to client
     $defaultJar = "build\libs\$PLUGIN_NAME-$VERSION.jar"
     $defaultDestFile = Join-Path $dest "$PLUGIN_NAME-$VERSION.jar"
     Copy-Item $defaultJar $defaultDestFile -Force
-    Write-Host "DEPLOYED: $defaultDestFile" -ForegroundColor Green
-
-    if (-not [string]::IsNullOrWhiteSpace($serverDest)) {
-        $serverDefaultFile = Join-Path $serverDest "$PLUGIN_NAME-$VERSION.jar"
-        Copy-Item $defaultJar $serverDefaultFile -Force
-        Write-Host "DEPLOYED (server): $serverDefaultFile" -ForegroundColor Green
-    }
+    Write-Host "DEPLOYED (client): $defaultDestFile" -ForegroundColor Green
 
     Write-Host ""
 
@@ -182,16 +187,28 @@ function Deploy {
     $elapsed = ((Get-Date) - $startTime).TotalSeconds
     Write-Host "Experimental build successful! ($([Math]::Round($elapsed))s)" -ForegroundColor Green
 
-    # Copy experimental JAR
+    # Copy experimental JAR to client
     $expJar = "build\libs\$PLUGIN_NAME-$VERSION-experimental.jar"
     $expDestFile = Join-Path $dest "$PLUGIN_NAME-$VERSION-experimental.jar"
     Copy-Item $expJar $expDestFile -Force
-    Write-Host "DEPLOYED: $expDestFile" -ForegroundColor Green
+    Write-Host "DEPLOYED (client): $expDestFile" -ForegroundColor Green
 
+    # ========================================
+    # DEPLOY SELECTED VERSION TO SERVER
+    # ========================================
     if (-not [string]::IsNullOrWhiteSpace($serverDest)) {
-        $serverExpFile = Join-Path $serverDest "$PLUGIN_NAME-$VERSION-experimental.jar"
-        Copy-Item $expJar $serverExpFile -Force
-        Write-Host "DEPLOYED (server): $serverExpFile" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "Deploying $($script:serverBuildType.ToUpper()) to server..." -ForegroundColor Cyan
+
+        if ($script:serverBuildType -eq "experimental") {
+            $serverFile = Join-Path $serverDest "$PLUGIN_NAME-$VERSION-experimental.jar"
+            Copy-Item $expJar $serverFile -Force
+            Write-Host "DEPLOYED (server): $serverFile" -ForegroundColor Yellow
+        } else {
+            $serverFile = Join-Path $serverDest "$PLUGIN_NAME-$VERSION.jar"
+            Copy-Item $defaultJar $serverFile -Force
+            Write-Host "DEPLOYED (server): $serverFile" -ForegroundColor Green
+        }
     }
 
     Write-Host ""
@@ -199,11 +216,13 @@ function Deploy {
     Write-Host "         DEPLOYMENT COMPLETE!               " -ForegroundColor Green
     Write-Host "============================================" -ForegroundColor Green
     Write-Host ""
-    Write-Host "Deployed JARs:" -ForegroundColor Yellow
+    Write-Host "Client JARs:" -ForegroundColor Yellow
     Write-Host "  - $PLUGIN_NAME-$VERSION.jar (Default, F key)" -ForegroundColor White
     Write-Host "  - $PLUGIN_NAME-$VERSION-experimental.jar (E key)" -ForegroundColor White
-    Write-Host ""
-    Write-Host "NOTE: Only enable ONE version at a time!" -ForegroundColor Yellow
+    if (-not [string]::IsNullOrWhiteSpace($serverDest)) {
+        Write-Host ""
+        Write-Host "Server JAR: $($script:serverBuildType.ToUpper())" -ForegroundColor Yellow
+    }
     Write-Host ""
     Write-Host "Reload commands:" -ForegroundColor Yellow
     Write-Host "  /plugin unload Lait:AnimalBreeding" -ForegroundColor DarkGray
@@ -213,9 +232,78 @@ function Deploy {
     return $true
 }
 
+function Get-CurrentServerVersion {
+    if ([string]::IsNullOrWhiteSpace($serverDest) -or -not (Test-Path $serverDest)) {
+        return "none"
+    }
+
+    $defaultJar = Join-Path $serverDest "$PLUGIN_NAME-$VERSION.jar"
+    $expJar = Join-Path $serverDest "$PLUGIN_NAME-$VERSION-experimental.jar"
+
+    $hasDefault = Test-Path $defaultJar
+    $hasExp = Test-Path $expJar
+
+    if ($hasDefault -and $hasExp) {
+        return "both"
+    } elseif ($hasDefault) {
+        return "default"
+    } elseif ($hasExp) {
+        return "experimental"
+    } else {
+        return "none"
+    }
+}
+
+function Show-ServerVersionMenu {
+    Write-Host ""
+    Write-Host "============================================" -ForegroundColor Magenta
+    Write-Host "       SERVER BUILD SELECTION               " -ForegroundColor Magenta
+    Write-Host "============================================" -ForegroundColor Magenta
+    Write-Host ""
+
+    Write-Host "  Currently selected: " -NoNewline -ForegroundColor White
+    if ($script:serverBuildType -eq "experimental") {
+        Write-Host "EXPERIMENTAL" -ForegroundColor Yellow
+    } else {
+        Write-Host "DEFAULT" -ForegroundColor Green
+    }
+
+    Write-Host ""
+    Write-Host "  [1] Default (F key)" -ForegroundColor Green
+    Write-Host "  [2] Experimental (E key)" -ForegroundColor Yellow
+    Write-Host "  [0] Cancel" -ForegroundColor DarkGray
+    Write-Host ""
+    Write-Host "  Select build for server: " -NoNewline -ForegroundColor White
+}
+
+function Set-ServerBuildType {
+    param([string]$BuildType)
+
+    if ([string]::IsNullOrWhiteSpace($serverDest)) {
+        Write-Host "No server path configured!" -ForegroundColor Red
+        return
+    }
+
+    $script:serverBuildType = $BuildType
+    Write-Host ""
+    if ($BuildType -eq "experimental") {
+        Write-Host "Server build set to: EXPERIMENTAL" -ForegroundColor Yellow
+    } else {
+        Write-Host "Server build set to: DEFAULT" -ForegroundColor Green
+    }
+    Write-Host "Press SPACE to build and deploy." -ForegroundColor DarkGray
+}
+
 function ShowPrompt {
     Write-Host "============================================" -ForegroundColor DarkCyan
-    Write-Host "  Press [SPACE] to deploy  |  [Q] to quit  " -ForegroundColor White
+    Write-Host "  [SPACE] Deploy  [S] Server version  [Q] Quit" -ForegroundColor White
+    if (-not [string]::IsNullOrWhiteSpace($serverDest)) {
+        if ($script:serverBuildType -eq "experimental") {
+            Write-Host "  [Server: EXPERIMENTAL]" -ForegroundColor Yellow
+        } else {
+            Write-Host "  [Server: DEFAULT]" -ForegroundColor Green
+        }
+    }
     Write-Host "============================================" -ForegroundColor DarkCyan
 }
 
@@ -243,6 +331,28 @@ while ($true) {
             }
             Write-Host ""
             ShowPrompt
+        }
+        elseif ($key.Key -eq [ConsoleKey]::S) {
+            if ([string]::IsNullOrWhiteSpace($serverDest)) {
+                Write-Host ""
+                Write-Host "No server path configured!" -ForegroundColor Red
+                Write-Host ""
+                ShowPrompt
+            } else {
+                Show-ServerVersionMenu
+
+                $versionKey = [Console]::ReadKey($true)
+                if ($versionKey.KeyChar -eq '1') {
+                    Set-ServerBuildType -BuildType "default"
+                } elseif ($versionKey.KeyChar -eq '2') {
+                    Set-ServerBuildType -BuildType "experimental"
+                } else {
+                    Write-Host "Cancelled" -ForegroundColor DarkGray
+                }
+
+                Write-Host ""
+                ShowPrompt
+            }
         }
         elseif ($key.Key -eq [ConsoleKey]::Q) {
             Write-Host "Exiting..." -ForegroundColor Yellow

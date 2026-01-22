@@ -1,0 +1,9 @@
+$C = "../Common.ui";
+
+Group {
+  TextField #MyInput {
+    Style: $C.@DefaultInputFieldStyle;
+    Background: $C.@InputBoxBackground;
+    Anchor: (Top: 10, Width: 200, Height: 50);
+  }
+}

@@ -9,12 +9,15 @@ When releasing a new version, update the version number in these locations:
 version = '1.2.0'  // Change this
 ```
 
-### 2. LaitsBreedingPlugin.java (line 74)
+### 2. LaitsBreedingPlugin.java (line ~95)
 ```java
 public static final String VERSION = "1.2.0";  // Change this
 ```
 
-### 3. manifest.json
+### 3. deploy.ps1
+No manual change needed - version is read automatically from `build.gradle` at runtime.
+
+### 4. manifest.json
 No manual change needed - version is injected automatically from `build.gradle` during build via:
 ```groovy
 processResources {

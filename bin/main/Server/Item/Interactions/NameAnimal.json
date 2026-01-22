@@ -1,0 +1,7 @@
+{
+    "Type": "NameAnimal",
+    "Effects": {
+        "ItemAnimationId": "Use",
+        "WaitForAnimationToFinish": false
+    }
+}

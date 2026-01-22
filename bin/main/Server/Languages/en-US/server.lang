@@ -1,8 +1,0 @@
-# Lait's Animal Breeding - Language File
-
-# Interaction hints
-interactionHints.feed = Press [E] (or Ability 2) to Feed
-interactionHints.legacyFeed = Press [{key}] to Feed
-interactionHints.legacyFeedOrMount = Press [{key}] to Feed / Mount
-items.AB_Name_Tag.name = Name Tag
-items.AB_Name_Tag.description = Use /nametag <name> then right-click an animal

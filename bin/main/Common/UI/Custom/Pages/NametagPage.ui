@@ -1,0 +1,51 @@
+$C = "../Common.ui";
+
+// Nametag UI - Dialog for naming tamed animals
+// Uses Common.ui @Container template (same pattern as NameRespawnPointPage.ui)
+
+Group {
+  LayoutMode: Center;
+
+  $C.@Container #dialogPanel {
+    Anchor: (Width: 380);
+
+    #Title {
+      $C.@Title #animalTypeLabel {
+        @Text = "NAME YOUR ANIMAL";
+      }
+    }
+
+    #Content {
+      Padding: (Vertical: 24, Horizontal: 32);
+
+      // Subtitle
+      Label {
+        Text: "Enter a name for your companion";
+        Style: (FontSize: 12, TextColor: #6b7a8c, Alignment: Center);
+      }
+
+      // Input field
+      $C.@TextField #nameInput {
+        Anchor: (Top: 12, Height: 44);
+      }
+
+      // Buttons
+      Group {
+        LayoutMode: Center;
+        Anchor: (Top: 16);
+
+        $C.@SecondaryTextButton #cancelButton {
+          @Anchor = (Right: 6);
+          Text: "CANCEL";
+          FlexWeight: 1;
+        }
+
+        $C.@TextButton #confirmButton {
+          @Anchor = (Left: 6);
+          Text: "CONFIRM";
+          FlexWeight: 1;
+        }
+      }
+    }
+  }
+}

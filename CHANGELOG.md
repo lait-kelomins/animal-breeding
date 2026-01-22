@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.3.2 - Solo Mode Hint Fix & Stability
+
+### Fixed
+- Interaction hints ("Press [F] to Feed") now display correctly in solo/local server mode
+  - Added missing Interactable component to entities (required for hint display)
+- Fixed "[StateUpdate] Error updating Rabbit: null" spam in logs
+- Fixed "[AnimalScan] UUID check failed" errors for fast-despawning entities
+- Stale entity references are now properly cleaned up when animals despawn
+- Added isValid() checks throughout to prevent NPEs from despawned entities
+
+---
+
 ## v1.3.1 - Bug Fixes & Logging Cleanup
 
 ### Fixed

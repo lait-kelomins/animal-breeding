@@ -92,7 +92,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class LaitsBreedingPlugin extends JavaPlugin {
 
-    public static final String VERSION = "1.3.1";
+    public static final String VERSION = "1.3.2";
 
     private static LaitsBreedingPlugin instance;
 
@@ -1000,8 +1000,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
                                 // Item-based with hints: Show Ability2 hint on animals
                                 String hintKey = (finalAnimalType != null && finalAnimalType.isMountable())
-                                        ? "server.interactionHints.feed"
-                                        : "server.interactionHints.feed";
+                                        ? "animalbreeding.interactionHints.feed"
+                                        : "animalbreeding.interactionHints.feed";
                                 setupAbility2HintOnly(worldStore, finalEntityRef, hintKey);
                                 logVerbose("Ability2 hint set up for: " + finalModelAssetId);
                             } else {
@@ -1084,8 +1084,18 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 return;
             }
 
+            // Ensure entity has Interactable component (required for hints to display in solo mode)
+            if (interactableType != null) {
+                try {
+                    java.lang.reflect.Method ensureMethod = store.getClass().getMethod(
+                            "ensureAndGetComponent", Ref.class, ComponentType.class);
+                    ensureMethod.invoke(store, entityRef, interactableType);
+                } catch (Exception e) {
+                    // Silent - component may already exist
+                }
+            }
+
             // Check if entity already has Interactions component (real NPCs have this)
-            // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
             // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
             java.lang.reflect.Method getCompMethod = null;
             for (java.lang.reflect.Method m : store.getClass().getMethods()) {
@@ -1140,8 +1150,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     "setInteractionHint", String.class);
             // Use combined hint for mountable animals (Feed / Mount)
             String hintKey = animalType.isMountable()
-                    ? "server.interactionHints.legacyFeedOrMount"
-                    : "server.interactionHints.legacyFeed";
+                    ? "animalbreeding.interactionHints.legacyFeedOrMount"
+                    : "animalbreeding.interactionHints.legacyFeed";
             setHint.invoke(interactions, hintKey);
             if (verboseLogging) getLogger().atInfo().log("[SetupInteraction] SUCCESS for %s: interactionId=%s, hint=%s", animalType, feedInteractionId, hintKey);
 
@@ -1176,6 +1186,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             if (interactionsType == null) {
                 getLogger().atWarning().log("[CustomAnimal] %s: interactionsType is NULL, aborting", animalName);
                 return;
+            }
+
+            // Ensure entity has Interactable component (required for hints to display in solo mode)
+            if (interactableType != null) {
+                try {
+                    java.lang.reflect.Method ensureMethod = store.getClass().getMethod(
+                            "ensureAndGetComponent", Ref.class, ComponentType.class);
+                    ensureMethod.invoke(store, entityRef, interactableType);
+                } catch (Exception e) {
+                    // Silent - component may already exist
+                }
             }
 
             // Check if entity already has Interactions component (real NPCs have this)
@@ -1241,7 +1262,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // ALWAYS set hint - custom animals use standard feed hint (not mountable)
             java.lang.reflect.Method setHint = interactions.getClass().getMethod(
                     "setInteractionHint", String.class);
-            setHint.invoke(interactions, "server.interactionHints.legacyFeed");
+            setHint.invoke(interactions, "animalbreeding.interactionHints.legacyFeed");
             if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] %s: setup complete", animalName);
 
         } catch (Exception e) {
@@ -1267,6 +1288,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private void updateAnimalInteractionState(Ref<EntityStore> entityRef, AnimalType animalType, BreedingData data) {
         if (!USE_ENTITY_BASED_INTERACTIONS) {
             return; // Only applies to entity-based interactions
+        }
+
+        // Skip if entity ref is stale (entity despawned)
+        if (entityRef == null || !entityRef.isValid()) {
+            return;
         }
 
         try {
@@ -1323,8 +1349,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 // FEED MODE - show feed interaction
                 setIntId.invoke(interactions, useType, "Root_FeedAnimal");
                 String hintKey = animalType.isMountable()
-                        ? "server.interactionHints.legacyFeedOrMount"
-                        : "server.interactionHints.legacyFeed";
+                        ? "animalbreeding.interactionHints.legacyFeedOrMount"
+                        : "animalbreeding.interactionHints.legacyFeed";
                 setHint.invoke(interactions, hintKey);
             } else {
                 // ORIGINAL MODE - restore original interaction if we have it saved
@@ -1369,9 +1395,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             try {
                 @SuppressWarnings("unchecked")
                 Ref<EntityStore> entityRef = (Ref<EntityStore>) refObj;
+
+                // Skip and clean up stale refs (entity despawned)
+                if (!entityRef.isValid()) {
+                    data.setEntityRef(null);
+                    continue;
+                }
+
                 updateAnimalInteractionState(entityRef, animalType, data);
             } catch (Exception e) {
-                // Entity despawned or ref invalid - will be cleaned up by stale check
+                // Entity despawned or ref invalid - clean up and continue
+                data.setEntityRef(null);
             }
         }
     }
@@ -1728,6 +1762,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         if (entityRef instanceof Ref) {
                             @SuppressWarnings("unchecked")
                             Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+                            // Skip UUID check if ref is stale - entity despawned, just proceed
+                            if (!ref.isValid()) {
+                                logVerbose("[AnimalScan] Skipping stale entity ref for " + animal.getModelAssetId());
+                                continue;
+                            }
                             try {
                                 Store<EntityStore> refStore = ref.getStore();
                                 if (refStore != null) {
@@ -1816,8 +1855,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                 } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
                                     // Item-based with hints: Show Ability2 hint on animals
                                     String hintKey = (animalType != null && animalType.isMountable())
-                                            ? "server.interactionHints.feed"
-                                            : "server.interactionHints.feed";
+                                            ? "animalbreeding.interactionHints.feed"
+                                            : "animalbreeding.interactionHints.feed";
                                     setupAbility2HintOnly(refStore, ref, hintKey);
                                 }
                                 processedCount++;
@@ -4720,7 +4759,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // ===========================================
 
     // Different hint formats to test - will cycle through these
-    // Found: game uses localization keys like "server.interactionHints.xxx"
+    // Found: game uses localization keys like "animalbreeding.interactionHints.xxx"
     // Language file has: interactionHints.generic = Press [{key}] to interact
     // Note: Localization keys only work when loaded from JSON assets, not runtime
     // For runtime, we need to use resolved text or a special format
@@ -4730,9 +4769,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             "Press [Use] to Feed", // 2: With interaction type name
             "[F] Feed", // 3: Key prefix
             "§ePress §f[F]§e to Feed", // 4: With color codes
-            "server.interactionHints.generic", // 5: Localization key (may not work)
+            "animalbreeding.interactionHints.generic", // 5: Localization key (may not work)
             "Press [{key}] to Feed", // 6: Raw format placeholder
-            "@server.interactionHints.generic", // 7: Try @ prefix
+            "@animalbreeding.interactionHints.generic", // 7: Try @ prefix
     };
 
     private static int currentHintFormatIndex = 0;
