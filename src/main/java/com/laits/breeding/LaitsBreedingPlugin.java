@@ -1060,6 +1060,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 return;
             }
 
+            // Skip babies - they can't breed
+            String modelAssetId = getEntityModelAssetId(store, entityRef);
+            if (modelAssetId != null && AnimalType.isBabyVariant(modelAssetId)) {
+                logVerbose("[SetupInteraction] Skipping baby animal: " + modelAssetId);
+                return;
+            }
+
             // Get component types via reflection
             Object interactableType = getInteractableComponentType();
             Object interactionsType = getInteractionsComponentType();
@@ -1151,6 +1158,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Skip players (even if they have animal models) - same check as FeedAnimalInteraction
             if (isPlayerEntity(entityRef)) {
                 logVerbose("[CustomAnimal] Skipping player entity with custom animal model: " + animalName);
+                return;
+            }
+
+            // Skip babies - they can't breed (check for known baby variant patterns)
+            String actualModelId = getEntityModelAssetId(store, entityRef);
+            if (actualModelId != null && AnimalType.isBabyVariant(actualModelId)) {
+                logVerbose("[CustomAnimal] Skipping baby animal: " + actualModelId);
                 return;
             }
 
