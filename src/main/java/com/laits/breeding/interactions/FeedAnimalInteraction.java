@@ -93,8 +93,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
         InteractionContext context,
         CooldownHandler cooldownHandler
     ) {
-        // Always log when interaction is triggered (for debugging)
-        if (firstRun) {
+        // Log when interaction is triggered (only in verbose mode)
+        if (firstRun && LaitsBreedingPlugin.isVerboseLogging()) {
             LaitsBreedingPlugin p = LaitsBreedingPlugin.getInstance();
             if (p != null) {
                 p.getLogger().atInfo().log("[FeedAnimal] tick0 triggered! firstRun=%s, type=%s", firstRun, type);

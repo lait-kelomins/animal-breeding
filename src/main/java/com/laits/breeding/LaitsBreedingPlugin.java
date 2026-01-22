@@ -63,6 +63,7 @@ import com.laits.breeding.listeners.UseBlockHandler;
 import com.laits.breeding.listeners.LaitDamageDisabler;
 import com.laits.breeding.listeners.NewAnimalSpawnDetector;
 import com.laits.breeding.interactions.FeedAnimalInteraction;
+import com.laits.breeding.interactions.NameAnimalInteraction;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.CustomAnimalConfig;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.Interaction;
@@ -569,7 +570,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Initialize config manager and load from file
         configManager = new ConfigManager();
-        configManager.setLogger(msg -> getLogger().atInfo().log(msg));
+        configManager.setLogger(msg -> { if (verboseLogging) getLogger().atInfo().log(msg); });
 
         // Load config from plugin's data directory (created automatically by the
         // server)
@@ -581,11 +582,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Initialize taming and persistence managers
         persistenceManager = new PersistenceManager();
-        persistenceManager.setLogger(msg -> getLogger().atInfo().log("[Taming] " + msg));
+        persistenceManager.setLogger(msg -> { if (verboseLogging) getLogger().atInfo().log("[Taming] " + msg); });
         persistenceManager.initialize(getDataDirectory());
 
         tamingManager = new TamingManager();
-        tamingManager.setLogger(msg -> getLogger().atInfo().log("[Taming] " + msg));
+        tamingManager.setLogger(msg -> { if (verboseLogging) getLogger().atInfo().log("[Taming] " + msg); });
         tamingManager.setPersistenceManager(persistenceManager);
 
         // Load saved tamed animals
@@ -620,6 +621,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     .register("FeedAnimal", FeedAnimalInteraction.class, FeedAnimalInteraction.CODEC);
         } catch (Exception e) {
             logWarning("FeedAnimalInteraction codec registration skipped (may already exist): " + e.getMessage());
+        }
+
+        // Register our custom NameAnimalInteraction type with the codec
+        try {
+            getCodecRegistry(Interaction.CODEC)
+                    .register("NameAnimal", NameAnimalInteraction.class, NameAnimalInteraction.CODEC);
+        } catch (Exception e) {
+            logWarning("NameAnimalInteraction codec registration skipped (may already exist): " + e.getMessage());
         }
 
         // Register ECS system for block interactions
@@ -986,7 +995,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                     logVerbose("Interactions set up for new animal: " + finalModelAssetId);
                                 } else if (finalCustomAnimal != null) {
                                     setupCustomAnimalInteractions(worldStore, finalEntityRef, finalCustomAnimal);
-                                    getLogger().atInfo().log("[CustomAnimal] Interactions set up for: %s", finalModelAssetId);
+                                    if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] Interactions set up for: %s", finalModelAssetId);
                                 }
                             } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
                                 // Item-based with hints: Show Ability2 hint on animals
@@ -1118,7 +1127,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             if (currentUse == null || !currentUse.equals(feedInteractionId)) {
                 // Save original interaction ID AND hint for fallback (e.g., horse mounting)
                 storeOriginalState(entityRef, currentUse, currentHint, animalType);
-                getLogger().atInfo().log("[BuiltIn] %s: set interaction to %s (was: %s, hint was: %s)",
+                if (verboseLogging) getLogger().atInfo().log("[BuiltIn] %s: set interaction to %s (was: %s, hint was: %s)",
                     animalType, feedInteractionId, currentUse, currentHint);
 
                 java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
@@ -1134,7 +1143,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     ? "server.interactionHints.legacyFeedOrMount"
                     : "server.interactionHints.legacyFeed";
             setHint.invoke(interactions, hintKey);
-            getLogger().atInfo().log("[SetupInteraction] SUCCESS for %s: interactionId=%s, hint=%s", animalType, feedInteractionId, hintKey);
+            if (verboseLogging) getLogger().atInfo().log("[SetupInteraction] SUCCESS for %s: interactionId=%s, hint=%s", animalType, feedInteractionId, hintKey);
 
         } catch (Exception e) {
             getLogger().atWarning().log("[SetupInteraction] ERROR for %s: %s", animalType, e.getMessage());
@@ -1147,7 +1156,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      */
     private void setupCustomAnimalInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef, CustomAnimalConfig customAnimal) {
         String animalName = customAnimal.getModelAssetId();
-        getLogger().atInfo().log("[CustomAnimal] setupCustomAnimalInteractions CALLED for: %s", animalName);
+        if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] setupCustomAnimalInteractions CALLED for: %s", animalName);
         try {
             // Skip players (even if they have animal models) - same check as FeedAnimalInteraction
             if (isPlayerEntity(entityRef)) {
@@ -1205,13 +1214,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Get current hint BEFORE overwriting (for restoration later)
             java.lang.reflect.Method getHint = interactions.getClass().getMethod("getInteractionHint");
             String currentHint = (String) getHint.invoke(interactions);
-            getLogger().atInfo().log("[CustomAnimal] %s: currentUse='%s', currentHint='%s', feedInteractionId='%s'",
+            if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] %s: currentUse='%s', currentHint='%s', feedInteractionId='%s'",
                 animalName, currentUse, currentHint, feedInteractionId);
 
             if (currentUse == null || !currentUse.equals(feedInteractionId)) {
                 // Store original interaction ID AND hint for fallback
                 storeOriginalState(entityRef, currentUse, currentHint, null);
-                getLogger().atInfo().log("[CustomAnimal] %s: SETTING interaction to %s (was: %s, hint was: %s)",
+                if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] %s: SETTING interaction to %s (was: %s, hint was: %s)",
                     animalName, feedInteractionId, currentUse, currentHint);
 
                 java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
@@ -1222,7 +1231,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 // The NPC system may intercept *UseNPC before our override takes effect
                 if (currentUse != null && currentUse.startsWith("*")) {
                     setIntId.invoke(interactions, useType, null);
-                    getLogger().atInfo().log("[CustomAnimal] %s: cleared special interaction '%s' to null", animalName, currentUse);
+                    if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] %s: cleared special interaction '%s' to null", animalName, currentUse);
                 }
 
                 // Now set our interaction
@@ -1233,7 +1242,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             java.lang.reflect.Method setHint = interactions.getClass().getMethod(
                     "setInteractionHint", String.class);
             setHint.invoke(interactions, "server.interactionHints.legacyFeed");
-            getLogger().atInfo().log("[CustomAnimal] %s: setup complete", animalName);
+            if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] %s: setup complete", animalName);
 
         } catch (Exception e) {
             getLogger().atSevere().log("[CustomAnimal] %s: setup error: %s", animalName, e.getMessage());
@@ -1670,7 +1679,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Package-private so it can be called from the BreedingScanCommand.
      */
     void autoSetupNearbyAnimals() {
-        getLogger().atInfo().log("[AutoScan] autoSetupNearbyAnimals CALLED");
+        if (verboseLogging) getLogger().atInfo().log("[AutoScan] autoSetupNearbyAnimals CALLED");
         try {
             World world = Universe.get().getDefaultWorld();
             if (world == null) {
@@ -1688,11 +1697,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
 
             // Find all farm animals (including babies)
-            getLogger().atInfo().log("[AutoScan] Starting animal scan (customAnimals registered: %d)",
+            if (verboseLogging) getLogger().atInfo().log("[AutoScan] Starting animal scan (customAnimals registered: %d)",
                 configManager.getCustomAnimals().size());
             AnimalFinder.findAnimals(world, false, animals -> {
                 try {
-                    getLogger().atInfo().log("[AutoScan] Found %d animals total", animals.size());
+                    if (verboseLogging) getLogger().atInfo().log("[AutoScan] Found %d animals total", animals.size());
                     if (animals.isEmpty())
                         return;
 
@@ -1702,7 +1711,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     int skippedBaby = 0;
 
                     // Log the registered custom animals for debugging
-                    getLogger().atInfo().log("[AutoScan] Registered custom animals: %s",
+                    if (verboseLogging) getLogger().atInfo().log("[AutoScan] Registered custom animals: %s",
                         String.join(", ", configManager.getCustomAnimals().keySet()));
 
                     for (AnimalFinder.FoundAnimal animal : animals) {
@@ -1712,7 +1721,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                         // Check if this modelId matches any registered custom animal
                         if (configManager.isCustomAnimal(modelId)) {
-                            getLogger().atInfo().log("[AutoScan] Processing potential custom animal: '%s' (animalType=%s)", modelId, animalType);
+                            if (verboseLogging) getLogger().atInfo().log("[AutoScan] Processing potential custom animal: '%s' (animalType=%s)", modelId, animalType);
                         }
 
                         // Skip if this is a player entity (prevents attaching interactions to players with animal models)
@@ -1749,10 +1758,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             customAnimal = configManager.getCustomAnimal(modelId);
                             // Debug: log custom animal lookup attempts
                             if (customAnimal != null) {
-                                getLogger().atInfo().log("[CustomAnimal] Found match for '%s' (enabled=%s)", modelId, customAnimal.isEnabled());
+                                if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] Found match for '%s' (enabled=%s)", modelId, customAnimal.isEnabled());
                             } else if (configManager.getCustomAnimals().size() > 0) {
                                 // Only log if there are custom animals registered - ALWAYS LOG THIS
-                                getLogger().atInfo().log("[CustomAnimal] No match for '%s' (registered: %s)",
+                                if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] No match for '%s' (registered: %s)",
                                     modelId, String.join(", ", configManager.getCustomAnimals().keySet()));
                             }
                         } else {
@@ -1801,7 +1810,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                                 + animalType + ")");
                                         setupEntityInteractions(refStore, ref, animalType);
                                     } else if (customAnimal != null) {
-                                        getLogger().atInfo().log("[CustomAnimal] ABOUT TO CALL setupCustomAnimalInteractions for: %s", animal.getModelAssetId());
+                                        if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] ABOUT TO CALL setupCustomAnimalInteractions for: %s", animal.getModelAssetId());
                                         setupCustomAnimalInteractions(refStore, ref, customAnimal);
                                     }
                                 } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
@@ -1817,7 +1826,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             }
                         } else {
                             if (customAnimal != null) {
-                                getLogger().atInfo().log("[CustomAnimal] Skipping baby custom animal: %s", animal.getModelAssetId());
+                                if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] Skipping baby custom animal: %s", animal.getModelAssetId());
                             }
                             skippedBaby++;
                         }
@@ -1949,7 +1958,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         }
 
         // Debug log
-        getLogger().atInfo().log("[TamingDebug] handleMouseClick triggered on entity");
+        if (verboseLogging) getLogger().atInfo().log("[TamingDebug] handleMouseClick triggered on entity");
 
         // Get held item early for taming check
         Item heldItem = event.getItemInHand();
@@ -1960,14 +1969,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             String playerName = player.getDisplayName();
             UUID playerUuid = getPlayerUuidFromEntity(player);
 
-            getLogger().atInfo().log("[TamingDebug] playerName=%s, itemId=%s", playerName, itemId);
+            if (verboseLogging) getLogger().atInfo().log("[TamingDebug] playerName=%s, itemId=%s", playerName, itemId);
 
             // Check for pending name tag
             boolean hasPendingNameTag = (playerUuid != null && tamingManager.hasPendingNameTag(playerUuid)) ||
                     (playerName != null && tamingManager.hasPendingNameTagByName(playerName));
             boolean isNameTag = isNameTagItem(itemId);
 
-            getLogger().atInfo().log("[TamingDebug] hasPendingNameTag=%s, isNameTag=%s", hasPendingNameTag, isNameTag);
+            if (verboseLogging) getLogger().atInfo().log("[TamingDebug] hasPendingNameTag=%s, isNameTag=%s", hasPendingNameTag, isNameTag);
 
             if (hasPendingNameTag && isNameTag) {
                 // Get pending name
@@ -2007,7 +2016,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                             player.sendMessage(Message.raw(pendingName + " is now yours!").color("#55FF55"));
                             spawnHeartParticlesAtEntity(targetEntity);
-                            getLogger().atInfo().log("Tamed animal: %s", pendingName);
+                            if (verboseLogging) getLogger().atInfo().log("Tamed animal: %s", pendingName);
                         }
                     }
                 }
@@ -2635,7 +2644,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Always log status when any animal is in love (for debugging)
         if (inLoveTotal > 0) {
-            getLogger().atInfo().log("[TickLove] Running: tracked=" + trackedCount + ", inLove=" + inLoveTotal);
+            if (verboseLogging) getLogger().atInfo().log("[TickLove] Running: tracked=" + trackedCount + ", inLove=" + inLoveTotal);
         }
 
         if (trackedCount == 0)
@@ -2687,7 +2696,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Debug: Log love status every tick
         if (inLoveWithRef > 0 || inLoveNoRef > 0) {
-            getLogger().atInfo().log("[Hearts] Tracked: " + trackedCount +
+            if (verboseLogging) getLogger().atInfo().log("[Hearts] Tracked: " + trackedCount +
                     ", InLove w/ref: " + inLoveWithRef +
                     ", InLove no ref: " + inLoveNoRef);
         }
@@ -2705,7 +2714,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             spawnHeartParticlesAtRef(store, entityRef);
                             spawned++;
                         }
-                        getLogger().atInfo()
+                        if (verboseLogging) getLogger().atInfo()
                                 .log("[Hearts] Spawned particles for " + spawned + "/" + refCount + " entities");
                     } catch (Exception e) {
                         getLogger().atWarning().log("[Hearts] Error spawning: " + e.getMessage());
@@ -2813,7 +2822,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     double distance = calculateDistance(pos1, pos2);
 
                     if (distance <= BREEDING_DISTANCE) {
-                        getLogger().atInfo().log("[CustomBreed] Breeding %s at distance %.1f", modelAssetId, distance);
+                        if (verboseLogging) getLogger().atInfo().log("[CustomBreed] Breeding %s at distance %.1f", modelAssetId, distance);
 
                         finalAnimal1.completeBreeding();
                         finalAnimal2.completeBreeding();
@@ -2941,7 +2950,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                     // NOTE: Babies don't get feed interactions - they'll get them when they grow up
 
-                    getLogger().atInfo().log("[CustomBreed] Spawned baby %s at (%.1f, %.1f, %.1f)",
+                    if (verboseLogging) getLogger().atInfo().log("[CustomBreed] Spawned baby %s at (%.1f, %.1f, %.1f)",
                         finalModelAssetId, spawnPos.getX(), spawnPos.getY(), spawnPos.getZ());
 
                 } catch (Exception e) {
@@ -3184,7 +3193,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                 ? "Baby " + finalAnimalType.getId() + " born"
                                 : "Young " + finalAnimalType.getId() + " born (scale "
                                         + String.format("%.1f", finalInitialScale) + ")";
-                        getLogger().atInfo().log("[Lait:AnimalBreeding] " + logMessage + " at " +
+                        if (verboseLogging) getLogger().atInfo().log("[Lait:AnimalBreeding] " + logMessage + " at " +
                                 String.format("%.0f, %.0f, %.0f", spawnPos.getX(), spawnPos.getY(), spawnPos.getZ()));
 
                         Object entityRef = null;
@@ -3527,7 +3536,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         logVerbose("CommandBuffer approach failed: " + cbEx.getMessage());
                     }
 
-                    getLogger().atInfo().log("[Lait:AnimalBreeding] " + capitalize(animalType.getId()) +
+                    if (verboseLogging) getLogger().atInfo().log("[Lait:AnimalBreeding] " + capitalize(animalType.getId()) +
                             " grew to scale " + String.format("%.1f", targetScale));
 
                 } catch (Exception e) {
@@ -4213,20 +4222,20 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
             // Schedule UUID lookup on world thread and store pending name tag
             World world = Universe.get().getDefaultWorld();
-            plugin.getLogger().atInfo().log("[Taming] /nametag command: world=%s, player=%s", world, player.getDisplayName());
+            if (LaitsBreedingPlugin.isVerboseLogging()) plugin.getLogger().atInfo().log("[Taming] /nametag command: world=%s, player=%s", world, player.getDisplayName());
 
             if (world != null) {
                 final String pendingName = name;
                 final Player finalPlayer = player;
-                plugin.getLogger().atInfo().log("[Taming] Scheduling world.execute for UUID lookup");
+                if (LaitsBreedingPlugin.isVerboseLogging()) plugin.getLogger().atInfo().log("[Taming] Scheduling world.execute for UUID lookup");
                 world.execute(() -> {
-                    plugin.getLogger().atInfo().log("[Taming] Inside world.execute callback");
+                    if (LaitsBreedingPlugin.isVerboseLogging()) plugin.getLogger().atInfo().log("[Taming] Inside world.execute callback");
                     try {
                         UUID playerUuid = plugin.getPlayerUuidFromEntity(finalPlayer);
-                        plugin.getLogger().atInfo().log("[Taming] getPlayerUuidFromEntity returned: %s", playerUuid);
+                        if (LaitsBreedingPlugin.isVerboseLogging()) plugin.getLogger().atInfo().log("[Taming] getPlayerUuidFromEntity returned: %s", playerUuid);
                         if (playerUuid != null) {
                             plugin.tamingManager.setPendingNameTag(playerUuid, pendingName);
-                            plugin.getLogger().atInfo().log("[Taming] SUCCESS: Set pending name tag for UUID %s: %s", playerUuid, pendingName);
+                            if (LaitsBreedingPlugin.isVerboseLogging()) plugin.getLogger().atInfo().log("[Taming] SUCCESS: Set pending name tag for UUID %s: %s", playerUuid, pendingName);
                         } else {
                             plugin.getLogger().atWarning().log("[Taming] FAILED: playerUuid is null");
                         }
@@ -4241,7 +4250,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
             // Also store by name as fallback
             String playerName = player.getDisplayName();
-            plugin.getLogger().atInfo().log("[Taming] Also storing by name: %s", playerName);
+            if (LaitsBreedingPlugin.isVerboseLogging()) plugin.getLogger().atInfo().log("[Taming] Also storing by name: %s", playerName);
             if (playerName != null) {
                 plugin.tamingManager.setPendingNameTagByName(playerName, name);
             }
@@ -5822,7 +5831,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                     // If getDefaultWorld fails, try to get the world from plugin's stored entities
                     if (world == null) {
-                        plugin.getLogger().atInfo().log("[ModelDiscovery] getDefaultWorld returned null, trying alternative methods...");
+                        if (verboseLogging) plugin.getLogger().atInfo().log("[ModelDiscovery] getDefaultWorld returned null, trying alternative methods...");
 
                         // Try getting world via reflection on Universe
                         try {
@@ -5831,10 +5840,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             java.util.Collection<World> worlds = (java.util.Collection<World>) getWorlds.invoke(Universe.get());
                             if (worlds != null && !worlds.isEmpty()) {
                                 world = worlds.iterator().next();
-                                plugin.getLogger().atInfo().log("[ModelDiscovery] Got world from getWorlds()");
+                                if (verboseLogging) plugin.getLogger().atInfo().log("[ModelDiscovery] Got world from getWorlds()");
                             }
                         } catch (Exception e) {
-                            plugin.getLogger().atInfo().log("[ModelDiscovery] getWorlds() not available: %s", e.getMessage());
+                            if (verboseLogging) plugin.getLogger().atInfo().log("[ModelDiscovery] getWorlds() not available: %s", e.getMessage());
                         }
                     }
 
@@ -5849,7 +5858,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     // Use a CompletableFuture to get result from world thread
                     java.util.concurrent.CompletableFuture<String> future = new java.util.concurrent.CompletableFuture<>();
 
-                    plugin.getLogger().atInfo().log("[ModelDiscovery] Starting discovery for role: %s (index: %d)", roleName, roleIndex);
+                    if (verboseLogging) plugin.getLogger().atInfo().log("[ModelDiscovery] Starting discovery for role: %s (index: %d)", roleName, roleIndex);
 
                     finalWorld.execute(() -> {
                         try {
@@ -5860,7 +5869,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             Vector3d tempPos = new Vector3d(0, 500, 0);
                             Vector3f rotation = new Vector3f(0, 0, 0);
 
-                            plugin.getLogger().atInfo().log("[ModelDiscovery] Spawning temp entity at %s", tempPos);
+                            if (verboseLogging) plugin.getLogger().atInfo().log("[ModelDiscovery] Spawning temp entity at %s", tempPos);
 
                             // Use reflection for spawnEntity
                             boolean foundMethod = false;
@@ -5877,7 +5886,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                     Object result = m.invoke(npcPlugin, store, roleIndex, tempPos, rotation, null, noOpCallback);
 
                                     if (result != null) {
-                                        plugin.getLogger().atInfo().log("[ModelDiscovery] Spawn succeeded, extracting model...");
+                                        if (verboseLogging) plugin.getLogger().atInfo().log("[ModelDiscovery] Spawn succeeded, extracting model...");
 
                                         // Result is Pair<Ref<EntityStore>, NPCEntity> - fastutil uses left()/right()
                                         // Try multiple method names for compatibility
@@ -5911,7 +5920,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                             Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
                                             String modelId = extractModelFromRef(plugin, store, ref);
 
-                                            plugin.getLogger().atInfo().log("[ModelDiscovery] Extracted model: %s", modelId);
+                                            if (verboseLogging) plugin.getLogger().atInfo().log("[ModelDiscovery] Extracted model: %s", modelId);
 
                                             // Despawn the temp entity - try multiple method names
                                             if (npcEntity != null) {
@@ -5927,7 +5936,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                                 }
                                                 if (!despawned) {
                                                     // Entity at y=500 will likely despawn naturally
-                                                    plugin.getLogger().atInfo().log("[ModelDiscovery] Note: temp entity at y=500 will timeout");
+                                                    if (verboseLogging) plugin.getLogger().atInfo().log("[ModelDiscovery] Note: temp entity at y=500 will timeout");
                                                 }
                                             }
 
@@ -5982,7 +5991,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     }
 
                     String modelStr = model.toString();
-                    plugin.getLogger().atInfo().log("[ModelDiscovery] Model toString: %s", modelStr);
+                    if (verboseLogging) plugin.getLogger().atInfo().log("[ModelDiscovery] Model toString: %s", modelStr);
 
                     // Try modelAssetId='...' format
                     int start = modelStr.indexOf("modelAssetId='");
