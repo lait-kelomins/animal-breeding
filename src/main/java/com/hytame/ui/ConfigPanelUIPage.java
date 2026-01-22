@@ -77,37 +77,31 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
 
                 // Set default cooldown
                 cmd.set("#cooldownInput.Value", String.valueOf(config.getDefaultBreedCooldownMinutes()));
-
-                // Set active preset
-                String activePreset = config.getActivePreset();
-                cmd.set("#presetLabel.Text", activePreset != null ? activePreset : "none");
             }
         }
 
-        // Bind growth toggle row - use growthStatus text to identify this action
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#growthToggleRow",
+        // Set hidden action marker values
+        cmd.set("#actionToggle.Value", "TOGGLE");
+        cmd.set("#actionSave.Value", "SAVE");
+        cmd.set("#actionClose.Value", "CLOSE");
+
+        // Bind toggle button - read action from hidden TextField
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#toggleButton",
             new EventData()
-                .append("@action", "#growthStatus.Text")
+                .append("@action", "#actionToggle.Value")
                 .append("@growthTime", "#growthTimeInput.Value")
                 .append("@cooldown", "#cooldownInput.Value"));
 
-        // Bind save button - capture button's own text as action
+        // Bind save button - read action from hidden TextField
         events.addEventBinding(CustomUIEventBindingType.Activating, "#saveButton",
             new EventData()
-                .append("@action", "#saveButton.Text")
+                .append("@action", "#actionSave.Value")
                 .append("@growthTime", "#growthTimeInput.Value")
                 .append("@cooldown", "#cooldownInput.Value"));
 
-        // Bind reload button - capture button's own text as action
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#reloadButton",
-            new EventData()
-                .append("@action", "#reloadButton.Text")
-                .append("@growthTime", "#growthTimeInput.Value")
-                .append("@cooldown", "#cooldownInput.Value"));
-
-        // Bind close button - capture button's own text as action
+        // Bind close button - read action from hidden TextField
         events.addEventBinding(CustomUIEventBindingType.Activating, "#closeButton",
-            new EventData().append("@action", "#closeButton.Text"));
+            new EventData().append("@action", "#actionClose.Value"));
     }
 
     @Override
@@ -133,9 +127,9 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
             }
             action = action.trim().toUpperCase();
 
-            // Check action based on button text values
-            if (action.equals("ON") || action.equals("OFF")) {
-                // Toggle growth enabled (clicked on growth row)
+            // Check action based on hidden TextField values
+            if (action.equals("TOGGLE")) {
+                // Toggle growth enabled
                 boolean newState = !config.isGrowthEnabled();
                 config.setGrowthEnabled(newState);
                 if (player != null) {

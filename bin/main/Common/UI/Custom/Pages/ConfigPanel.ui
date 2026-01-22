@@ -7,7 +7,7 @@ Group {
   LayoutMode: Center;
 
   $C.@Container #dialogPanel {
-    Anchor: (Width: 420, Height: 340);
+    Anchor: (Width: 420, Height: 300);
 
     #Title {
       $C.@Title #titleLabel {
@@ -18,14 +18,14 @@ Group {
     #Content {
       Padding: (Vertical: 16, Horizontal: 24);
 
-      // Growth Enabled toggle row
-      Group #growthToggleRow {
+      // Growth Enabled row (display only, toggle via button)
+      Group {
         LayoutMode: Left;
         Background: $C.@InputBoxBackground;
-        Padding: (Left: 15, Right: 15);
+        Padding: (Left: 15, Right: 10);
         Anchor: (Height: 42, Bottom: 8);
 
-        Label #growthLabel {
+        Label {
           Text: "Baby Growth";
           Style: (FontSize: 13, TextColor: #cccccc);
           FlexWeight: 1;
@@ -34,6 +34,12 @@ Group {
         Label #growthStatus {
           Text: "ON";
           Style: (FontSize: 13, RenderBold: true, TextColor: #88ff88);
+          Anchor: (Right: 8);
+        }
+
+        $C.@SecondaryTextButton #toggleButton {
+          @Anchor = (Width: 60, Height: 28);
+          Text: "TOGGLE";
         }
       }
 
@@ -73,29 +79,10 @@ Group {
         }
       }
 
-      // Active Preset row
-      Group {
-        LayoutMode: Left;
-        Background: $C.@InputBoxBackground;
-        Padding: (Left: 15, Right: 10);
-        Anchor: (Height: 42, Bottom: 16);
-
-        Label {
-          Text: "Active Preset";
-          Style: (FontSize: 13, TextColor: #cccccc);
-          FlexWeight: 1;
-        }
-
-        Label #presetLabel {
-          Text: "default_extended";
-          Style: (FontSize: 13, RenderBold: true, TextColor: #88ff88);
-        }
-      }
-
       // Buttons row
       Group {
         LayoutMode: Center;
-        Anchor: (Top: 8);
+        Anchor: (Top: 16);
 
         $C.@SecondaryTextButton #closeButton {
           @Anchor = (Right: 8);
@@ -103,16 +90,21 @@ Group {
           FlexWeight: 1;
         }
 
-        $C.@SecondaryTextButton #reloadButton {
-          @Anchor = (Right: 8);
-          Text: "RELOAD";
-          FlexWeight: 1;
-        }
-
         $C.@TextButton #saveButton {
           Text: "SAVE";
           FlexWeight: 1;
         }
+      }
+
+      // Hidden action markers (TextFields so .Value can be read)
+      $C.@TextField #actionToggle {
+        Anchor: (Width: 0, Height: 0);
+      }
+      $C.@TextField #actionSave {
+        Anchor: (Width: 0, Height: 0);
+      }
+      $C.@TextField #actionClose {
+        Anchor: (Width: 0, Height: 0);
       }
     }
   }
