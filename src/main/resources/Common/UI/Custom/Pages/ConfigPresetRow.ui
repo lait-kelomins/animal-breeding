@@ -1,0 +1,35 @@
+$C = "../Common.ui";
+
+// Preset row button for config panel sidebar
+// Appended dynamically for each preset
+
+@PresetLabelStyle = LabelStyle(
+  FontSize: 12,
+  TextColor: #cccccc,
+  VerticalAlignment: Center
+);
+
+@ActivePresetLabelStyle = LabelStyle(
+  FontSize: 12,
+  TextColor: #88ff88,
+  RenderBold: true,
+  VerticalAlignment: Center
+);
+
+Group #presetRow {
+  LayoutMode: Left;
+  Background: $C.@InputBoxBackground;
+  Padding: (Left: 8, Right: 8);
+  Anchor: (Height: 32, Bottom: 4);
+
+  Label #presetNameLabel {
+    Text: "Preset";
+    Style: @PresetLabelStyle;
+    FlexWeight: 1;
+  }
+
+  // Hidden field to store preset name for event binding
+  $C.@TextField #presetIdField {
+    Anchor: (Width: 0, Height: 0);
+  }
+}

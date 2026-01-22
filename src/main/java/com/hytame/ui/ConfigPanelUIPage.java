@@ -38,7 +38,7 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
 
     // Pagination constants
     private static final int PRESETS_PER_PAGE = 8;
-    private static final int ANIMALS_PER_PAGE = 15;  // 5 columns x 3 rows
+    private static final int ANIMALS_PER_PAGE = 20;  // 5 columns x 4 rows
 
     // State
     private int presetPage = 0;
@@ -56,6 +56,8 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
         public String cooldown;
         public String presetSearch;
         public String animalSearch;
+        public String animalGrowthTime;
+        public String animalCooldown;
 
         public static final BuilderCodec<ConfigEventData> CODEC = BuilderCodec
             .builder(ConfigEventData.class, ConfigEventData::new)
@@ -78,6 +80,14 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
             .append(new KeyedCodec<>("@animalSearch", new StringCodec()),
                 (obj, val) -> obj.animalSearch = val,
                 obj -> obj.animalSearch)
+            .add()
+            .append(new KeyedCodec<>("@animalGrowthTime", new StringCodec()),
+                (obj, val) -> obj.animalGrowthTime = val,
+                obj -> obj.animalGrowthTime)
+            .add()
+            .append(new KeyedCodec<>("@animalCooldown", new StringCodec()),
+                (obj, val) -> obj.animalCooldown = val,
+                obj -> obj.animalCooldown)
             .add()
             .build();
     }
@@ -122,8 +132,8 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
         List<AnimalType> animals = getFilteredAnimals();
         populateAnimalGrid(cmd, events, animals);
 
-        // Populate selected animal config
-        populateSelectedAnimalConfig(cmd, config);
+        // Populate selected animal config (pass events for bindings)
+        populateSelectedAnimalConfig(cmd, events, config);
 
         // Set up action markers and event bindings
         setupEventBindings(cmd, events);
@@ -172,36 +182,45 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
         for (int i = 0; i < PRESETS_PER_PAGE; i++) {
             int presetIndex = startIndex + i;
             String slotId = "#preset" + i;
+            String actionFieldId = "#presetAction" + i;
 
             if (presetIndex < presets.size()) {
                 String presetName = presets.get(presetIndex);
                 cmd.set(slotId + ".Text", presetName);
 
-                // Bind click event
+                // Set action value in hidden field
+                cmd.set(actionFieldId + ".Value", "SELECT_PRESET:" + presetName);
+
+                // Bind click event - reference the hidden field
                 events.addEventBinding(CustomUIEventBindingType.Activating, slotId,
                     new EventData()
-                        .append("@action", "SELECT_PRESET:" + presetName)
+                        .append("@action", actionFieldId + ".Value")
                         .append("@presetSearch", "#presetSearch.Value")
                         .append("@animalSearch", "#animalSearch.Value"));
             } else {
-                // Empty slot
+                // Empty slot - clear text (can't hide dynamically)
                 cmd.set(slotId + ".Text", "");
+                cmd.set(actionFieldId + ".Value", "");
             }
         }
 
         // Update pagination label
         cmd.set("#presetPageLabel.Text", (presetPage + 1) + "/" + totalPages);
 
-        // Bind pagination buttons
+        // Set pagination action values in hidden fields
+        cmd.set("#actionPresetPrev.Value", "PRESET_PREV");
+        cmd.set("#actionPresetNext.Value", "PRESET_NEXT");
+
+        // Bind pagination buttons - reference hidden fields
         events.addEventBinding(CustomUIEventBindingType.Activating, "#presetPrevBtn",
             new EventData()
-                .append("@action", "PRESET_PREV")
+                .append("@action", "#actionPresetPrev.Value")
                 .append("@presetSearch", "#presetSearch.Value")
                 .append("@animalSearch", "#animalSearch.Value"));
 
         events.addEventBinding(CustomUIEventBindingType.Activating, "#presetNextBtn",
             new EventData()
-                .append("@action", "PRESET_NEXT")
+                .append("@action", "#actionPresetNext.Value")
                 .append("@presetSearch", "#presetSearch.Value")
                 .append("@animalSearch", "#animalSearch.Value"));
     }
@@ -230,80 +249,205 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
     }
 
     /**
-     * Populate the animal grid slots.
+     * Populate the animal grid slots dynamically using appendInline.
+     * This allows setting Background with icon textures inline.
      */
     private void populateAnimalGrid(UICommandBuilder cmd, UIEventBuilder events, List<AnimalType> animals) {
         int totalPages = Math.max(1, (animals.size() + ANIMALS_PER_PAGE - 1) / ANIMALS_PER_PAGE);
         animalPage = Math.min(animalPage, totalPages - 1);
 
         int startIndex = animalPage * ANIMALS_PER_PAGE;
+        int animalsPerRow = 5;
 
-        // Populate animal slots
+        // Clear all rows first
+        cmd.clear("#animalRow0");
+        cmd.clear("#animalRow1");
+        cmd.clear("#animalRow2");
+        cmd.clear("#animalRow3");
+
+        // Populate each row dynamically
         for (int i = 0; i < ANIMALS_PER_PAGE; i++) {
             int animalIndex = startIndex + i;
-            String slotId = "#animal" + i;
+            int rowIndex = i / animalsPerRow;
+            int colIndex = i % animalsPerRow;
+            String rowId = "#animalRow" + rowIndex;
+            boolean isLastInRow = (colIndex == animalsPerRow - 1);
 
             if (animalIndex < animals.size()) {
                 AnimalType animal = animals.get(animalIndex);
-                // Use abbreviated name to fit in cell
                 String displayName = getAbbreviatedName(animal);
-                cmd.set(slotId + ".Text", displayName);
+                String iconPath = getAnimalIconPath(animal);
 
-                // Bind click event
-                events.addEventBinding(CustomUIEventBindingType.Activating, slotId,
+                // Build the button inline with icon background and label at bottom
+                StringBuilder buttonMarkup = new StringBuilder();
+                buttonMarkup.append("Button #slot").append(i).append(" {\n");
+                buttonMarkup.append("  Anchor: (Width: 88, Height: 76, Right: 8);\n");
+
+                // Try icon texture, fall back to category color
+                if (iconPath != null) {
+                    buttonMarkup.append("  Background: (TexturePath: \"").append(iconPath).append("\");\n");
+                } else {
+                    buttonMarkup.append("  Background: ").append(getAnimalBackgroundColor(animal)).append(";\n");
+                }
+
+                buttonMarkup.append("  Style: ButtonStyle(\n");
+                buttonMarkup.append("    Hovered: (Background: #ffffff(0.15)),\n");
+                buttonMarkup.append("    Pressed: (Background: #000000(0.2))\n");
+                buttonMarkup.append("  );\n");
+                // Label container at bottom with semi-transparent background
+                buttonMarkup.append("  Group #labelBg {\n");
+                buttonMarkup.append("    Anchor: (Bottom: 0, Left: 0, Right: 0, Height: 18);\n");
+                buttonMarkup.append("    Background: #000000(0.7);\n");
+                buttonMarkup.append("    LayoutMode: Center;\n");
+                buttonMarkup.append("    Label #name { Text: \"").append(displayName).append("\"; ");
+                buttonMarkup.append("Style: (FontSize: 10, TextColor: #ffffff, Alignment: Center); }\n");
+                buttonMarkup.append("  }\n");
+                buttonMarkup.append("}");
+
+                cmd.appendInline(rowId, buttonMarkup.toString());
+
+                // Set action value in hidden field and bind event
+                String actionFieldId = "#animalAction" + i;
+                cmd.set(actionFieldId + ".Value", "SELECT_ANIMAL:" + animal.name());
+
+                // Bind click event using the dynamically created button
+                events.addEventBinding(CustomUIEventBindingType.Activating, rowId + " #slot" + i,
                     new EventData()
-                        .append("@action", "SELECT_ANIMAL:" + animal.name())
+                        .append("@action", actionFieldId + ".Value")
                         .append("@presetSearch", "#presetSearch.Value")
                         .append("@animalSearch", "#animalSearch.Value"));
-            } else {
-                // Empty slot
-                cmd.set(slotId + ".Text", "");
             }
+            // Empty slots are just not added (rows will have fewer items)
         }
 
         // Update pagination label
         cmd.set("#animalPageLabel.Text", (animalPage + 1) + "/" + totalPages);
 
-        // Bind pagination buttons
+        // Set pagination action values in hidden fields
+        cmd.set("#actionAnimalPrev.Value", "ANIMAL_PREV");
+        cmd.set("#actionAnimalNext.Value", "ANIMAL_NEXT");
+
+        // Bind pagination buttons - reference hidden fields
         events.addEventBinding(CustomUIEventBindingType.Activating, "#animalPrevBtn",
             new EventData()
-                .append("@action", "ANIMAL_PREV")
+                .append("@action", "#actionAnimalPrev.Value")
                 .append("@presetSearch", "#presetSearch.Value")
                 .append("@animalSearch", "#animalSearch.Value"));
 
         events.addEventBinding(CustomUIEventBindingType.Activating, "#animalNextBtn",
             new EventData()
-                .append("@action", "ANIMAL_NEXT")
+                .append("@action", "#actionAnimalNext.Value")
                 .append("@presetSearch", "#presetSearch.Value")
                 .append("@animalSearch", "#animalSearch.Value"));
     }
 
     /**
-     * Get abbreviated display name for animal (max ~6 chars to fit in cell).
+     * Get abbreviated display name for animal to fit in cell.
+     * For variants (e.g., CHICKEN_FOREST), shows "CHICKEN F" to distinguish.
      */
     private String getAbbreviatedName(AnimalType animal) {
         String name = animal.getModelAssetId();
-        // Remove common prefixes/suffixes
-        name = name.replace("_", " ");
-        // Take first word if multiple
-        if (name.contains(" ")) {
-            String[] parts = name.split(" ");
-            name = parts[0];
+
+        // Handle variants (e.g., Chicken_Forest -> "CHICKEN F")
+        if (name.contains("_")) {
+            String[] parts = name.split("_");
+            String base = parts[0].toUpperCase();
+            String variant = parts.length > 1 ? parts[1] : "";
+
+            // If base name is short enough, add variant initial
+            if (base.length() <= 7 && !variant.isEmpty()) {
+                return base + " " + variant.substring(0, 1).toUpperCase();
+            }
+            // Otherwise just truncate base
+            if (base.length() > 9) {
+                return base.substring(0, 8) + "..";
+            }
+            return base;
         }
-        // Truncate if still too long
-        if (name.length() > 7) {
-            name = name.substring(0, 6) + ".";
+
+        // Simple name - just uppercase and truncate if needed
+        name = name.toUpperCase();
+        if (name.length() > 9) {
+            return name.substring(0, 8) + "..";
         }
         return name;
     }
 
     /**
+     * Get the icon path for an animal model.
+     * NPC icons are in the Memories folder.
+     * For variants without their own icon, falls back to base animal icon.
+     */
+    private String getAnimalIconPath(AnimalType animal) {
+        String modelAssetId = animal.getModelAssetId();
+
+        // Known variants that DON'T have their own icon - use base name
+        // e.g., Pig_Wild -> Pig, Frog_Blue -> Frog, Mosshorn_Plain -> Mosshorn
+        if (modelAssetId.contains("_")) {
+            String[] parts = modelAssetId.split("_");
+            String suffix = parts[parts.length - 1];
+
+            // These suffixes have their own icons (babies, undead, etc.)
+            boolean hasOwnIcon = suffix.equals("Calf") || suffix.equals("Piglet") ||
+                suffix.equals("Chick") || suffix.equals("Lamb") || suffix.equals("Foal") ||
+                suffix.equals("Kid") || suffix.equals("Undead") || suffix.equals("Ice") ||
+                suffix.equals("Void") || suffix.equals("Grizzly") || suffix.equals("Polar") ||
+                suffix.equals("Doe") || suffix.equals("Stag") || suffix.equals("Bull") ||
+                suffix.equals("Desert") || suffix.equals("Snow") || suffix.equals("Black") ||
+                suffix.equals("White") || suffix.equals("Frost") || suffix.equals("Electric");
+
+            // If suffix is a variant without its own icon, use base name
+            if (!hasOwnIcon) {
+                String baseName = parts[0];
+                return "Pages/Memories/npcs/" + baseName + ".png";
+            }
+        }
+
+        // NPC icons are at: Common/UI/Custom/Pages/Memories/npcs/{ModelAssetId}.png
+        return "Pages/Memories/npcs/" + modelAssetId + ".png";
+    }
+
+    /**
+     * Get background color for an animal based on its category.
+     * Used as fallback when icon texture doesn't exist.
+     */
+    private String getAnimalBackgroundColor(AnimalType animal) {
+        // Color-code by category for visual distinction
+        switch (animal.getCategory()) {
+            case LIVESTOCK:
+                return "#2a4a2a";  // Green for farm animals
+            case MAMMAL:
+                return "#4a3a2a";  // Brown for wild mammals
+            case AVIAN:
+                return "#2a3a4a";  // Blue for birds
+            case CRITTER:
+                return "#4a4a2a";  // Yellow-brown for critters
+            case AQUATIC:
+                return "#2a4a4a";  // Cyan for aquatic
+            case REPTILE:
+                return "#3a4a2a";  // Olive for reptiles
+            case VERMIN:
+            case SCARAK:
+                return "#4a2a4a";  // Purple for bugs/vermin
+            case MYTHIC:
+                return "#4a2a3a";  // Magenta for mythical
+            default:
+                return "#2a2a3a";  // Default dark
+        }
+    }
+
+    /**
      * Populate the selected animal config section.
      */
-    private void populateSelectedAnimalConfig(UICommandBuilder cmd, ConfigManager config) {
+    private void populateSelectedAnimalConfig(UICommandBuilder cmd, UIEventBuilder events, ConfigManager config) {
         if (selectedAnimal == null) {
             cmd.set("#selectedAnimalName.Text", "(none selected)");
             cmd.set("#animalSettingsPlaceholder.Text", "Click an animal to edit its settings");
+            // Clear form fields (can't hide dynamically)
+            cmd.set("#animalEnabledBtn.Text", "-");
+            cmd.set("#animalGrowthTimeInput.Value", "");
+            cmd.set("#animalCooldownInput.Value", "");
+            cmd.set("#animalFoodsLabel.Text", "");
             return;
         }
 
@@ -311,19 +455,48 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
             AnimalType animal = AnimalType.valueOf(selectedAnimal);
             cmd.set("#selectedAnimalName.Text", animal.getModelAssetId());
 
-            // Show animal config info
+            // Hide placeholder
+            cmd.set("#animalSettingsPlaceholder.Text", "");
+
+            // Get animal config
             ConfigManager.AnimalConfig animalConfig = config.getAnimalConfig(animal);
             if (animalConfig != null) {
-                String info = (animalConfig.enabled ? "Enabled" : "Disabled") +
-                    "\nGrowth: " + animalConfig.growthTimeMinutes + " min" +
-                    "\nCooldown: " + animalConfig.breedCooldownMinutes + " min";
-                cmd.set("#animalSettingsPlaceholder.Text", info);
+                // Populate form fields
+                cmd.set("#animalEnabledBtn.Text", animalConfig.enabled ? "ENABLED" : "DISABLED");
+                cmd.set("#animalGrowthTimeInput.Value", String.valueOf(animalConfig.growthTimeMinutes));
+                cmd.set("#animalCooldownInput.Value", String.valueOf(animalConfig.breedCooldownMinutes));
+
+                // Show breeding foods
+                String foods = String.join(", ", animalConfig.breedingFoods);
+                if (foods.isEmpty()) {
+                    foods = "(none)";
+                } else if (foods.length() > 50) {
+                    foods = foods.substring(0, 47) + "...";
+                }
+                cmd.set("#animalFoodsLabel.Text", foods);
+
+                // Set up event bindings for animal config
+                cmd.set("#actionAnimalToggle.Value", "ANIMAL_TOGGLE_ENABLED");
+
+                events.addEventBinding(CustomUIEventBindingType.Activating, "#animalEnabledBtn",
+                    new EventData()
+                        .append("@action", "#actionAnimalToggle.Value")
+                        .append("@presetSearch", "#presetSearch.Value")
+                        .append("@animalSearch", "#animalSearch.Value"));
             } else {
-                cmd.set("#animalSettingsPlaceholder.Text", "No config found");
+                cmd.set("#animalSettingsPlaceholder.Text", "No config found for this animal");
+                cmd.set("#animalEnabledBtn.Text", "-");
+                cmd.set("#animalGrowthTimeInput.Value", "");
+                cmd.set("#animalCooldownInput.Value", "");
+                cmd.set("#animalFoodsLabel.Text", "");
             }
         } catch (Exception e) {
             cmd.set("#selectedAnimalName.Text", "(invalid)");
             cmd.set("#animalSettingsPlaceholder.Text", "Click an animal to edit its settings");
+            cmd.set("#animalEnabledBtn.Text", "-");
+            cmd.set("#animalGrowthTimeInput.Value", "");
+            cmd.set("#animalCooldownInput.Value", "");
+            cmd.set("#animalFoodsLabel.Text", "");
         }
     }
 
@@ -334,6 +507,7 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
         // Hidden action markers
         cmd.set("#actionToggleGrowth.Value", "TOGGLE_GROWTH");
         cmd.set("#actionSave.Value", "SAVE");
+        cmd.set("#actionAddPreset.Value", "ADD_PRESET");
 
         // Growth toggle button
         events.addEventBinding(CustomUIEventBindingType.Activating, "#growthToggleBtn",
@@ -344,19 +518,21 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                 .append("@presetSearch", "#presetSearch.Value")
                 .append("@animalSearch", "#animalSearch.Value"));
 
-        // Save button
+        // Save button - includes both global and animal-specific config
         events.addEventBinding(CustomUIEventBindingType.Activating, "#saveBtn",
             new EventData()
                 .append("@action", "#actionSave.Value")
                 .append("@growthTime", "#growthTimeInput.Value")
                 .append("@cooldown", "#cooldownInput.Value")
                 .append("@presetSearch", "#presetSearch.Value")
-                .append("@animalSearch", "#animalSearch.Value"));
+                .append("@animalSearch", "#animalSearch.Value")
+                .append("@animalGrowthTime", "#animalGrowthTimeInput.Value")
+                .append("@animalCooldown", "#animalCooldownInput.Value"));
 
-        // Add preset button
+        // Add preset button - reference hidden field
         events.addEventBinding(CustomUIEventBindingType.Activating, "#addPresetBtn",
             new EventData()
-                .append("@action", "ADD_PRESET")
+                .append("@action", "#actionAddPreset.Value")
                 .append("@presetSearch", "#presetSearch.Value")
                 .append("@animalSearch", "#animalSearch.Value"));
     }
@@ -449,6 +625,28 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                 return;
             }
 
+            // Handle animal enabled toggle
+            if (action.equals("ANIMAL_TOGGLE_ENABLED")) {
+                if (selectedAnimal != null) {
+                    try {
+                        AnimalType animal = AnimalType.valueOf(selectedAnimal);
+                        ConfigManager.AnimalConfig animalConfig = config.getAnimalConfig(animal);
+                        if (animalConfig != null) {
+                            boolean newState = !animalConfig.enabled;
+                            config.setAnimalEnabled(animal, newState);
+                            if (player != null) {
+                                player.sendMessage(Message.raw(animal.getModelAssetId() + " breeding " +
+                                    (newState ? "enabled" : "disabled")).color(newState ? "#55FF55" : "#FF9900"));
+                            }
+                        }
+                    } catch (Exception e) {
+                        log("Error toggling animal enabled: " + e.getMessage());
+                    }
+                }
+                reopenPage(player, ref, store);
+                return;
+            }
+
             // Handle toggle growth
             if (action.equals("TOGGLE_GROWTH")) {
                 boolean newState = !config.isGrowthEnabled();
@@ -464,7 +662,7 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
             if (action.equals("SAVE")) {
                 boolean hasErrors = false;
 
-                // Parse growth time
+                // Parse global growth time
                 if (data.growthTime != null && !data.growthTime.isEmpty()) {
                     try {
                         double growthTime = Double.parseDouble(data.growthTime.trim());
@@ -478,7 +676,7 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                     }
                 }
 
-                // Parse cooldown
+                // Parse global cooldown
                 if (data.cooldown != null && !data.cooldown.isEmpty()) {
                     try {
                         double cooldown = Double.parseDouble(data.cooldown.trim());
@@ -492,6 +690,39 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                     }
                 }
 
+                // Save animal-specific config if an animal is selected
+                if (selectedAnimal != null) {
+                    try {
+                        AnimalType animal = AnimalType.valueOf(selectedAnimal);
+
+                        // Parse animal growth time
+                        if (data.animalGrowthTime != null && !data.animalGrowthTime.isEmpty()) {
+                            try {
+                                double animalGrowth = Double.parseDouble(data.animalGrowthTime.trim());
+                                if (animalGrowth > 0) {
+                                    config.setGrowthTime(animal, animalGrowth);
+                                }
+                            } catch (NumberFormatException e) {
+                                hasErrors = true;
+                            }
+                        }
+
+                        // Parse animal cooldown
+                        if (data.animalCooldown != null && !data.animalCooldown.isEmpty()) {
+                            try {
+                                double animalCooldown = Double.parseDouble(data.animalCooldown.trim());
+                                if (animalCooldown >= 0) {
+                                    config.setBreedingCooldown(animal, animalCooldown);
+                                }
+                            } catch (NumberFormatException e) {
+                                hasErrors = true;
+                            }
+                        }
+                    } catch (Exception e) {
+                        log("Error saving animal config: " + e.getMessage());
+                    }
+                }
+
                 // Save to file
                 config.saveToFile();
 
@@ -502,7 +733,8 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                         player.sendMessage(Message.raw("Configuration saved!").color("#55FF55"));
                     }
                 }
-                // Stay on page
+                // Refresh page to show updated values
+                reopenPage(player, ref, store);
                 return;
             }
 
