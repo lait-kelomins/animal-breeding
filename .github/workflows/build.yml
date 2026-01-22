@@ -39,6 +39,9 @@ jobs:
             touch libs/HytaleServer.jar
           fi
 
+      - name: Make gradlew executable
+        run: chmod +x gradlew
+
       - name: Build with Gradle
         run: ./gradlew build -x test
 
