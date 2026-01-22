@@ -7,7 +7,7 @@ Group {
   LayoutMode: Center;
 
   $C.@Container #dialogPanel {
-    Anchor: (Width: 380);
+    Anchor: (Width: 380, Height: 220);
 
     #Title {
       $C.@Title #animalTypeLabel {
@@ -19,7 +19,7 @@ Group {
       Padding: (Vertical: 24, Horizontal: 32);
 
       // Subtitle
-      Label {
+      Label #subtitleLabel {
         Text: "Enter a name for your companion";
         Style: (FontSize: 12, TextColor: #6b7a8c, Alignment: Center);
       }
