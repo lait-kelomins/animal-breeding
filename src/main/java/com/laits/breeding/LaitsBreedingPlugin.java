@@ -2922,10 +2922,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         }
                     }
 
-                    // Set up interactions for the baby
-                    if (finalConfig != null && babyRef != null) {
-                        setupCustomAnimalInteractions(store, babyRef, finalConfig);
-                    }
+                    // NOTE: Babies don't get feed interactions - they'll get them when they grow up
 
                     getLogger().atInfo().log("[CustomBreed] Spawned baby %s at (%.1f, %.1f, %.1f)",
                         finalModelAssetId, spawnPos.getX(), spawnPos.getY(), spawnPos.getZ());
