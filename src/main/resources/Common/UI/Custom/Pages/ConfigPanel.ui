@@ -1,7 +1,7 @@
 $C = "../Common.ui";
 
 // Animal Breeding Configuration Panel
-// Layout: Left sidebar (presets) | Middle (preset settings) | Right (animal grid + config)
+// Layout: Left sidebar (presets) | Middle (preset settings + animal grid) | Right (selected animal config)
 
 Group {
   LayoutMode: Center;
@@ -31,146 +31,237 @@ Group {
           PlaceholderText: "Search presets...";
         }
 
-        // Preset list container (scrollable)
+        // Preset list container (paginated)
         Group #presetListContainer {
-          LayoutMode: TopScrolling;
-          ScrollbarStyle: $C.@DefaultScrollbarStyle;
+          LayoutMode: Top;
           FlexWeight: 1;
           Background: $C.@InputBoxBackground;
           Padding: (Full: 4);
 
           Group #presetList {
             LayoutMode: Top;
+            FlexWeight: 1;
 
-            // Placeholder presets (will be dynamic)
-            Label {
-              Text: "Preset 1";
-              Style: (FontSize: 12, TextColor: #cccccc);
-              Anchor: (Height: 28);
+            // Dynamic preset slots (8 per page)
+            TextButton #preset0 { Text: ""; Anchor: (Height: 28, Bottom: 2); Style: $C.@SecondaryTextButtonStyle; }
+            TextButton #preset1 { Text: ""; Anchor: (Height: 28, Bottom: 2); Style: $C.@SecondaryTextButtonStyle; }
+            TextButton #preset2 { Text: ""; Anchor: (Height: 28, Bottom: 2); Style: $C.@SecondaryTextButtonStyle; }
+            TextButton #preset3 { Text: ""; Anchor: (Height: 28, Bottom: 2); Style: $C.@SecondaryTextButtonStyle; }
+            TextButton #preset4 { Text: ""; Anchor: (Height: 28, Bottom: 2); Style: $C.@SecondaryTextButtonStyle; }
+            TextButton #preset5 { Text: ""; Anchor: (Height: 28, Bottom: 2); Style: $C.@SecondaryTextButtonStyle; }
+            TextButton #preset6 { Text: ""; Anchor: (Height: 28, Bottom: 2); Style: $C.@SecondaryTextButtonStyle; }
+            TextButton #preset7 { Text: ""; Anchor: (Height: 28, Bottom: 2); Style: $C.@SecondaryTextButtonStyle; }
+          }
+
+          // Add preset button (inside list area)
+          $C.@SecondaryTextButton #addPresetBtn {
+            @Anchor = (Top: 4, Height: 32);
+            Text: "+ ADD PRESET";
+          }
+
+          // Pagination controls
+          Group #presetPagination {
+            LayoutMode: Left;
+            Anchor: (Top: 4, Height: 24);
+
+            $C.@SecondaryTextButton #presetPrevBtn {
+              @Anchor = (Width: 28, Height: 24);
+              Text: "<";
             }
-            Label {
-              Text: "Preset 2";
-              Style: (FontSize: 12, TextColor: #cccccc);
-              Anchor: (Height: 28);
+            Label #presetPageLabel {
+              Text: "1/1";
+              Style: (FontSize: 11, TextColor: #888888, Alignment: Center);
+              FlexWeight: 1;
             }
-            Label {
-              Text: "Preset 3";
-              Style: (FontSize: 12, TextColor: #888888);
-              Anchor: (Height: 28);
+            $C.@SecondaryTextButton #presetNextBtn {
+              @Anchor = (Width: 28, Height: 24);
+              Text: ">";
             }
           }
         }
-
-        // Add preset button
-        $C.@SecondaryTextButton #addPresetBtn {
-          @Anchor = (Top: 8, Height: 32);
-          Text: "+ ADD PRESET";
-        }
       }
 
-      // ========== MIDDLE SECTION - Current Preset Settings ==========
-      Group #presetSettingsPanel {
+      // ========== MIDDLE SECTION - Preset Settings + Animal Grid ==========
+      Group #middlePanel {
         LayoutMode: Top;
-        Anchor: (Width: 220);
+        Anchor: (Width: 340);
         Padding: (Horizontal: 8);
 
-        // Section title
-        Label {
-          Text: "PRESET SETTINGS";
-          Style: (FontSize: 13, RenderBold: true, TextColor: #ffaa00);
-          Anchor: (Height: 28, Bottom: 4);
+        // --- Preset Settings ---
+        Group #presetSettingsPanel {
+          LayoutMode: Top;
+          Anchor: (Height: 180, Bottom: 8);
+
+          // Section title
+          Label {
+            Text: "PRESET SETTINGS";
+            Style: (FontSize: 13, RenderBold: true, TextColor: #ffaa00);
+            Anchor: (Height: 28, Bottom: 4);
+          }
+
+          // Settings container
+          Group #settingsContainer {
+            LayoutMode: Top;
+            Background: $C.@InputBoxBackground;
+            Padding: (Full: 10);
+            FlexWeight: 1;
+
+            // Preset name
+            Label {
+              Text: "Preset Name";
+              Style: (FontSize: 11, TextColor: #888888);
+              Anchor: (Bottom: 2);
+            }
+            Label #presetNameLabel {
+              Text: "default_extended";
+              Style: (FontSize: 13, RenderBold: true, TextColor: #ffffff);
+              Anchor: (Height: 24, Bottom: 8);
+            }
+
+            // Growth enabled toggle
+            Group {
+              LayoutMode: Left;
+              Anchor: (Height: 32, Bottom: 6);
+
+              Label {
+                Text: "Baby Growth";
+                Style: (FontSize: 12, TextColor: #cccccc);
+                FlexWeight: 1;
+              }
+              $C.@SecondaryTextButton #growthToggleBtn {
+                @Anchor = (Width: 50, Height: 26);
+                Text: "ON";
+              }
+            }
+
+            // Default growth time
+            Group {
+              LayoutMode: Left;
+              Anchor: (Height: 32, Bottom: 6);
+
+              Label {
+                Text: "Growth Time (min)";
+                Style: (FontSize: 12, TextColor: #cccccc);
+                FlexWeight: 1;
+              }
+              $C.@TextField #growthTimeInput {
+                Anchor: (Width: 60, Height: 26);
+              }
+            }
+
+            // Default cooldown
+            Group {
+              LayoutMode: Left;
+              Anchor: (Height: 32, Bottom: 6);
+
+              Label {
+                Text: "Breed Cooldown (min)";
+                Style: (FontSize: 12, TextColor: #cccccc);
+                FlexWeight: 1;
+              }
+              $C.@TextField #cooldownInput {
+                Anchor: (Width: 60, Height: 26);
+              }
+            }
+
+            // Hidden action markers
+            $C.@TextField #actionToggleGrowth { Anchor: (Width: 0, Height: 0); }
+            $C.@TextField #actionSave { Anchor: (Width: 0, Height: 0); }
+          }
         }
 
-        // Settings container
-        Group #settingsContainer {
+        // --- Animal Grid Section ---
+        Group #animalGridSection {
           LayoutMode: Top;
-          Background: $C.@InputBoxBackground;
-          Padding: (Full: 10);
           FlexWeight: 1;
 
-          // Preset name
-          Label {
-            Text: "Preset Name";
-            Style: (FontSize: 11, TextColor: #888888);
-            Anchor: (Bottom: 2);
-          }
-          Label #presetNameLabel {
-            Text: "default_extended";
-            Style: (FontSize: 13, RenderBold: true, TextColor: #ffffff);
-            Anchor: (Height: 24, Bottom: 8);
+          // Search bar
+          $C.@TextField #animalSearch {
+            Anchor: (Height: 32, Bottom: 8);
+            PlaceholderText: "Search animals...";
           }
 
-          // Growth enabled toggle
-          Group {
-            LayoutMode: Left;
-            Anchor: (Height: 32, Bottom: 6);
+          // Animal grid container (paginated)
+          Group #animalGridContainer {
+            LayoutMode: Top;
+            FlexWeight: 1;
+            Background: $C.@InputBoxBackground;
+            Padding: (Full: 6);
 
-            Label {
-              Text: "Baby Growth";
-              Style: (FontSize: 12, TextColor: #cccccc);
+            Group #animalGrid {
+              LayoutMode: Top;
               FlexWeight: 1;
+
+              // Row 1 (animals 0-4)
+              Group #animalRow0 {
+                LayoutMode: Left;
+                Anchor: (Height: 60, Bottom: 4);
+
+                TextButton #animal0 { Text: ""; Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+                TextButton #animal1 { Text: ""; Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+                TextButton #animal2 { Text: ""; Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+                TextButton #animal3 { Text: ""; Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+                TextButton #animal4 { Text: ""; Anchor: (Width: 56, Height: 56); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+              }
+
+              // Row 2 (animals 5-9)
+              Group #animalRow1 {
+                LayoutMode: Left;
+                Anchor: (Height: 60, Bottom: 4);
+
+                TextButton #animal5 { Text: ""; Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+                TextButton #animal6 { Text: ""; Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+                TextButton #animal7 { Text: ""; Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+                TextButton #animal8 { Text: ""; Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+                TextButton #animal9 { Text: ""; Anchor: (Width: 56, Height: 56); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+              }
+
+              // Row 3 (animals 10-14)
+              Group #animalRow2 {
+                LayoutMode: Left;
+                Anchor: (Height: 60, Bottom: 4);
+
+                TextButton #animal10 { Text: ""; Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+                TextButton #animal11 { Text: ""; Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+                TextButton #animal12 { Text: ""; Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+                TextButton #animal13 { Text: ""; Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+                TextButton #animal14 { Text: ""; Anchor: (Width: 56, Height: 56); Background: #333333; Style: $C.@SecondaryTextButtonStyle; }
+              }
             }
-            $C.@SecondaryTextButton #growthToggleBtn {
-              @Anchor = (Width: 50, Height: 26);
-              Text: "ON";
+
+            // Animal pagination controls
+            Group #animalPagination {
+              LayoutMode: Left;
+              Anchor: (Top: 4, Height: 24);
+
+              $C.@SecondaryTextButton #animalPrevBtn {
+                @Anchor = (Width: 28, Height: 24);
+                Text: "<";
+              }
+              Label #animalPageLabel {
+                Text: "1/1";
+                Style: (FontSize: 11, TextColor: #888888, Alignment: Center);
+                FlexWeight: 1;
+              }
+              $C.@SecondaryTextButton #animalNextBtn {
+                @Anchor = (Width: 28, Height: 24);
+                Text: ">";
+              }
             }
           }
-
-          // Default growth time
-          Group {
-            LayoutMode: Left;
-            Anchor: (Height: 32, Bottom: 6);
-
-            Label {
-              Text: "Growth Time (min)";
-              Style: (FontSize: 12, TextColor: #cccccc);
-              FlexWeight: 1;
-            }
-            $C.@TextField #growthTimeInput {
-              Anchor: (Width: 60, Height: 26);
-            }
-          }
-
-          // Default cooldown
-          Group {
-            LayoutMode: Left;
-            Anchor: (Height: 32, Bottom: 6);
-
-            Label {
-              Text: "Breed Cooldown (min)";
-              Style: (FontSize: 12, TextColor: #cccccc);
-              FlexWeight: 1;
-            }
-            $C.@TextField #cooldownInput {
-              Anchor: (Width: 60, Height: 26);
-            }
-          }
-
-          // Spacer
-          Group { FlexWeight: 1; }
-
-          // Save button
-          $C.@TextButton #saveBtn {
-            @Anchor = (Height: 36);
-            Text: "SAVE TO FILE";
-          }
-
-          // Hidden action markers
-          $C.@TextField #actionToggleGrowth { Anchor: (Width: 0, Height: 0); }
-          $C.@TextField #actionSave { Anchor: (Width: 0, Height: 0); }
         }
       }
 
-      // ========== RIGHT SECTION - Animal Grid + Config ==========
+      // ========== RIGHT SECTION - Selected Animal Config Only ==========
       Group #animalPanel {
         LayoutMode: Top;
         FlexWeight: 1;
         Padding: (Left: 8);
 
-        // Top: Selected animal config
+        // Selected animal config
         Group #selectedAnimalConfig {
           LayoutMode: Top;
-          Anchor: (Height: 140, Bottom: 8);
+          FlexWeight: 1;
           Background: $C.@InputBoxBackground;
           Padding: (Full: 10);
 
@@ -188,56 +279,17 @@ Group {
 
           // Placeholder for animal settings
           Label #animalSettingsPlaceholder {
-            Text: "Click an animal below to edit";
+            Text: "Click an animal to edit its settings";
             Style: (FontSize: 11, TextColor: #666666);
           }
-        }
 
-        // Bottom: Animal grid
-        Group #animalGridSection {
-          LayoutMode: Top;
-          FlexWeight: 1;
+          // Spacer
+          Group { FlexWeight: 1; }
 
-          // Search bar
-          $C.@TextField #animalSearch {
-            Anchor: (Height: 32, Bottom: 8);
-            PlaceholderText: "Search animals...";
-          }
-
-          // Animal grid container (scrollable)
-          Group #animalGridContainer {
-            LayoutMode: TopScrolling;
-            ScrollbarStyle: $C.@DefaultScrollbarStyle;
-            FlexWeight: 1;
-            Background: $C.@InputBoxBackground;
-            Padding: (Full: 6);
-
-            Group #animalGrid {
-              LayoutMode: Top;
-
-              // Row 1 placeholder
-              Group {
-                LayoutMode: Left;
-                Anchor: (Height: 60, Bottom: 4);
-
-                Group { Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; }
-                Group { Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; }
-                Group { Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; }
-                Group { Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; }
-                Group { Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; }
-              }
-
-              // Row 2 placeholder
-              Group {
-                LayoutMode: Left;
-                Anchor: (Height: 60, Bottom: 4);
-
-                Group { Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; }
-                Group { Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; }
-                Group { Anchor: (Width: 56, Height: 56, Right: 4); Background: #333333; }
-                Group { Anchor: (Width: 56, Height: 56, Right: 4); Background: #444444; }
-              }
-            }
+          // Save button at bottom
+          $C.@TextButton #saveBtn {
+            @Anchor = (Height: 36);
+            Text: "SAVE TO FILE";
           }
         }
       }

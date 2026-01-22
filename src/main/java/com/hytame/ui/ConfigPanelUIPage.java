@@ -18,19 +18,34 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import com.hytame.HyTamePlugin;
+import com.hytame.models.AnimalType;
 import com.hytame.util.ConfigManager;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Configuration panel for Animal Breeding plugin.
  *
  * Layout:
- * - Left sidebar: Preset list with search
- * - Middle: Current preset global settings
- * - Right: Animal grid + selected animal config
+ * - Left sidebar: Preset list with search and pagination
+ * - Middle: Current preset settings + Animal grid with pagination
+ * - Right: Selected animal config
  *
  * UI File: src/main/resources/Common/UI/Custom/Pages/ConfigPanel.ui
  */
 public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage.ConfigEventData> {
+
+    // Pagination constants
+    private static final int PRESETS_PER_PAGE = 8;
+    private static final int ANIMALS_PER_PAGE = 15;  // 5 columns x 3 rows
+
+    // State
+    private int presetPage = 0;
+    private int animalPage = 0;
+    private String selectedAnimal = null;
+    private String presetSearchFilter = "";
+    private String animalSearchFilter = "";
 
     /**
      * Event data received from UI interactions.
@@ -39,6 +54,8 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
         public String action;
         public String growthTime;
         public String cooldown;
+        public String presetSearch;
+        public String animalSearch;
 
         public static final BuilderCodec<ConfigEventData> CODEC = BuilderCodec
             .builder(ConfigEventData.class, ConfigEventData::new)
@@ -54,6 +71,14 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                 (obj, val) -> obj.cooldown = val,
                 obj -> obj.cooldown)
             .add()
+            .append(new KeyedCodec<>("@presetSearch", new StringCodec()),
+                (obj, val) -> obj.presetSearch = val,
+                obj -> obj.presetSearch)
+            .add()
+            .append(new KeyedCodec<>("@animalSearch", new StringCodec()),
+                (obj, val) -> obj.animalSearch = val,
+                obj -> obj.animalSearch)
+            .add()
             .build();
     }
 
@@ -61,54 +86,286 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
         super(playerRef, CustomPageLifetime.CanDismiss, ConfigEventData.CODEC);
     }
 
+    /**
+     * Constructor with state preservation for pagination.
+     */
+    public ConfigPanelUIPage(PlayerRef playerRef, int presetPage, int animalPage,
+                             String selectedAnimal, String presetSearch, String animalSearch) {
+        super(playerRef, CustomPageLifetime.CanDismiss, ConfigEventData.CODEC);
+        this.presetPage = presetPage;
+        this.animalPage = animalPage;
+        this.selectedAnimal = selectedAnimal;
+        this.presetSearchFilter = presetSearch != null ? presetSearch : "";
+        this.animalSearchFilter = animalSearch != null ? animalSearch : "";
+    }
+
     @Override
     public void build(Ref<EntityStore> ref, UICommandBuilder cmd, UIEventBuilder events, Store<EntityStore> store) {
         // Load the UI layout file
         cmd.append("Pages/ConfigPanel.ui");
 
-        // Populate with current config values
+<<<<<<< HEAD:src/main/java/com/hytame/ui/ConfigPanelUIPage.java
         HyTamePlugin plugin = HyTamePlugin.getInstance();
-        if (plugin != null) {
-            ConfigManager config = plugin.getConfigManager();
-            if (config != null) {
-                // Set preset name
-                String activePreset = config.getActivePreset();
-                cmd.set("#presetNameLabel.Text", activePreset != null ? activePreset : "none");
+        if (plugin == null) return;
 
-                // Set growth toggle button text
-                boolean growthEnabled = config.isGrowthEnabled();
-                cmd.set("#growthToggleBtn.Text", growthEnabled ? "ON" : "OFF");
+        ConfigManager config = plugin.getConfigManager();
+        if (config == null) return;
 
-                // Set default values
-                cmd.set("#growthTimeInput.Value", String.valueOf(config.getDefaultGrowthTimeMinutes()));
-                cmd.set("#cooldownInput.Value", String.valueOf(config.getDefaultBreedCooldownMinutes()));
+        // Populate preset settings
+        populatePresetSettings(cmd, config);
+
+        // Populate preset list
+        List<String> presets = getFilteredPresets(config);
+        populatePresetList(cmd, events, presets, config.getActivePreset());
+
+        // Populate animal grid
+        List<AnimalType> animals = getFilteredAnimals();
+        populateAnimalGrid(cmd, events, animals);
+
+        // Populate selected animal config
+        populateSelectedAnimalConfig(cmd, config);
+
+        // Set up action markers and event bindings
+        setupEventBindings(cmd, events);
+    }
+
+    /**
+     * Populate the preset settings section with current values.
+     */
+    private void populatePresetSettings(UICommandBuilder cmd, ConfigManager config) {
+        String activePreset = config.getActivePreset();
+        cmd.set("#presetNameLabel.Text", activePreset != null ? activePreset : "none");
+        cmd.set("#growthToggleBtn.Text", config.isGrowthEnabled() ? "ON" : "OFF");
+        cmd.set("#growthTimeInput.Value", String.valueOf(config.getDefaultGrowthTimeMinutes()));
+        cmd.set("#cooldownInput.Value", String.valueOf(config.getDefaultBreedCooldownMinutes()));
+    }
+
+    /**
+     * Get filtered list of presets based on search filter.
+     */
+    private List<String> getFilteredPresets(ConfigManager config) {
+        List<String> allPresets = config.getAvailablePresets();
+        if (presetSearchFilter == null || presetSearchFilter.isEmpty()) {
+            return allPresets;
+        }
+        List<String> filtered = new ArrayList<>();
+        String filterLower = presetSearchFilter.toLowerCase();
+        for (String preset : allPresets) {
+            if (preset.toLowerCase().contains(filterLower)) {
+                filtered.add(preset);
+            }
+        }
+        return filtered;
+    }
+
+    /**
+     * Populate the preset list slots.
+     */
+    private void populatePresetList(UICommandBuilder cmd, UIEventBuilder events,
+                                    List<String> presets, String activePreset) {
+        int totalPages = Math.max(1, (presets.size() + PRESETS_PER_PAGE - 1) / PRESETS_PER_PAGE);
+        presetPage = Math.min(presetPage, totalPages - 1);
+
+        int startIndex = presetPage * PRESETS_PER_PAGE;
+
+        // Populate preset slots
+        for (int i = 0; i < PRESETS_PER_PAGE; i++) {
+            int presetIndex = startIndex + i;
+            String slotId = "#preset" + i;
+
+            if (presetIndex < presets.size()) {
+                String presetName = presets.get(presetIndex);
+                cmd.set(slotId + ".Text", presetName);
+
+                // Bind click event
+                events.addEventBinding(CustomUIEventBindingType.Activating, slotId,
+                    new EventData()
+                        .append("@action", "SELECT_PRESET:" + presetName)
+                        .append("@presetSearch", "#presetSearch.Value")
+                        .append("@animalSearch", "#animalSearch.Value"));
+            } else {
+                // Empty slot
+                cmd.set(slotId + ".Text", "");
             }
         }
 
-        // Set hidden action marker values
+        // Update pagination label
+        cmd.set("#presetPageLabel.Text", (presetPage + 1) + "/" + totalPages);
+
+        // Bind pagination buttons
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#presetPrevBtn",
+            new EventData()
+                .append("@action", "PRESET_PREV")
+                .append("@presetSearch", "#presetSearch.Value")
+                .append("@animalSearch", "#animalSearch.Value"));
+
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#presetNextBtn",
+            new EventData()
+                .append("@action", "PRESET_NEXT")
+                .append("@presetSearch", "#presetSearch.Value")
+                .append("@animalSearch", "#animalSearch.Value"));
+    }
+
+    /**
+     * Get filtered list of animals based on search filter.
+     */
+    private List<AnimalType> getFilteredAnimals() {
+        AnimalType[] allAnimals = AnimalType.values();
+        if (animalSearchFilter == null || animalSearchFilter.isEmpty()) {
+            List<AnimalType> list = new ArrayList<>();
+            for (AnimalType animal : allAnimals) {
+                list.add(animal);
+            }
+            return list;
+        }
+        List<AnimalType> filtered = new ArrayList<>();
+        String filterLower = animalSearchFilter.toLowerCase();
+        for (AnimalType animal : allAnimals) {
+            if (animal.name().toLowerCase().contains(filterLower) ||
+                animal.getModelAssetId().toLowerCase().contains(filterLower)) {
+                filtered.add(animal);
+            }
+        }
+        return filtered;
+    }
+
+    /**
+     * Populate the animal grid slots.
+     */
+    private void populateAnimalGrid(UICommandBuilder cmd, UIEventBuilder events, List<AnimalType> animals) {
+        int totalPages = Math.max(1, (animals.size() + ANIMALS_PER_PAGE - 1) / ANIMALS_PER_PAGE);
+        animalPage = Math.min(animalPage, totalPages - 1);
+
+        int startIndex = animalPage * ANIMALS_PER_PAGE;
+
+        // Populate animal slots
+        for (int i = 0; i < ANIMALS_PER_PAGE; i++) {
+            int animalIndex = startIndex + i;
+            String slotId = "#animal" + i;
+
+            if (animalIndex < animals.size()) {
+                AnimalType animal = animals.get(animalIndex);
+                // Use abbreviated name to fit in cell
+                String displayName = getAbbreviatedName(animal);
+                cmd.set(slotId + ".Text", displayName);
+
+                // Bind click event
+                events.addEventBinding(CustomUIEventBindingType.Activating, slotId,
+                    new EventData()
+                        .append("@action", "SELECT_ANIMAL:" + animal.name())
+                        .append("@presetSearch", "#presetSearch.Value")
+                        .append("@animalSearch", "#animalSearch.Value"));
+            } else {
+                // Empty slot
+                cmd.set(slotId + ".Text", "");
+            }
+        }
+
+        // Update pagination label
+        cmd.set("#animalPageLabel.Text", (animalPage + 1) + "/" + totalPages);
+
+        // Bind pagination buttons
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#animalPrevBtn",
+            new EventData()
+                .append("@action", "ANIMAL_PREV")
+                .append("@presetSearch", "#presetSearch.Value")
+                .append("@animalSearch", "#animalSearch.Value"));
+
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#animalNextBtn",
+            new EventData()
+                .append("@action", "ANIMAL_NEXT")
+                .append("@presetSearch", "#presetSearch.Value")
+                .append("@animalSearch", "#animalSearch.Value"));
+    }
+
+    /**
+     * Get abbreviated display name for animal (max ~6 chars to fit in cell).
+     */
+    private String getAbbreviatedName(AnimalType animal) {
+        String name = animal.getModelAssetId();
+        // Remove common prefixes/suffixes
+        name = name.replace("_", " ");
+        // Take first word if multiple
+        if (name.contains(" ")) {
+            String[] parts = name.split(" ");
+            name = parts[0];
+        }
+        // Truncate if still too long
+        if (name.length() > 7) {
+            name = name.substring(0, 6) + ".";
+        }
+        return name;
+    }
+
+    /**
+     * Populate the selected animal config section.
+     */
+    private void populateSelectedAnimalConfig(UICommandBuilder cmd, ConfigManager config) {
+        if (selectedAnimal == null) {
+            cmd.set("#selectedAnimalName.Text", "(none selected)");
+            cmd.set("#animalSettingsPlaceholder.Text", "Click an animal to edit its settings");
+            return;
+        }
+
+        try {
+            AnimalType animal = AnimalType.valueOf(selectedAnimal);
+            cmd.set("#selectedAnimalName.Text", animal.getModelAssetId());
+
+            // Show animal config info
+            ConfigManager.AnimalConfig animalConfig = config.getAnimalConfig(animal);
+            if (animalConfig != null) {
+                String info = (animalConfig.enabled ? "Enabled" : "Disabled") +
+                    "\nGrowth: " + animalConfig.growthTimeMinutes + " min" +
+                    "\nCooldown: " + animalConfig.breedCooldownMinutes + " min";
+                cmd.set("#animalSettingsPlaceholder.Text", info);
+            } else {
+                cmd.set("#animalSettingsPlaceholder.Text", "No config found");
+            }
+        } catch (Exception e) {
+            cmd.set("#selectedAnimalName.Text", "(invalid)");
+            cmd.set("#animalSettingsPlaceholder.Text", "Click an animal to edit its settings");
+        }
+    }
+
+    /**
+     * Set up hidden action markers and event bindings.
+     */
+    private void setupEventBindings(UICommandBuilder cmd, UIEventBuilder events) {
+        // Hidden action markers
         cmd.set("#actionToggleGrowth.Value", "TOGGLE_GROWTH");
         cmd.set("#actionSave.Value", "SAVE");
 
-        // Bind growth toggle button
+        // Growth toggle button
         events.addEventBinding(CustomUIEventBindingType.Activating, "#growthToggleBtn",
             new EventData()
                 .append("@action", "#actionToggleGrowth.Value")
                 .append("@growthTime", "#growthTimeInput.Value")
-                .append("@cooldown", "#cooldownInput.Value"));
+                .append("@cooldown", "#cooldownInput.Value")
+                .append("@presetSearch", "#presetSearch.Value")
+                .append("@animalSearch", "#animalSearch.Value"));
 
-        // Bind save button
+        // Save button
         events.addEventBinding(CustomUIEventBindingType.Activating, "#saveBtn",
             new EventData()
                 .append("@action", "#actionSave.Value")
                 .append("@growthTime", "#growthTimeInput.Value")
-                .append("@cooldown", "#cooldownInput.Value"));
+                .append("@cooldown", "#cooldownInput.Value")
+                .append("@presetSearch", "#presetSearch.Value")
+                .append("@animalSearch", "#animalSearch.Value"));
+
+        // Add preset button
+        events.addEventBinding(CustomUIEventBindingType.Activating, "#addPresetBtn",
+            new EventData()
+                .append("@action", "ADD_PRESET")
+                .append("@presetSearch", "#presetSearch.Value")
+                .append("@animalSearch", "#animalSearch.Value"));
     }
 
     @Override
     public void handleDataEvent(Ref<EntityStore> ref, Store<EntityStore> store, ConfigEventData data) {
         try {
             Player player = store.getComponent(ref, Player.getComponentType());
-            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+            HyTamePlugin plugin = HyTamePlugin.getInstance();
 
             if (plugin == null) {
                 closePage(player, ref, store);
@@ -121,27 +378,90 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                 return;
             }
 
+            // Update search filters from event data
+            if (data.presetSearch != null) {
+                presetSearchFilter = data.presetSearch;
+            }
+            if (data.animalSearch != null) {
+                animalSearchFilter = data.animalSearch;
+            }
+
             String action = data.action;
             if (action == null) {
                 action = "";
             }
-            action = action.trim().toUpperCase();
+            action = action.trim();
 
             log("Config panel action: " + action);
 
+            // Handle preset selection
+            if (action.startsWith("SELECT_PRESET:")) {
+                String presetName = action.substring("SELECT_PRESET:".length());
+                if (config.applyPreset(presetName)) {
+                    if (player != null) {
+                        player.sendMessage(Message.raw("Applied preset: " + presetName).color("#55FF55"));
+                    }
+                }
+                reopenPage(player, ref, store);
+                return;
+            }
+
+            // Handle animal selection
+            if (action.startsWith("SELECT_ANIMAL:")) {
+                selectedAnimal = action.substring("SELECT_ANIMAL:".length());
+                reopenPage(player, ref, store);
+                return;
+            }
+
+            // Handle preset pagination
+            if (action.equals("PRESET_PREV")) {
+                if (presetPage > 0) {
+                    presetPage--;
+                }
+                reopenPage(player, ref, store);
+                return;
+            }
+            if (action.equals("PRESET_NEXT")) {
+                List<String> presets = getFilteredPresets(config);
+                int totalPages = (presets.size() + PRESETS_PER_PAGE - 1) / PRESETS_PER_PAGE;
+                if (presetPage < totalPages - 1) {
+                    presetPage++;
+                }
+                reopenPage(player, ref, store);
+                return;
+            }
+
+            // Handle animal pagination
+            if (action.equals("ANIMAL_PREV")) {
+                if (animalPage > 0) {
+                    animalPage--;
+                }
+                reopenPage(player, ref, store);
+                return;
+            }
+            if (action.equals("ANIMAL_NEXT")) {
+                List<AnimalType> animals = getFilteredAnimals();
+                int totalPages = (animals.size() + ANIMALS_PER_PAGE - 1) / ANIMALS_PER_PAGE;
+                if (animalPage < totalPages - 1) {
+                    animalPage++;
+                }
+                reopenPage(player, ref, store);
+                return;
+            }
+
+            // Handle toggle growth
             if (action.equals("TOGGLE_GROWTH")) {
-                // Toggle growth enabled
                 boolean newState = !config.isGrowthEnabled();
                 config.setGrowthEnabled(newState);
                 if (player != null) {
                     player.sendMessage(Message.raw("Baby growth " + (newState ? "enabled" : "disabled")).color(newState ? "#55FF55" : "#FF9900"));
                 }
-                // Refresh the page
                 reopenPage(player, ref, store);
                 return;
+            }
 
-            } else if (action.equals("SAVE")) {
-                // Save current values
+            // Handle save
+            if (action.equals("SAVE")) {
                 boolean hasErrors = false;
 
                 // Parse growth time
@@ -182,11 +502,20 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                         player.sendMessage(Message.raw("Configuration saved!").color("#55FF55"));
                     }
                 }
-                // Don't close - stay on page
+                // Stay on page
                 return;
             }
 
-            // Unknown action or close - close the page
+            // Handle add preset
+            if (action.equals("ADD_PRESET")) {
+                // For now, just show a message - could open a naming dialog
+                if (player != null) {
+                    player.sendMessage(Message.raw("Use /breedconfig savepreset <name> to save current config as preset").color("#FFAA00"));
+                }
+                return;
+            }
+
+            // Unknown action - close
             closePage(player, ref, store);
 
         } catch (Exception e) {
@@ -198,7 +527,9 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
         if (player != null) {
             try {
                 PlayerRef playerRef = player.getPlayerRef();
-                player.getPageManager().openCustomPage(ref, store, new ConfigPanelUIPage(playerRef));
+                player.getPageManager().openCustomPage(ref, store,
+                    new ConfigPanelUIPage(playerRef, presetPage, animalPage,
+                        selectedAnimal, presetSearchFilter, animalSearchFilter));
             } catch (Exception e) {
                 log("Failed to reopen config page: " + e.getMessage());
             }
