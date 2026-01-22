@@ -1075,30 +1075,24 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 return;
             }
 
-            // Find ensureAndGetComponent method
-            java.lang.reflect.Method ensureMethod = null;
+            // Check if entity already has Interactions component (real NPCs have this)
+            // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
+            // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
+            java.lang.reflect.Method getCompMethod = null;
             for (java.lang.reflect.Method m : store.getClass().getMethods()) {
-                if (m.getName().equals("ensureAndGetComponent") && m.getParameterCount() == 2) {
-                    ensureMethod = m;
+                if (m.getName().equals("getComponent") && m.getParameterCount() == 2) {
+                    getCompMethod = m;
                     break;
                 }
             }
-            if (ensureMethod == null)
-                return;
+            if (getCompMethod == null) return;
 
-            // Ensure entity has Interactable component (required for hints to show)
-            if (interactableType != null) {
-                try {
-                    ensureMethod.invoke(store, entityRef, interactableType);
-                } catch (Exception e) {
-                    // Silent
-                }
+            Object interactions = getCompMethod.invoke(store, entityRef, interactionsType);
+            if (interactions == null) {
+                // Entity doesn't have Interactions component - not a real NPC, skip
+                logVerbose("[SetupInteraction] Skipping non-NPC entity (no Interactions component)");
+                return;
             }
-
-            // Ensure entity has Interactions component
-            Object interactions = ensureMethod.invoke(store, entityRef, interactionsType);
-            if (interactions == null)
-                return;
 
             String feedInteractionId = "Root_FeedAnimal";
 
@@ -1175,27 +1169,23 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 return;
             }
 
-            java.lang.reflect.Method ensureMethod = null;
+            // Check if entity already has Interactions component (real NPCs have this)
+            // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
+            java.lang.reflect.Method getCompMethod = null;
             for (java.lang.reflect.Method m : store.getClass().getMethods()) {
-                if (m.getName().equals("ensureAndGetComponent") && m.getParameterCount() == 2) {
-                    ensureMethod = m;
+                if (m.getName().equals("getComponent") && m.getParameterCount() == 2) {
+                    getCompMethod = m;
                     break;
                 }
             }
-            if (ensureMethod == null)
-                return;
+            if (getCompMethod == null) return;
 
-            if (interactableType != null) {
-                try {
-                    ensureMethod.invoke(store, entityRef, interactableType);
-                } catch (Exception e) {
-                    // Silent
-                }
+            Object interactions = getCompMethod.invoke(store, entityRef, interactionsType);
+            if (interactions == null) {
+                // Entity doesn't have Interactions component - not a real NPC, skip
+                logVerbose("[CustomAnimal] Skipping non-NPC entity (no Interactions component): " + animalName);
+                return;
             }
-
-            Object interactions = ensureMethod.invoke(store, entityRef, interactionsType);
-            if (interactions == null)
-                return;
 
             String feedInteractionId = "Root_FeedAnimal";
 
@@ -1401,10 +1391,23 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 // Silent - may already have component
             }
 
-            // Ensure entity has Interactions component
-            Object interactions = ensureMethod.invoke(store, entityRef, interactionsType);
-            if (interactions == null)
+            // Check if entity already has Interactions component (real NPCs have this)
+            // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
+            java.lang.reflect.Method getCompMethod = null;
+            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
+                if (m.getName().equals("getComponent") && m.getParameterCount() == 2) {
+                    getCompMethod = m;
+                    break;
+                }
+            }
+            if (getCompMethod == null) return;
+
+            Object interactions = getCompMethod.invoke(store, entityRef, interactionsType);
+            if (interactions == null) {
+                // Entity doesn't have Interactions component - not a real NPC, skip
+                logVerbose("[SetupInteraction] Skipping non-NPC entity (no Interactions component)");
                 return;
+            }
 
             // Get Ability2 enum value
             Class<?> interactionTypeClass = Class.forName("com.hypixel.hytale.protocol.InteractionType");
