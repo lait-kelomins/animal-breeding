@@ -383,7 +383,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     /**
      * Store the original interaction state (ID + hint) for an entity.
-     * Only stores actual values - does not assume fallbacks like "Root_Mount".
+     * ALWAYS stores, even if interactionId is null - that's the correct original state for horses
+     * (null Use interaction allows mounting to work via default behavior).
      */
     private static void storeOriginalState(Ref<EntityStore> entityRef, String interactionId, String hint,
             AnimalType animalType) {
@@ -391,11 +392,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         if (key == null)
             return;
 
-        // Only store if we have at least an interaction ID
-        // Don't assume fallbacks - we'll capture the actual interaction when setting up the entity
-        if (interactionId != null && !interactionId.isEmpty()) {
-            originalStates.put(key, new OriginalInteractionState(interactionId, hint));
-        }
+        // Always store the original state, even if interactionId is null
+        // For horses, null is the correct original state - it allows mounting to work
+        originalStates.put(key, new OriginalInteractionState(interactionId, hint));
     }
 
     /**
