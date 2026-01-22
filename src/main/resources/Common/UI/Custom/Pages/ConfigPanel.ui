@@ -110,10 +110,9 @@ Group {
               Style: (FontSize: 12, TextColor: #cccccc);
               FlexWeight: 1;
             }
-            Label #growthStatusLabel {
+            $C.@SecondaryTextButton #growthToggleBtn {
+              @Anchor = (Width: 50, Height: 26);
               Text: "ON";
-              Style: (FontSize: 12, RenderBold: true, TextColor: #88ff88);
-              Anchor: (Width: 40);
             }
           }
 
@@ -155,6 +154,10 @@ Group {
             @Anchor = (Height: 36);
             Text: "SAVE TO FILE";
           }
+
+          // Hidden action markers
+          $C.@TextField #actionToggleGrowth { Anchor: (Width: 0, Height: 0); }
+          $C.@TextField #actionSave { Anchor: (Width: 0, Height: 0); }
         }
       }
 
