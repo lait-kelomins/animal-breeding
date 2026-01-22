@@ -1226,16 +1226,20 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             } else {
                 // ORIGINAL MODE - restore original interaction if we have it saved
                 OriginalInteractionState original = entityKey != null ? originalStates.get(entityKey) : null;
-                if (original != null && original.hasInteraction()) {
+                if (original != null) {
+                    // Restore original interaction ID (even if null - that's the correct original state)
+                    // For horses, original Use interaction is null which allows mounting to work
                     setIntId.invoke(interactions, useType, original.getInteractionId());
                     if (original.hasHint()) {
                         setHint.invoke(interactions, original.getHint());
+                    } else {
+                        // Clear hint if original had none
+                        setHint.invoke(interactions, (String) null);
                     }
                     logVerbose(String.format("[StateUpdate] %s: restored original interaction=%s, hint=%s",
                         animalType, original.getInteractionId(), original.getHint()));
                 }
                 // If we don't have saved state, keep showing feed interaction
-                // (don't assume Root_Mount exists - it might not)
             }
 
         } catch (Exception e) {
