@@ -267,6 +267,95 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
+     * Check if an entity ref corresponds to a player (prevents treating players with animal models as animals).
+     */
+    private boolean isPlayerEntity(Ref<EntityStore> ref) {
+        try {
+            // Get the entity's UUID
+            Store<EntityStore> store = ref.getStore();
+            if (store == null) return false;
+
+            UUIDComponent uuidComp = store.getComponent(ref, UUID_TYPE);
+            if (uuidComp == null || uuidComp.getUuid() == null) return false;
+            UUID entityUuid = uuidComp.getUuid();
+
+            // Check if this UUID matches any player
+            World world = Universe.get().getDefaultWorld();
+            if (world == null) return false;
+
+            for (Player player : world.getPlayers()) {
+                try {
+                    Object playerRef = player.getReference();
+                    if (playerRef instanceof Ref) {
+                        @SuppressWarnings("unchecked")
+                        Ref<EntityStore> pRef = (Ref<EntityStore>) playerRef;
+                        Store<EntityStore> pStore = pRef.getStore();
+                        if (pStore != null) {
+                            UUIDComponent pUuid = pStore.getComponent(pRef, UUID_TYPE);
+                            if (pUuid != null && entityUuid.equals(pUuid.getUuid())) {
+                                return true;
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    // Silent - continue checking other players
+                }
+            }
+        } catch (Exception e) {
+            // Silent - assume not a player if we can't check
+        }
+        return false;
+    }
+
+    /**
+     * Check if an entity is an actual NPC (not just a model/prop).
+     * Returns true if the entity has NPC-related data.
+     */
+    private boolean isNPCEntity(Store<EntityStore> store, Ref<EntityStore> entityRef) {
+        try {
+            // Check for NPC Role component - NPCs have role data
+            Class<?> roleCompClass = Class.forName("com.hypixel.hytale.server.npc.component.RoleComponent");
+            Object roleCompType = roleCompClass.getMethod("getComponentType").invoke(null);
+
+            // Try to get the RoleComponent
+            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
+                if (m.getName().equals("getComponent") && m.getParameterCount() == 2) {
+                    Object roleComp = m.invoke(store, entityRef, roleCompType);
+                    if (roleComp != null) {
+                        return true;  // Has NPC Role = is an NPC
+                    }
+                    break;
+                }
+            }
+        } catch (ClassNotFoundException e) {
+            // RoleComponent class not found - try alternative check
+            logVerbose("[isNPCEntity] RoleComponent not found, using fallback check");
+        } catch (Exception e) {
+            // Silent - fall through to fallback
+        }
+
+        // Fallback: Check if entity has AIComponent (NPCs have AI, pure models don't)
+        try {
+            Class<?> aiCompClass = Class.forName("com.hypixel.hytale.server.core.modules.entity.component.AIComponent");
+            Object aiCompType = aiCompClass.getMethod("getComponentType").invoke(null);
+
+            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
+                if (m.getName().equals("getComponent") && m.getParameterCount() == 2) {
+                    Object aiComp = m.invoke(store, entityRef, aiCompType);
+                    if (aiComp != null) {
+                        return true;  // Has AI = is a living NPC
+                    }
+                    break;
+                }
+            }
+        } catch (Exception e) {
+            // Silent
+        }
+
+        return false;  // No NPC indicators found
+    }
+
+    /**
      * Get the original interaction ID for an entity (before we set Root_FeedAnimal).
      * Used by FeedAnimalInteraction to fall back to default behavior (e.g., mounting).
      */
@@ -976,6 +1065,18 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      */
     private void setupEntityInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef, AnimalType animalType) {
         try {
+            // Skip players (even if they have animal models)
+            if (isPlayerEntity(entityRef)) {
+                logVerbose("[SetupInteraction] Skipping player entity with animal model");
+                return;
+            }
+
+            // Skip entities without NPC data (just models, not actual NPCs)
+            if (!isNPCEntity(store, entityRef)) {
+                logVerbose("[SetupInteraction] Skipping non-NPC entity (model only)");
+                return;
+            }
+
             // Get component types via reflection
             Object interactableType = getInteractableComponentType();
             Object interactionsType = getInteractionsComponentType();
@@ -1064,6 +1165,18 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         String animalName = customAnimal.getModelAssetId();
         getLogger().atInfo().log("[CustomAnimal] setupCustomAnimalInteractions CALLED for: %s", animalName);
         try {
+            // Skip players (even if they have animal models)
+            if (isPlayerEntity(entityRef)) {
+                logVerbose("[CustomAnimal] Skipping player entity with custom animal model: " + animalName);
+                return;
+            }
+
+            // Skip entities without NPC data (just models, not actual NPCs)
+            if (!isNPCEntity(store, entityRef)) {
+                logVerbose("[CustomAnimal] Skipping non-NPC entity (model only): " + animalName);
+                return;
+            }
+
             Object interactableType = getInteractableComponentType();
             Object interactionsType = getInteractionsComponentType();
             if (interactionsType == null) {
