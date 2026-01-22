@@ -750,6 +750,25 @@ public class ConfigManager {
     }
 
     /**
+     * Reload configuration from the stored file path.
+     * Does nothing if no file path was previously set.
+     */
+    public void reloadFromFile() {
+        if (configFilePath == null) {
+            log("No config file path set, cannot reload");
+            return;
+        }
+
+        try {
+            String json = Files.readString(configFilePath);
+            loadFromJson(json);
+            log("Reloaded config from: " + configFilePath);
+        } catch (Exception e) {
+            log("Error reloading config: " + e.getMessage());
+        }
+    }
+
+    /**
      * Convert current configuration to JSON string.
      */
     public String toJson() {
@@ -2360,6 +2379,20 @@ public class ConfigManager {
         if (config != null) {
             config.growthTimeMinutes = minutes;
         }
+    }
+
+    /**
+     * Get default growth time in minutes.
+     */
+    public double getDefaultGrowthTimeMinutes() {
+        return defaultGrowthTimeMinutes;
+    }
+
+    /**
+     * Get default breeding cooldown in minutes.
+     */
+    public double getDefaultBreedCooldownMinutes() {
+        return defaultBreedCooldownMinutes;
     }
 
     /**
