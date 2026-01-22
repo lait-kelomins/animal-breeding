@@ -1,6 +1,35 @@
 # Changelog
 
-## v1.3.0 - Taming & Entity Persistence
+## v1.3.0 - Dynamic Interactions & Dual Build System
+
+### New Features
+
+#### Dynamic Interaction System
+- **Fixed horse mounting** - Horses are now properly mountable when on breeding cooldown or in love mode
+- **Dynamic hint switching** - "Press F to Feed" hint only shows when the animal can actually be fed
+  - In love mode: restores original hint (e.g., "Press F to Mount" for horses)
+  - On breeding cooldown: restores original hint
+  - Can be fed: shows "Press F to Feed" or "Press F to Feed / Mount"
+- **Player model protection** - Players wearing animal models (e.g., horse costume) no longer show feed hints
+
+#### Dual Build System
+- **Default build (F key)** - Uses entity-based interactions, recommended for most users
+  - Feed animals by pressing F while holding their favorite food
+  - Dynamic hints based on animal state
+- **Experimental build (E key)** - Uses item ability-based interactions
+  - Feed animals by pressing E while holding food
+  - Shows "(Experimental)" suffix in mod list
+- Build both variants with `deploy.ps1` script
+
+### Fixed
+- Horse not mountable when on breeding cooldown
+- Horse not mountable when in love mode
+- "Press F to Feed" showing on players with animal models
+- Duplicate JAR output in experimental build
+
+---
+
+## v1.3.0-pre - Taming & Entity Persistence
 
 ### New Features
 

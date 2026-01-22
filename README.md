@@ -1,9 +1,3 @@
-# **As a temporary fix for the horses issue here is what you can do:**
-
-`/breedconfig disable horse` (if you don't have permissions: `/op self`)  
-`/breedconfig save`  
-(If you still can't mount:) Restart the server or game The next update should provide a reliable fix to the bug
-
 ![Lait's Animal Breeding with a family of sheeps and a family of cows in an animal pen](https://media.forgecdn.net/attachments/description/1431060/description_a865b611-7b51-4d79-8ce7-7c705a9e5498.png)
 
 [![alt text](https://img.shields.io/badge/@lait__kelomins-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins) [![alt text](https://img.shields.io/badge/@lait__kelomins-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/NXExAtes)
@@ -18,7 +12,16 @@
 
 ## What's New in v1.3.0
 
-# 1.3.0 - Taming & Entity Persistence
+# 1.3.0 - Dynamic Interactions & Dual Build System
+
+*   **Fixed horse mounting** - Horses are now mountable when on breeding cooldown or in love mode
+*   **Dynamic hints** - "Press F to Feed" only shows when animal can be fed; restores original hint otherwise
+*   **Player model fix** - Players with animal models (e.g., horse costume) no longer show feed hint
+*   **Dual build system** - Two variants available:
+    *   **Default (F key)** - Entity-based feeding, recommended for most users
+    *   **Experimental (E key)** - Item ability-based feeding, for testing
+
+### Previous 1.3.0 Features
 
 *   **Animal Taming** - Use `/nametag <name>` then right-click an animal while holding a Name Tag item to tame and name it
 *   **Ownership System** - Tamed animals belong to you; use `/tamingsettings` to control whether others can interact
@@ -255,7 +258,6 @@ Config file: `mods/laits-breeding-config.json`
 ## Known Issues
 
 *   **Animations don't interrupt** - Feeding while an animal is fleeing or sleeping won't interrupt them
-*   **Growth time setting** - May not work reliably in all cases (investigating)
 *   **Wild baby animals** - May sometimes not grow into adults
 *   **Single world only** - Only works with the default world (multi-world not supported)
 
