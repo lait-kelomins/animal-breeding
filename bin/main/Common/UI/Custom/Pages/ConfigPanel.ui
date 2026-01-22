@@ -1,0 +1,119 @@
+$C = "../Common.ui";
+
+// Config Panel UI - Settings dialog for Animal Breeding plugin
+// Opens via /breed settings command
+
+Group {
+  LayoutMode: Center;
+
+  $C.@Container #dialogPanel {
+    Anchor: (Width: 420, Height: 340);
+
+    #Title {
+      $C.@Title #titleLabel {
+        @Text = "BREEDING SETTINGS";
+      }
+    }
+
+    #Content {
+      Padding: (Vertical: 16, Horizontal: 24);
+
+      // Growth Enabled toggle row
+      Group #growthToggleRow {
+        LayoutMode: Left;
+        Background: $C.@InputBoxBackground;
+        Padding: (Left: 15, Right: 15);
+        Anchor: (Height: 42, Bottom: 8);
+
+        Label #growthLabel {
+          Text: "Baby Growth";
+          Style: (FontSize: 13, TextColor: #cccccc);
+          FlexWeight: 1;
+        }
+
+        Label #growthStatus {
+          Text: "ON";
+          Style: (FontSize: 13, RenderBold: true, TextColor: #88ff88);
+        }
+      }
+
+      // Default Growth Time row
+      Group {
+        LayoutMode: Left;
+        Background: $C.@InputBoxBackground;
+        Padding: (Left: 15, Right: 10);
+        Anchor: (Height: 42, Bottom: 8);
+
+        Label {
+          Text: "Default Growth (min)";
+          Style: (FontSize: 13, TextColor: #cccccc);
+          FlexWeight: 1;
+        }
+
+        $C.@TextField #growthTimeInput {
+          Anchor: (Width: 80, Height: 30);
+        }
+      }
+
+      // Default Breed Cooldown row
+      Group {
+        LayoutMode: Left;
+        Background: $C.@InputBoxBackground;
+        Padding: (Left: 15, Right: 10);
+        Anchor: (Height: 42, Bottom: 8);
+
+        Label {
+          Text: "Breed Cooldown (min)";
+          Style: (FontSize: 13, TextColor: #cccccc);
+          FlexWeight: 1;
+        }
+
+        $C.@TextField #cooldownInput {
+          Anchor: (Width: 80, Height: 30);
+        }
+      }
+
+      // Active Preset row
+      Group {
+        LayoutMode: Left;
+        Background: $C.@InputBoxBackground;
+        Padding: (Left: 15, Right: 10);
+        Anchor: (Height: 42, Bottom: 16);
+
+        Label {
+          Text: "Active Preset";
+          Style: (FontSize: 13, TextColor: #cccccc);
+          FlexWeight: 1;
+        }
+
+        Label #presetLabel {
+          Text: "default_extended";
+          Style: (FontSize: 13, RenderBold: true, TextColor: #88ff88);
+        }
+      }
+
+      // Buttons row
+      Group {
+        LayoutMode: Center;
+        Anchor: (Top: 8);
+
+        $C.@SecondaryTextButton #closeButton {
+          @Anchor = (Right: 8);
+          Text: "CLOSE";
+          FlexWeight: 1;
+        }
+
+        $C.@SecondaryTextButton #reloadButton {
+          @Anchor = (Right: 8);
+          Text: "RELOAD";
+          FlexWeight: 1;
+        }
+
+        $C.@TextButton #saveButton {
+          Text: "SAVE";
+          FlexWeight: 1;
+        }
+      }
+    }
+  }
+}

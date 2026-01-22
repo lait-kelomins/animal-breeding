@@ -84,30 +84,30 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
             }
         }
 
-        // Bind growth toggle row - clicking it toggles growth on/off
+        // Bind growth toggle row - use growthStatus text to identify this action
         events.addEventBinding(CustomUIEventBindingType.Activating, "#growthToggleRow",
             new EventData()
-                .append("@action", "toggleGrowth")
+                .append("@action", "#growthStatus.Text")
                 .append("@growthTime", "#growthTimeInput.Value")
                 .append("@cooldown", "#cooldownInput.Value"));
 
-        // Bind save button
+        // Bind save button - capture button's own text as action
         events.addEventBinding(CustomUIEventBindingType.Activating, "#saveButton",
             new EventData()
-                .append("@action", "save")
+                .append("@action", "#saveButton.Text")
                 .append("@growthTime", "#growthTimeInput.Value")
                 .append("@cooldown", "#cooldownInput.Value"));
 
-        // Bind reload button
+        // Bind reload button - capture button's own text as action
         events.addEventBinding(CustomUIEventBindingType.Activating, "#reloadButton",
             new EventData()
-                .append("@action", "reload")
+                .append("@action", "#reloadButton.Text")
                 .append("@growthTime", "#growthTimeInput.Value")
                 .append("@cooldown", "#cooldownInput.Value"));
 
-        // Bind close button
+        // Bind close button - capture button's own text as action
         events.addEventBinding(CustomUIEventBindingType.Activating, "#closeButton",
-            new EventData().append("@action", "close"));
+            new EventData().append("@action", "#closeButton.Text"));
     }
 
     @Override
@@ -129,47 +129,41 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
 
             String action = data.action;
             if (action == null) {
-                action = "close";
+                action = "";
             }
+            action = action.trim().toUpperCase();
 
-            switch (action) {
-                case "toggleGrowth":
-                    // Toggle growth enabled
-                    boolean newState = !config.isGrowthEnabled();
-                    config.setGrowthEnabled(newState);
+            // Check action based on button text values
+            if (action.equals("ON") || action.equals("OFF")) {
+                // Toggle growth enabled (clicked on growth row)
+                boolean newState = !config.isGrowthEnabled();
+                config.setGrowthEnabled(newState);
+                if (player != null) {
+                    player.sendMessage(Message.raw("Baby growth " + (newState ? "enabled" : "disabled")).color(newState ? "#55FF55" : "#FF9900"));
+                }
+                // Refresh the page to show new state
+                reopenPage(player, ref, store);
+                return;
+            } else if (action.equals("SAVE")) {
+                // Parse and save values
+                boolean saved = saveConfigValues(config, data, player);
+                if (saved) {
+                    config.saveToFile();
                     if (player != null) {
-                        player.sendMessage(Message.raw("Baby growth " + (newState ? "enabled" : "disabled")).color(newState ? "#55FF55" : "#FF9900"));
+                        player.sendMessage(Message.raw("Configuration saved!").color("#55FF55"));
                     }
-                    // Refresh the page to show new state
-                    reopenPage(player, ref, store);
-                    return;
-
-                case "save":
-                    // Parse and save values
-                    boolean saved = saveConfigValues(config, data, player);
-                    if (saved) {
-                        config.saveToFile();
-                        if (player != null) {
-                            player.sendMessage(Message.raw("Configuration saved!").color("#55FF55"));
-                        }
-                    }
-                    break;
-
-                case "reload":
-                    // Reload config from file
-                    config.reloadFromFile();
-                    if (player != null) {
-                        player.sendMessage(Message.raw("Configuration reloaded from file.").color("#55FF55"));
-                    }
-                    // Refresh the page to show reloaded values
-                    reopenPage(player, ref, store);
-                    return;
-
-                case "close":
-                default:
-                    // Just close
-                    break;
+                }
+            } else if (action.equals("RELOAD")) {
+                // Reload config from file
+                config.reloadFromFile();
+                if (player != null) {
+                    player.sendMessage(Message.raw("Configuration reloaded from file.").color("#55FF55"));
+                }
+                // Refresh the page to show reloaded values
+                reopenPage(player, ref, store);
+                return;
             }
+            // CLOSE or unknown - just close
 
             closePage(player, ref, store);
 
