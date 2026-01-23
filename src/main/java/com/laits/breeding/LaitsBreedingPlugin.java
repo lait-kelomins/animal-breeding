@@ -120,6 +120,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
     private NewAnimalSpawnDetector spawnDetector;
 
+    // Reusable collections for tickLoveAnimals (avoid allocation per tick)
+    private final java.util.Map<AnimalType, java.util.List<BreedingData>> tickLoveByType = new java.util.HashMap<>();
+    private final java.util.List<Object> tickLoveEntityRefs = new java.util.ArrayList<>();
+
     // Getter for tick scheduler (used by commands)
     public ScheduledExecutorService getTickScheduler() {
         return tickScheduler;
@@ -2495,8 +2499,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         long now = System.currentTimeMillis();
 
         // Single pass: expire love AND collect eligible animals AND group by type
-        java.util.Map<AnimalType, java.util.List<BreedingData>> byType = new java.util.HashMap<>();
-        java.util.List<Object> inLoveEntityRefs = new java.util.ArrayList<>();
+        // Reuse collections to avoid allocation per tick
+        tickLoveByType.values().forEach(java.util.List::clear);
+        tickLoveByType.clear();
+        tickLoveEntityRefs.clear();
         int inLoveCount = 0;
         int inLoveWithRef = 0;
         int inLoveNoRef = 0;
@@ -2511,7 +2517,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                 // Collect entity ref for heart particles (all in-love animals)
                 if (data.getEntityRef() != null) {
-                    inLoveEntityRefs.add(data.getEntityRef());
+                    tickLoveEntityRefs.add(data.getEntityRef());
                     inLoveWithRef++;
                 } else {
                     inLoveNoRef++;
@@ -2519,7 +2525,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                 // Collect if eligible for breeding
                 if (!data.isPregnant() && data.getGrowthStage().canBreed()) {
-                    byType.computeIfAbsent(data.getAnimalType(), k -> new java.util.ArrayList<>()).add(data);
+                    tickLoveByType.computeIfAbsent(data.getAnimalType(), k -> new java.util.ArrayList<>()).add(data);
                     inLoveCount++;
                 }
             }
@@ -2529,7 +2535,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         breedingManager.tickCustomAnimalLove(); // Expire old love modes
         for (BreedingManager.CustomAnimalLoveData customData : breedingManager.getCustomAnimalsInLove()) {
             if (customData.getEntityRef() != null) {
-                inLoveEntityRefs.add(customData.getEntityRef());
+                tickLoveEntityRefs.add(customData.getEntityRef());
                 inLoveWithRef++;
             } else {
                 inLoveNoRef++;
@@ -2544,20 +2550,21 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         }
 
         // Spawn heart particles for all animals in love (runs every 1 second)
-        if (!inLoveEntityRefs.isEmpty()) {
+        if (!tickLoveEntityRefs.isEmpty()) {
             World world = Universe.get().getDefaultWorld();
             if (world != null) {
-                final int refCount = inLoveEntityRefs.size();
+                // Copy refs for async execution (list will be cleared on next tick)
+                final java.util.List<Object> refsSnapshot = new java.util.ArrayList<>(tickLoveEntityRefs);
                 world.execute(() -> {
                     try {
                         Store<EntityStore> store = world.getEntityStore().getStore();
                         int spawned = 0;
-                        for (Object entityRef : inLoveEntityRefs) {
+                        for (Object entityRef : refsSnapshot) {
                             spawnHeartParticlesAtRef(store, entityRef);
                             spawned++;
                         }
                         if (verboseLogging) getLogger().atInfo()
-                                .log("[Hearts] Spawned particles for " + spawned + "/" + refCount + " entities");
+                                .log("[Hearts] Spawned particles for " + spawned + "/" + refsSnapshot.size() + " entities");
                     } catch (Exception e) {
                         getLogger().atWarning().log("[Hearts] Error spawning: " + e.getMessage());
                     }
@@ -2575,7 +2582,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             return;
 
         // For each type with 2+ animals in love, check distance and breed if close
-        for (java.util.Map.Entry<AnimalType, java.util.List<BreedingData>> entry : byType.entrySet()) {
+        for (java.util.Map.Entry<AnimalType, java.util.List<BreedingData>> entry : tickLoveByType.entrySet()) {
             java.util.List<BreedingData> animalsOfType = entry.getValue();
             if (animalsOfType.size() < 2)
                 continue;
