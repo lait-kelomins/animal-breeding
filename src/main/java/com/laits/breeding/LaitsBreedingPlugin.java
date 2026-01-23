@@ -57,7 +57,6 @@ import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
 import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.GrowthManager;
 import com.laits.breeding.managers.TamingManager;
-import com.laits.breeding.managers.PersistenceManager;
 import com.laits.breeding.models.TamedAnimalData;
 import com.laits.breeding.listeners.UseBlockHandler;
 import com.laits.breeding.listeners.LaitDamageDisabler;
@@ -110,7 +109,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private BreedingManager breedingManager;
     private GrowthManager growthManager;
     private TamingManager tamingManager;
-    private PersistenceManager persistenceManager;
     private ScheduledExecutorService tickScheduler;
     private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
     private NewAnimalSpawnDetector spawnDetector;
@@ -580,18 +578,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         breedingManager = new BreedingManager(configManager);
         growthManager = new GrowthManager(configManager, breedingManager);
 
-        // Initialize taming and persistence managers
-        persistenceManager = new PersistenceManager();
-        persistenceManager.setLogger(msg -> { if (verboseLogging) getLogger().atInfo().log("[Taming] " + msg); });
-        persistenceManager.initialize(getDataDirectory());
-
+        // Initialize taming manager
         tamingManager = new TamingManager();
         tamingManager.setLogger(msg -> { if (verboseLogging) getLogger().atInfo().log("[Taming] " + msg); });
-        tamingManager.setPersistenceManager(persistenceManager);
-
-        // Load saved tamed animals
-        java.util.List<TamedAnimalData> savedAnimals = persistenceManager.loadData();
-        tamingManager.loadFromPersistence(savedAnimals);
 
         // Set up growth callback - handle growth stage changes
         growthManager.setOnGrowthCallback(event -> {
@@ -705,13 +694,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 e.printStackTrace();
             }
         }, 1, 1, TimeUnit.SECONDS));
-
-        // Start taming persistence auto-save (every 5 minutes)
-        if (persistenceManager != null && tamingManager != null) {
-            persistenceManager.startAutoSave(tickScheduler,
-                    () -> tamingManager.getAllTamedAnimals(),
-                    5); // 5 minutes
-        }
 
         // Start respawn check tick (every 5 seconds)
         scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
@@ -3812,13 +3794,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
         }
 
-        // Save tamed animal data before shutdown
-        if (persistenceManager != null && tamingManager != null) {
-            getLogger().atInfo().log("[Taming] Saving tamed animals on shutdown...");
-            persistenceManager.stopAutoSave();
-            persistenceManager.forceSave(tamingManager.getAllTamedAnimals());
-        }
-
         // Clear breeding data
         if (breedingManager != null) {
             breedingManager.clearAll();
@@ -3842,10 +3817,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     public TamingManager getTamingManager() {
         return tamingManager;
-    }
-
-    public PersistenceManager getPersistenceManager() {
-        return persistenceManager;
     }
 
     public GrowthManager getGrowthManager() {

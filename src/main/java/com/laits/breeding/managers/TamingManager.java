@@ -37,9 +37,6 @@ public class TamingManager {
     // Timeout for pending entries (5 minutes)
     private static final long PENDING_TIMEOUT_MS = 5 * 60 * 1000;
 
-    // Reference to persistence manager for dirty marking
-    private PersistenceManager persistenceManager;
-
     // Logger
     private Consumer<String> logger;
 
@@ -57,44 +54,6 @@ public class TamingManager {
         if (logger != null) {
             logger.accept(message);
         }
-    }
-
-    /**
-     * Set the persistence manager for dirty marking.
-     */
-    public void setPersistenceManager(PersistenceManager persistenceManager) {
-        this.persistenceManager = persistenceManager;
-    }
-
-    private void markDirty() {
-        if (persistenceManager != null) {
-            persistenceManager.markDirty();
-        }
-    }
-
-    // ===========================================
-    // INITIALIZATION
-    // ===========================================
-
-    /**
-     * Load tamed animals from persistence.
-     * @param savedAnimals List of tamed animal data from save file
-     */
-    public void loadFromPersistence(List<TamedAnimalData> savedAnimals) {
-        tamedAnimals.clear();
-        for (TamedAnimalData data : savedAnimals) {
-            if (data != null && data.getAnimalUuid() != null) {
-                tamedAnimals.put(data.getAnimalUuid(), data);
-            }
-        }
-        log("Loaded " + tamedAnimals.size() + " tamed animals from persistence");
-    }
-
-    /**
-     * Get all tamed animal data for persistence.
-     */
-    public Collection<TamedAnimalData> getAllTamedAnimals() {
-        return new ArrayList<>(tamedAnimals.values());
     }
 
     // ===========================================
@@ -136,7 +95,6 @@ public class TamingManager {
 
         TamedAnimalData data = new TamedAnimalData(animalId, ownerUuid, name, type);
         tamedAnimals.put(animalId, data);
-        markDirty();
 
         log("Tamed animal: " + name + " (" + type + ") owned by " + ownerUuid);
         return data;
@@ -160,7 +118,6 @@ public class TamingManager {
         }
 
         tamedAnimals.remove(animalId);
-        markDirty();
 
         log("Untamed animal: " + data.getCustomName() + " by " + playerUuid);
         return true;
@@ -186,7 +143,6 @@ public class TamingManager {
 
         String oldName = data.getCustomName();
         data.setCustomName(newName);
-        markDirty();
 
         log("Renamed animal: " + oldName + " -> " + newName);
         return true;
@@ -247,7 +203,6 @@ public class TamingManager {
                 data.setAllowInteraction(newState);
             }
         }
-        markDirty();
 
         log("Player " + ownerUuid + " set allowInteraction to " + newState);
         return newState;
@@ -260,8 +215,7 @@ public class TamingManager {
         TamedAnimalData data = tamedAnimals.get(animalId);
         if (data != null) {
             data.setAllowInteraction(allow);
-            markDirty();
-        }
+            }
     }
 
     // ===========================================
@@ -415,8 +369,7 @@ public class TamingManager {
             data.setLastPosition(x, y, z);
             data.setDespawned(true);
             data.setEntityRef(null);
-            markDirty();
-
+    
             log("Tamed animal despawned: " + data.getCustomName() + " at (" +
                 String.format("%.1f, %.1f, %.1f", x, y, z) + ")");
         }
@@ -475,8 +428,7 @@ public class TamingManager {
             data.setDespawned(false);
             data.setEntityRef(entityRef);
             tamedAnimals.put(newUuid, data);
-            markDirty();
-
+    
             log("Respawned tamed animal: " + data.getCustomName() + " (new UUID: " + newUuid + ")");
         }
     }
@@ -567,8 +519,7 @@ public class TamingManager {
         }
 
         if (!toRemove.isEmpty()) {
-            markDirty();
-            log("Cleaned up " + toRemove.size() + " stale tamed animal entries");
+                log("Cleaned up " + toRemove.size() + " stale tamed animal entries");
         }
 
         return toRemove.size();
