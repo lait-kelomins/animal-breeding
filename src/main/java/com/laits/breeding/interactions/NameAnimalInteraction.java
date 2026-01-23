@@ -139,13 +139,6 @@ public class NameAnimalInteraction extends SimpleInteraction {
                     }
                 }
 
-                // Skip babies
-                if (AnimalType.isBabyVariant(modelAssetId)) {
-                    sendPlayerMessage(context, "You can't tame baby animals!", "#FF5555");
-                    shouldFail = true;
-                    return;
-                }
-
                 // Get player info
                 UUID playerUuid = getPlayerUuid(context);
                 String playerName = getPlayerName(context);

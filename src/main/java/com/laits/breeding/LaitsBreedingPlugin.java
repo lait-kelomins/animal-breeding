@@ -91,7 +91,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class LaitsBreedingPlugin extends JavaPlugin {
 
-    public static final String VERSION = "1.3.1";
+    public static final String VERSION = "1.3.2-hotfix";
 
     private static LaitsBreedingPlugin instance;
 
@@ -1355,7 +1355,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         } catch (Exception e) {
             // Entity may have despawned - ignore silently
-            logVerbose(String.format("[StateUpdate] Error updating %s: %s", animalType, e.getMessage()));
+//            logVerbose(String.format("[StateUpdate] Error updating %s: %s", animalType, e.getMessage()));
         }
     }
 
@@ -4974,7 +4974,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
         }
 
-        /** /breedconfig save */
+        /** /breed config save */
         public static class SaveSubCommand extends AbstractCommand {
             public SaveSubCommand() {
                 super("save", "Save current configuration to file");
@@ -5536,7 +5536,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     ctx.sendMessage(Message.raw("Applied preset: ").color("#55FF55")
                             .insert(Message.raw(presetName).color("#FFFFFF")));
                     ctx.sendMessage(Message.raw("Use ").color("#AAAAAA")
-                            .insert(Message.raw("/breedconfig save").color("#FFFFFF"))
+                            .insert(Message.raw("/breed config save").color("#FFFFFF"))
                             .insert(Message.raw(" to persist changes.").color("#AAAAAA")));
                 } else {
                     ctx.sendMessage(Message.raw("Unknown preset: ").color("#FF5555")
@@ -5737,7 +5737,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     .insert(Message.raw("- Toggle enabled").color("#FFFFFF")));
             ctx.sendMessage(Message.raw("/customanimal addfood/removefood <model> <food> ").color("#AAAAAA")
                     .insert(Message.raw("- Modify foods").color("#FFFFFF")));
-            ctx.sendMessage(Message.raw("Use /breedconfig save after changes to persist!").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("Use /breed config save after changes to persist!").color("#FFAA00"));
             return CompletableFuture.completedFuture(null);
         }
 
@@ -5824,7 +5824,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                 ctx.sendMessage(Message.raw("Interactions set up! Feed the creature to breed.").color("#55FF55"));
                 ctx.sendMessage(Message.raw("Use ").color("#AAAAAA")
-                        .insert(Message.raw("/breedconfig save").color("#FFFFFF"))
+                        .insert(Message.raw("/breed config save").color("#FFFFFF"))
                         .insert(Message.raw(" to persist changes.").color("#AAAAAA")));
                 ctx.sendMessage(Message.raw("To set a baby role: ").color("#AAAAAA")
                         .insert(Message.raw("/breed custom setbaby " + modelAssetId + " <babyRole>").color("#FFFF55")));
@@ -6055,7 +6055,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 if (plugin.getConfigManager().removeCustomAnimal(modelId)) {
                     ctx.sendMessage(Message.raw("Removed custom animal: ").color("#55FF55")
                             .insert(Message.raw(modelId).color("#FFFFFF")));
-                    ctx.sendMessage(Message.raw("Use /breedconfig save to persist changes!").color("#FFAA00"));
+                    ctx.sendMessage(Message.raw("Use /breed config save to persist changes!").color("#FFAA00"));
                 } else {
                     ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
                 }

@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.3.2-hotfix - Disable Tamed Animal Persistence
+
+### Changed
+- **Temporarily disabled tamed_animals.json persistence** - Names and taming data will not be saved between server restarts
+  - Existing save files are preserved on disk for future recovery
+  - UI now shows "Feature preview: Name may not be persisted" warning
+- This is a temporary measure while persistence issues are being resolved
+
+---
+
 ## v1.3.2 - Solo Mode Hint Fix & Stability
 
 ### Fixed

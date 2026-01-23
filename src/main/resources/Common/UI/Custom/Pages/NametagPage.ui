@@ -27,8 +27,8 @@ Group {
       // Persistence warning
       Label #persistenceWarning {
         Anchor: (Top: 4);
-        Text: "Name may not be persisted";
-        Style: (FontSize: 10, TextColor: #8b6b5c, Alignment: Center, FontStyle: Italic);
+        Text: "Feature preview: Name may not be persisted";
+        Style: (FontSize: 10, TextColor: #8b6b5c, Alignment: Center);
       }
 
       // Input field
