@@ -7,7 +7,7 @@ Group {
   LayoutMode: Center;
 
   $C.@Container #dialogPanel {
-    Anchor: (Width: 380, Height: 220);
+    Anchor: (Width: 380, Height: 240);
 
     #Title {
       $C.@Title #animalTypeLabel {
@@ -22,6 +22,13 @@ Group {
       Label #subtitleLabel {
         Text: "Enter a name for your companion";
         Style: (FontSize: 12, TextColor: #6b7a8c, Alignment: Center);
+      }
+
+      // Persistence warning
+      Label #persistenceWarning {
+        Anchor: (Top: 4);
+        Text: "Name may not be persisted";
+        Style: (FontSize: 10, TextColor: #8b6b5c, Alignment: Center, FontStyle: Italic);
       }
 
       // Input field
