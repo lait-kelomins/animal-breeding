@@ -139,13 +139,6 @@ public class NameAnimalInteraction extends SimpleInteraction {
                     }
                 }
 
-                // Skip babies
-                if (AnimalType.isBabyVariant(modelAssetId)) {
-                    sendPlayerMessage(context, "You can't tame baby animals!", "#FF5555");
-                    shouldFail = true;
-                    return;
-                }
-
                 // Get player info
                 UUID playerUuid = getPlayerUuid(context);
                 String playerName = getPlayerName(context);
@@ -187,11 +180,14 @@ public class NameAnimalInteraction extends SimpleInteraction {
                     // Determine display name for UI title
                     String animalDisplayName = animalType != null ? animalType.name() : modelAssetId;
 
+                    // Get existing name if renaming
+                    String existingName = existingTamed != null ? existingTamed.getCustomName() : null;
+
                     // Create and open the nametag UI
                     Ref<EntityStore> playerEntityRef = context.getEntity();
                     Store<EntityStore> store = playerEntityRef.getStore();
 
-                    NametagUIPage nametagPage = new NametagUIPage(playerRef, targetRef, playerUuid, animalDisplayName);
+                    NametagUIPage nametagPage = new NametagUIPage(playerRef, targetRef, playerUuid, animalDisplayName, existingName);
                     player.getPageManager().openCustomPage(playerEntityRef, store, nametagPage);
 
                     log("Opened nametag UI for " + modelAssetId);

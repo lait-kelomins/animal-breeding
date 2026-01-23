@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  validate:
+    name: Validate Structure
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify required files exist
+        run: |
+          echo "Checking required files..."
+
+          required_files=(
+            "build.gradle"
+            "settings.gradle"
+            "gradlew"
+            "src/main/resources/manifest.json"
+            "src/main/resources/config.json"
+            "src/main/java/com/laits/breeding/LaitsBreedingPlugin.java"
+          )
+
+          missing=0
+          for file in "${required_files[@]}"; do
+            if [ -f "$file" ]; then
+              echo "  [OK] $file"
+            else
+              echo "  [MISSING] $file"
+              missing=$((missing + 1))
+            fi
+          done
+
+          if [ $missing -gt 0 ]; then
+            echo ""
+            echo "ERROR: $missing required file(s) missing"
+            exit 1
+          fi
+
+          echo ""
+          echo "All required files present."
+
+      - name: Verify manifest.json is valid JSON
+        run: |
+          echo "Validating manifest.json..."
+          python3 -m json.tool src/main/resources/manifest.json > /dev/null
+          echo "  [OK] manifest.json is valid JSON"
+
+      - name: Verify config.json is valid JSON
+        run: |
+          echo "Validating config.json..."
+          python3 -m json.tool src/main/resources/config.json > /dev/null
+          echo "  [OK] config.json is valid JSON"
+
+      - name: Check for common issues
+        run: |
+          echo "Checking for common issues..."
+
+          # Check for debug/test code that shouldn't be committed
+          if grep -r "System.out.println" src/main/java --include="*.java" | grep -v "// DEBUG" | head -5; then
+            echo "::warning::Found System.out.println statements (consider using logger)"
+          fi
+
+          # Check for TODO comments
+          todo_count=$(grep -r "TODO" src/main/java --include="*.java" | wc -l)
+          if [ "$todo_count" -gt 0 ]; then
+            echo "::notice::Found $todo_count TODO comment(s) in code"
+          fi
+
+          echo "Structure validation complete."

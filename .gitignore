@@ -29,6 +29,7 @@ docs/
 *.sh
 !gradlew
 !deploy.ps1
+!scripts/*.sh
 
 # Deploy version tracking
 .deploy-version

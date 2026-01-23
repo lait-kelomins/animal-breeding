@@ -57,7 +57,6 @@ import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
 import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.GrowthManager;
 import com.laits.breeding.managers.TamingManager;
-import com.laits.breeding.managers.PersistenceManager;
 import com.laits.breeding.models.TamedAnimalData;
 import com.laits.breeding.listeners.UseBlockHandler;
 import com.laits.breeding.listeners.LaitDamageDisabler;
@@ -92,7 +91,7 @@ import java.util.concurrent.TimeUnit;
  */
 public class LaitsBreedingPlugin extends JavaPlugin {
 
-    public static final String VERSION = "1.3.2";
+    public static final String VERSION = "1.3.2-hotfix";
 
     private static LaitsBreedingPlugin instance;
 
@@ -110,7 +109,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private BreedingManager breedingManager;
     private GrowthManager growthManager;
     private TamingManager tamingManager;
-    private PersistenceManager persistenceManager;
     private ScheduledExecutorService tickScheduler;
     private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
     private NewAnimalSpawnDetector spawnDetector;
@@ -580,18 +578,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         breedingManager = new BreedingManager(configManager);
         growthManager = new GrowthManager(configManager, breedingManager);
 
-        // Initialize taming and persistence managers
-        persistenceManager = new PersistenceManager();
-        persistenceManager.setLogger(msg -> { if (verboseLogging) getLogger().atInfo().log("[Taming] " + msg); });
-        persistenceManager.initialize(getDataDirectory());
-
+        // Initialize taming manager
         tamingManager = new TamingManager();
         tamingManager.setLogger(msg -> { if (verboseLogging) getLogger().atInfo().log("[Taming] " + msg); });
-        tamingManager.setPersistenceManager(persistenceManager);
-
-        // Load saved tamed animals
-        java.util.List<TamedAnimalData> savedAnimals = persistenceManager.loadData();
-        tamingManager.loadFromPersistence(savedAnimals);
 
         // Set up growth callback - handle growth stage changes
         growthManager.setOnGrowthCallback(event -> {
@@ -705,13 +694,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 e.printStackTrace();
             }
         }, 1, 1, TimeUnit.SECONDS));
-
-        // Start taming persistence auto-save (every 5 minutes)
-        if (persistenceManager != null && tamingManager != null) {
-            persistenceManager.startAutoSave(tickScheduler,
-                    () -> tamingManager.getAllTamedAnimals(),
-                    5); // 5 minutes
-        }
 
         // Start respawn check tick (every 5 seconds)
         scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
@@ -1373,7 +1355,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         } catch (Exception e) {
             // Entity may have despawned - ignore silently
-            logVerbose(String.format("[StateUpdate] Error updating %s: %s", animalType, e.getMessage()));
+//            logVerbose(String.format("[StateUpdate] Error updating %s: %s", animalType, e.getMessage()));
         }
     }
 
@@ -3812,13 +3794,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
         }
 
-        // Save tamed animal data before shutdown
-        if (persistenceManager != null && tamingManager != null) {
-            getLogger().atInfo().log("[Taming] Saving tamed animals on shutdown...");
-            persistenceManager.stopAutoSave();
-            persistenceManager.forceSave(tamingManager.getAllTamedAnimals());
-        }
-
         // Clear breeding data
         if (breedingManager != null) {
             breedingManager.clearAll();
@@ -3842,10 +3817,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     public TamingManager getTamingManager() {
         return tamingManager;
-    }
-
-    public PersistenceManager getPersistenceManager() {
-        return persistenceManager;
     }
 
     public GrowthManager getGrowthManager() {
@@ -5003,7 +4974,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
         }
 
-        /** /breedconfig save */
+        /** /breed config save */
         public static class SaveSubCommand extends AbstractCommand {
             public SaveSubCommand() {
                 super("save", "Save current configuration to file");
@@ -5565,7 +5536,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     ctx.sendMessage(Message.raw("Applied preset: ").color("#55FF55")
                             .insert(Message.raw(presetName).color("#FFFFFF")));
                     ctx.sendMessage(Message.raw("Use ").color("#AAAAAA")
-                            .insert(Message.raw("/breedconfig save").color("#FFFFFF"))
+                            .insert(Message.raw("/breed config save").color("#FFFFFF"))
                             .insert(Message.raw(" to persist changes.").color("#AAAAAA")));
                 } else {
                     ctx.sendMessage(Message.raw("Unknown preset: ").color("#FF5555")
@@ -5766,7 +5737,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     .insert(Message.raw("- Toggle enabled").color("#FFFFFF")));
             ctx.sendMessage(Message.raw("/customanimal addfood/removefood <model> <food> ").color("#AAAAAA")
                     .insert(Message.raw("- Modify foods").color("#FFFFFF")));
-            ctx.sendMessage(Message.raw("Use /breedconfig save after changes to persist!").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("Use /breed config save after changes to persist!").color("#FFAA00"));
             return CompletableFuture.completedFuture(null);
         }
 
@@ -5853,7 +5824,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                 ctx.sendMessage(Message.raw("Interactions set up! Feed the creature to breed.").color("#55FF55"));
                 ctx.sendMessage(Message.raw("Use ").color("#AAAAAA")
-                        .insert(Message.raw("/breedconfig save").color("#FFFFFF"))
+                        .insert(Message.raw("/breed config save").color("#FFFFFF"))
                         .insert(Message.raw(" to persist changes.").color("#AAAAAA")));
                 ctx.sendMessage(Message.raw("To set a baby role: ").color("#AAAAAA")
                         .insert(Message.raw("/breed custom setbaby " + modelAssetId + " <babyRole>").color("#FFFF55")));
@@ -6084,7 +6055,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 if (plugin.getConfigManager().removeCustomAnimal(modelId)) {
                     ctx.sendMessage(Message.raw("Removed custom animal: ").color("#55FF55")
                             .insert(Message.raw(modelId).color("#FFFFFF")));
-                    ctx.sendMessage(Message.raw("Use /breedconfig save to persist changes!").color("#FFAA00"));
+                    ctx.sendMessage(Message.raw("Use /breed config save to persist changes!").color("#FFAA00"));
                 } else {
                     ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
                 }

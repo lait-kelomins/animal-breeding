@@ -14,11 +14,15 @@ Thanks for your interest in contributing! This guide will help you get started.
 
 1. Fork and clone the repository
 2. Add `HytaleServer.jar` to the `libs/` folder (not included in repo)
-3. Build the project:
+3. Install git hooks (verifies build before push):
+   ```bash
+   ./scripts/setup-hooks.sh
+   ```
+4. Build the project:
    ```bash
    ./gradlew build -x test
    ```
-4. Copy the JAR from `build/libs/` to your server's `mods/` folder
+5. Copy the JAR from `build/libs/` to your server's `mods/` folder
 
 ## Git Flow Workflow
 
@@ -69,12 +73,34 @@ feature/a   feature/b
    ```
    Then open a PR targeting `develop` on GitHub.
 
-### Commit Messages
+### Commit Messages (Conventional Commits)
 
-Keep them clear and concise:
-- `Add heart particles when animals breed`
-- `Fix horse mounting with food in hand`
-- `Update growth time for rabbits`
+We use [Conventional Commits](https://www.conventionalcommits.org/) format. The commit-msg hook will validate this.
+
+**Format:** `type(scope): description`
+
+| Type | Description |
+|------|-------------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation only |
+| `style` | Formatting, no code change |
+| `refactor` | Code change without feat/fix |
+| `test` | Adding tests |
+| `chore` | Maintenance tasks |
+| `build` | Build system changes |
+| `ci` | CI configuration |
+| `perf` | Performance improvement |
+
+**Examples:**
+```
+feat: add heart particles when animals breed
+fix(breeding): crash when feeding baby animals
+docs: update README with installation steps
+refactor(growth): simplify age calculation logic
+```
+
+The scope (in parentheses) is optional but helpful for larger changes.
 
 ## Code Style
 
