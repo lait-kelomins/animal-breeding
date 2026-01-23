@@ -116,8 +116,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private NewAnimalSpawnDetector spawnDetector;
 
     // Getter for tick scheduler (used by commands)
-    ScheduledExecutorService getTickScheduler() {
+    public ScheduledExecutorService getTickScheduler() {
         return tickScheduler;
+    }
+
+    // Getter for spawn detector (used by commands)
+    public NewAnimalSpawnDetector getSpawnDetector() {
+        return spawnDetector;
     }
 
     // Cached ECS component types for performance
@@ -832,7 +837,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * tested
      * but these events don't fire for natural animal spawns in Hytale.
      */
-    private void attachInteractionsToAnimals() {
+    public void attachInteractionsToAnimals() {
         // Scan when a player connects (entities spawn when chunks load around players)
         // Multiple scans to catch animals as they load
         getEventRegistry().register(PlayerConnectEvent.class, event -> {
@@ -1710,9 +1715,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     /**
      * Automatically set up interactions on all farm animals in all worlds.
-     * Package-private so it can be called from the BreedingScanCommand.
+     * Public so it can be called from command classes.
      */
-    void autoSetupNearbyAnimals() {
+    public void autoSetupNearbyAnimals() {
         if (verboseLogging) getLogger().atInfo().log("[AutoScan] autoSetupNearbyAnimals CALLED");
         try {
             World world = Universe.get().getDefaultWorld();
@@ -2597,7 +2602,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Get UUID for a player entity.
      */
     @SuppressWarnings("unchecked")
-    private UUID getPlayerUuidFromEntity(Player player) {
+    public UUID getPlayerUuidFromEntity(Player player) {
         try {
             Object entityRef = player.getReference();
             if (entityRef != null && entityRef instanceof Ref) {

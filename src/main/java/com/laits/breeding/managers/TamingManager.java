@@ -423,6 +423,17 @@ public class TamingManager {
     }
 
     /**
+     * Handle when a tamed animal dies. Removes from tracking (won't respawn).
+     */
+    public void onTamedAnimalDeath(UUID animalId) {
+        TamedAnimalData data = tamedAnimals.remove(animalId);
+        if (data != null) {
+            markDirty();
+            log("Tamed animal died and was unregistered: " + data.getCustomName());
+        }
+    }
+
+    /**
      * Update position of a tamed animal (called periodically).
      */
     public void updatePosition(UUID animalId, double x, double y, double z) {
