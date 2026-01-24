@@ -17,6 +17,7 @@ build/
 !CHANGELOG.md
 !CONTRIBUTING.md
 !.github/**/*.md
+!todos/**/*.md
 docs/
 !docs/VERSION_BUMP.md
 !docs/PRE_PUBLISH_CHECKLIST.md
