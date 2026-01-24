@@ -1,5 +1,7 @@
 package com.laits.breeding.managers;
 
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.GrowthStage;
@@ -73,6 +75,47 @@ public class BreedingManager {
     }
 
     /**
+     * Find a baby animal by comparing entity refs directly.
+     * This is a fallback when UUID-based lookup fails due to ref instability.
+     * The UUID can change between baby spawn and naming because the Ref object
+     * (store address or index) may differ at each point in time.
+     *
+     * @param ref The entity reference to find
+     * @return The BreedingData for the baby, or null if not found
+     */
+    public BreedingData findBabyByRef(Ref<EntityStore> ref) {
+        if (ref == null) return null;
+
+        for (BreedingData data : breedingDataMap.values()) {
+            if (data.getGrowthStage() != GrowthStage.ADULT) {
+                Object storedRef = data.getEntityRef();
+                if (storedRef != null && refsMatch(ref, storedRef)) {
+                    debug("Found baby by ref match: " + data.getAnimalId());
+                    return data;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Check if two entity refs match by comparing their indices.
+     * Indices are more stable than full ref comparison since store addresses can change.
+     */
+    @SuppressWarnings("unchecked")
+    private boolean refsMatch(Ref<EntityStore> ref1, Object ref2) {
+        if (!(ref2 instanceof Ref)) return false;
+        try {
+            Ref<EntityStore> typedRef2 = (Ref<EntityStore>) ref2;
+            Integer index1 = ref1.getIndex();
+            Integer index2 = typedRef2.getIndex();
+            return index1 != null && index1.equals(index2);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
      * Remove breeding data when an animal is removed from the world.
      * @param animalId The animal's UUID
      */
@@ -86,6 +129,26 @@ public class BreedingManager {
     public void clearAll() {
         breedingDataMap.clear();
         customAnimalsInLove.clear();
+    }
+
+    /**
+     * Get a debug string listing all registered babies (non-adult growth stages).
+     * @return Debug string with baby UUIDs and growth stages
+     */
+    public String getRegisteredBabiesDebug() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Registered babies: ");
+        int count = 0;
+        for (Map.Entry<UUID, BreedingData> entry : breedingDataMap.entrySet()) {
+            if (entry.getValue().getGrowthStage() != GrowthStage.ADULT) {
+                if (count > 0) sb.append(", ");
+                sb.append(entry.getKey().toString().substring(0, 8)).append("...(")
+                  .append(entry.getValue().getGrowthStage()).append(")");
+                count++;
+            }
+        }
+        if (count == 0) sb.append("none");
+        return sb.toString();
     }
 
     /**

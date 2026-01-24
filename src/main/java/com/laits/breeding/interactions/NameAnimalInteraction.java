@@ -139,12 +139,6 @@ public class NameAnimalInteraction extends SimpleInteraction {
                     }
                 }
 
-                // Skip babies
-                if (AnimalType.isBabyVariant(modelAssetId)) {
-                    sendPlayerMessage(context, "You can't tame baby animals!", "#FF5555");
-                    shouldFail = true;
-                    return;
-                }
 
                 // Get player info
                 UUID playerUuid = getPlayerUuid(context);
@@ -202,7 +196,28 @@ public class NameAnimalInteraction extends SimpleInteraction {
                     log("Failed to open nametag UI: " + e.getMessage());
                     // Fallback to random name if UI fails
                     String name = RANDOM_NAMES[random.nextInt(RANDOM_NAMES.length)];
-                    TamedAnimalData tamedData = tamingManager.tameAnimal(animalUuid, playerUuid, name, animalType);
+
+                    // Detect growth stage from BreedingManager or model ID
+                    com.laits.breeding.models.GrowthStage growthStage = com.laits.breeding.models.GrowthStage.ADULT;
+                    BreedingData breedingData = breedingManager.getData(animalUuid);
+                    if (breedingData != null && breedingData.getGrowthStage() != null) {
+                        growthStage = breedingData.getGrowthStage();
+                    } else if (modelAssetId != null) {
+                        // Detect baby from model ID
+                        if (modelAssetId.contains("_Calf") || modelAssetId.contains("_Piglet") ||
+                            modelAssetId.contains("_Chick") || modelAssetId.contains("_Lamb") ||
+                            modelAssetId.contains("_Foal") || modelAssetId.contains("_Bunny")) {
+                            growthStage = com.laits.breeding.models.GrowthStage.BABY;
+                        }
+                    }
+
+                    // Get position for taming
+                    Vector3d pos = getEntityPosition(targetRef);
+                    double x = pos != null ? pos.getX() : 0;
+                    double y = pos != null ? pos.getY() : 0;
+                    double z = pos != null ? pos.getZ() : 0;
+
+                    TamedAnimalData tamedData = tamingManager.tameAnimal(animalUuid, playerUuid, name, animalType, targetRef, x, y, z, growthStage);
                     if (tamedData != null) {
                         consumePlayerHeldItem(context);
                         sendPlayerMessage(context, name + " is now yours!", "#55FF55");
