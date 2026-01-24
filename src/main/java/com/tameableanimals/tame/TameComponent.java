@@ -1,0 +1,60 @@
+package com.tameableanimals.tame;
+
+import com.hypixel.hytale.codec.Codec;
+import com.hypixel.hytale.codec.KeyedCodec;
+import com.hypixel.hytale.codec.builder.BuilderCodec;
+import com.hypixel.hytale.component.Component;
+import com.hypixel.hytale.component.ComponentType;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.tameableanimals.TameableAnimalsPlugin;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.UUID;
+
+public class TameComponent implements Component<EntityStore> {
+    public static final BuilderCodec<TameComponent> CODEC = BuilderCodec.builder(TameComponent.class, TameComponent::new)
+            .append(new KeyedCodec<>("IsTamed", Codec.BOOLEAN), (data, value) -> data.isTamed = value, data -> data.isTamed)
+            .add()
+            .append(new KeyedCodec<>("TamerUUID", Codec.UUID_BINARY), (data, value) -> data.tamerUUID = value, data -> data.tamerUUID)
+            .add()
+            .append(new KeyedCodec<>("TamerName", Codec.STRING), (data, value) -> data.tamerName = value, data -> data.tamerName)
+            .add()
+            .build();
+
+    public static ComponentType<EntityStore, TameComponent> getComponentType() {
+        return TameableAnimalsPlugin.get().getTameComponentType();
+    }
+
+    private Boolean isTamed = false;
+    private UUID tamerUUID = null;
+    private String tamerName = null;
+
+    public boolean isTamed() {
+        return Boolean.TRUE.equals(isTamed);
+    }
+
+    public UUID getTamerUUID() {
+        return tamerUUID;
+    }
+
+    public String getTamerName() {
+        return tamerName;
+    }
+
+    public void setTamed(@Nonnull UUID player, @Nonnull String playerName) {
+        this.isTamed = true;
+        this.tamerUUID = player;
+        this.tamerName = playerName;
+    }
+
+    @Nullable
+    @Override
+    public Component<EntityStore> clone() {
+        TameComponent component = new TameComponent();
+        component.isTamed = this.isTamed;
+        component.tamerUUID = this.tamerUUID;
+        component.tamerName = this.tamerName;
+        return component;
+    }
+}
