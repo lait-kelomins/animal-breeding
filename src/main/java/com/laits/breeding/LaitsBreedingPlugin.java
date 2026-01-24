@@ -723,6 +723,16 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 }
             }, 30, 30, TimeUnit.SECONDS));
 
+            // Periodically scan for untracked babies (every 30 seconds)
+            // This catches babies that slipped through primary detection
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                try {
+                    scanForUntrackedBabies();
+                } catch (Exception e) {
+                    // Silent
+                }
+            }, 30, 30, TimeUnit.SECONDS));
+
         } catch (Exception e) {
             logWarning("NewAnimalSpawnDetector registration failed: " + e.getMessage());
             spawnDetector = null;
@@ -3497,8 +3507,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
             Object entityRef = data.getEntityRef();
             if (entityRef == null) {
-                logWarning("Cannot transform - no entity ref for animal");
-                return;
+                // Attempt to re-acquire entityRef by scanning for matching baby
+                entityRef = tryReacquireBabyRef(animalId, animalType);
+                if (entityRef != null) {
+                    data.setEntityRef(entityRef);
+                    logVerbose("Re-acquired entityRef for baby " + animalType.getId());
+                } else {
+                    logWarning("Cannot transform - no entity ref for animal (re-acquisition failed)");
+                    return;
+                }
             }
 
             World world = Universe.get().getDefaultWorld();
@@ -3669,6 +3686,140 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         } catch (Exception e) {
             logError("Error in transformBabyToAdult: " + e.getMessage());
         }
+    }
+
+    /**
+     * Attempt to re-acquire an entityRef for a baby animal by scanning the world.
+     * Used when the stored entityRef becomes stale (entity unloaded/reloaded).
+     *
+     * @param animalId   The tracked animal's UUID
+     * @param animalType The type of animal (used to determine baby model ID)
+     * @return The entity ref if found, null otherwise
+     */
+    @SuppressWarnings("unchecked")
+    private Ref<EntityStore> tryReacquireBabyRef(UUID animalId, AnimalType animalType) {
+        try {
+            World world = Universe.get().getDefaultWorld();
+            if (world == null) return null;
+
+            String babyModelId = animalType.getBabyModelAssetId();
+            if (babyModelId == null) return null;
+
+            Store<EntityStore> store = world.getEntityStore().getStore();
+
+            // Get all entity refs in the store
+            java.lang.reflect.Method getAllRefs = null;
+            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
+                if (m.getName().equals("getAllRefs") && m.getParameterCount() == 0) {
+                    getAllRefs = m;
+                    break;
+                }
+            }
+            if (getAllRefs == null) return null;
+
+            Iterable<Ref<EntityStore>> refs = (Iterable<Ref<EntityStore>>) getAllRefs.invoke(store);
+
+            for (Ref<EntityStore> ref : refs) {
+                try {
+                    String modelAssetId = getEntityModelAssetId(store, ref);
+                    if (modelAssetId != null && modelAssetId.equalsIgnoreCase(babyModelId)) {
+                        // Found a baby of this type - check if it matches our tracked baby
+                        // Generate UUID the same way we do when registering
+                        UUID candidateId = UUID.nameUUIDFromBytes(ref.toString().getBytes());
+                        if (candidateId.equals(animalId)) {
+                            logVerbose("tryReacquireBabyRef: Found matching baby by UUID");
+                            return ref;
+                        }
+
+                        // Also check via findBabyByRef in case UUID changed
+                        BreedingData foundData = breedingManager.findBabyByRef(ref);
+                        if (foundData != null && foundData.getAnimalId().equals(animalId)) {
+                            logVerbose("tryReacquireBabyRef: Found matching baby by ref comparison");
+                            return ref;
+                        }
+                    }
+                } catch (Exception e) {
+                    // Skip invalid refs
+                }
+            }
+
+            logVerbose("tryReacquireBabyRef: No matching baby found for " + animalType.getId());
+            return null;
+        } catch (Exception e) {
+            logVerbose("tryReacquireBabyRef error: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Scan the world for untracked baby animals and register them.
+     * This is a fallback detection system for babies that slipped through primary registration.
+     *
+     * @return Number of newly registered babies
+     */
+    @SuppressWarnings("unchecked")
+    public int scanForUntrackedBabies() {
+        int registered = 0;
+        try {
+            World world = Universe.get().getDefaultWorld();
+            if (world == null) return 0;
+
+            Store<EntityStore> store = world.getEntityStore().getStore();
+
+            // Get all entity refs in the store
+            java.lang.reflect.Method getAllRefs = null;
+            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
+                if (m.getName().equals("getAllRefs") && m.getParameterCount() == 0) {
+                    getAllRefs = m;
+                    break;
+                }
+            }
+            if (getAllRefs == null) return 0;
+
+            Iterable<Ref<EntityStore>> refs = (Iterable<Ref<EntityStore>>) getAllRefs.invoke(store);
+            java.util.List<BreedingManager.UntrackedBaby> untrackedBabies = new java.util.ArrayList<>();
+
+            for (Ref<EntityStore> ref : refs) {
+                try {
+                    String modelAssetId = getEntityModelAssetId(store, ref);
+                    if (modelAssetId == null) continue;
+
+                    // Check if this is a baby model
+                    if (!AnimalType.isBabyVariant(modelAssetId)) continue;
+
+                    // Get the animal type for this baby
+                    AnimalType animalType = AnimalType.fromModelAssetId(modelAssetId);
+                    if (animalType == null) continue;
+
+                    // Check if already tracked
+                    UUID refUuid = UUID.nameUUIDFromBytes(ref.toString().getBytes());
+                    if (breedingManager.isBabyTracked(ref, refUuid)) continue;
+
+                    // Found an untracked baby
+                    untrackedBabies.add(new BreedingManager.UntrackedBaby(ref, modelAssetId, animalType));
+                } catch (Exception e) {
+                    // Skip invalid refs
+                }
+            }
+
+            // Register all untracked babies
+            for (BreedingManager.UntrackedBaby baby : untrackedBabies) {
+                UUID babyId = UUID.nameUUIDFromBytes(baby.getEntityRef().toString().getBytes());
+                breedingManager.registerBaby(babyId, baby.getAnimalType(), baby.getEntityRef());
+                registered++;
+                logVerbose("[BabyScan] Registered untracked baby: " + baby.getModelAssetId());
+            }
+
+            if (registered > 0 || verboseLogging) {
+                if (registered > 0) {
+                    getLogger().atInfo().log("[BabyScan] Found %d untracked babies, registered all", registered);
+                }
+            }
+
+        } catch (Exception e) {
+            logVerbose("[BabyScan] Error: " + e.getMessage());
+        }
+        return registered;
     }
 
     @Override

@@ -34,6 +34,7 @@ public class BreedCommand extends AbstractCommand {
         addSubCommand(new BreedInfoSubCommand());
         addSubCommand(new BreedSettingsSubCommand());
         addSubCommand(new BreedCustomSubCommand());
+        addSubCommand(new BreedScanSubCommand());
     }
 
     @Override
@@ -67,6 +68,8 @@ public class BreedCommand extends AbstractCommand {
                 .insert(Message.raw(" - Taming settings").color("#AAAAAA")));
         ctx.sendMessage(Message.raw("/breed custom ...").color("#FFFFFF")
                 .insert(Message.raw(" - Manage custom animals").color("#AAAAAA")));
+        ctx.sendMessage(Message.raw("/breed scan").color("#FFFFFF")
+                .insert(Message.raw(" - Scan for untracked babies").color("#AAAAAA")));
         ctx.sendMessage(Message.raw(""));
         ctx.sendMessage(Message.raw("Feed animals their favorite food to breed!").color("#55FF55"));
     }
@@ -300,6 +303,49 @@ public class BreedCommand extends AbstractCommand {
             ctx.sendMessage(Message.raw("Run ").color("#AAAAAA")
                     .insert(Message.raw("/breed custom scan").color("#FFFF55"))
                     .insert(Message.raw(" first to find creature names!").color("#AAAAAA")));
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    // --- Subcommand: scan ---
+    public static class BreedScanSubCommand extends AbstractCommand {
+        public BreedScanSubCommand() {
+            super("scan", "Scan for untracked baby animals");
+        }
+
+        @Override
+        protected CompletableFuture<Void> execute(CommandContext ctx) {
+            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+            if (plugin == null) {
+                ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                return CompletableFuture.completedFuture(null);
+            }
+
+            ctx.sendMessage(Message.raw("Scanning for untracked babies...").color("#AAAAAA"));
+
+            // Run scan on world thread
+            World world = Universe.get().getDefaultWorld();
+            if (world != null) {
+                world.execute(() -> {
+                    int found = plugin.scanForUntrackedBabies();
+                    if (found > 0) {
+                        ctx.sendMessage(Message.raw("Found and registered ").color("#55FF55")
+                                .insert(Message.raw(String.valueOf(found)).color("#FFFFFF"))
+                                .insert(Message.raw(" untracked babies!").color("#55FF55")));
+                    } else {
+                        ctx.sendMessage(Message.raw("No untracked babies found.").color("#AAAAAA"));
+                    }
+
+                    // Also show current baby count
+                    BreedingManager breeding = plugin.getBreedingManager();
+                    int babyCount = breeding.getTrackedBabyUuids().size();
+                    ctx.sendMessage(Message.raw("Total tracked babies: ").color("#AAAAAA")
+                            .insert(Message.raw(String.valueOf(babyCount)).color("#FFFFFF")));
+                });
+            } else {
+                ctx.sendMessage(Message.raw("World not available!").color("#FF5555"));
+            }
+
             return CompletableFuture.completedFuture(null);
         }
     }
