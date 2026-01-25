@@ -6,7 +6,6 @@ import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
-import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.modules.entity.damage.DeathComponent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.systems.NPCSystems.OnDeathSystem;
@@ -22,10 +21,9 @@ import java.util.UUID;
  */
 public class DetectTamedDeath extends OnDeathSystem {
 
+    // Match all entities with DeathComponent (no additional requirements)
     @Nonnull
-    private static final Query<EntityStore> QUERY = Archetype.of(new ComponentType[]{
-            UUIDComponent.getComponentType()
-    });
+    private static final Query<EntityStore> QUERY = Archetype.of(new ComponentType[]{});
 
     public DetectTamedDeath() {
     }
@@ -41,18 +39,10 @@ public class DetectTamedDeath extends OnDeathSystem {
                                   @Nonnull Store<EntityStore> store, @Nonnull CommandBuffer<EntityStore> commandBuffer) {
         log("onComponentAdded called - DeathComponent detected on an entity");
         try {
-            // Get entity UUID
-            UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
-            if (uuidComp == null) {
-                log("No UUIDComponent found on dying entity");
-                return;
-            }
-            UUID entityId = uuidComp.getUuid();
-            if (entityId == null) {
-                log("UUIDComponent has null UUID");
-                return;
-            }
-            log("Dying entity UUID: " + entityId);
+            // Use deterministic UUID from ref - this matches how TamingManager tracks animals
+            // TamingManager uses UUID.nameUUIDFromBytes(entityRef.toString().getBytes())
+            UUID entityId = UUID.nameUUIDFromBytes(ref.toString().getBytes());
+            log("Dying entity deterministic UUID: " + entityId);
 
             // Check if this is a tamed animal
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();

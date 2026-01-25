@@ -34,6 +34,7 @@ import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.CustomAnimalConfig;
 import com.laits.breeding.models.GrowthStage;
 import com.laits.breeding.models.TamedAnimalData;
+import com.laits.breeding.util.EcsReflectionUtil;
 
 import java.lang.reflect.Field;
 import java.util.UUID;
@@ -168,104 +169,12 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     return;
                 }
 
-                // Check for taming: player has pending name tag AND is holding Name Tag item
+                // Check interaction permission for tamed animals
+                // Note: Taming is now handled via NameAnimalInteraction with UI
                 TamingManager tamingManager = plugin.getTamingManager();
                 UUID playerUuid = getPlayerUuid(context);
-                String playerName = getPlayerName(context);
-
-                // Debug logging
-                log("[TamingDebug] playerUuid=" + playerUuid + ", playerName=" + playerName + ", itemId=" + itemId);
-                if (tamingManager != null) {
-                    boolean hasNameTagUuid = playerUuid != null && tamingManager.hasPendingNameTag(playerUuid);
-                    boolean hasNameTagName = playerName != null && tamingManager.hasPendingNameTagByName(playerName);
-                    log("[TamingDebug] hasPendingNameTag(uuid)=" + hasNameTagUuid + ", hasPendingNameTag(name)=" + hasNameTagName);
-                }
 
                 if (tamingManager != null && playerUuid != null) {
-                    // Check for pending untame (check both UUID-based and name-based)
-                    boolean hasPendingUntame = tamingManager.hasPendingUntame(playerUuid) ||
-                            (playerName != null && tamingManager.hasPendingUntameByName(playerName));
-                    if (hasPendingUntame) {
-                        UUID animalUuid = getUuidFromRef(targetRef);
-                        if (tamingManager.untameAnimal(animalUuid, playerUuid)) {
-                            tamingManager.consumePendingUntame(playerUuid);
-                            if (playerName != null) tamingManager.consumePendingUntameByName(playerName);
-                            sendPlayerMessage(context, "Animal released!", "#55FF55");
-                            playTamingSound(targetRef);
-                            // Also clear taming from breeding data
-                            BreedingData bData = breeding.getData(animalUuid);
-                            if (bData != null) {
-                                bData.setTamed(false, null);
-                            }
-                        } else {
-                            tamingManager.consumePendingUntame(playerUuid);
-                            if (playerName != null) tamingManager.consumePendingUntameByName(playerName);
-                            TamedAnimalData tamedData = tamingManager.getTamedData(animalUuid);
-                            if (tamedData != null && !tamedData.isOwnedBy(playerUuid)) {
-                                sendPlayerMessage(context, "This animal belongs to someone else!", "#FF5555");
-                            } else {
-                                sendPlayerMessage(context, "This animal is not tamed.", "#FFAA00");
-                            }
-                        }
-                        shouldFail = true;
-                        return;
-                    }
-
-                    // Check for pending name tag (no item requirement - just /nametag command)
-                    boolean hasPendingNameTag = tamingManager.hasPendingNameTag(playerUuid) ||
-                            (playerName != null && tamingManager.hasPendingNameTagByName(playerName));
-                    if (hasPendingNameTag) {
-                        // Try to get pending name from either source
-                        String pendingName = tamingManager.consumePendingNameTag(playerUuid);
-                        if (pendingName == null && playerName != null) {
-                            pendingName = tamingManager.consumePendingNameTagByName(playerName);
-                        } else if (playerName != null) {
-                            // Also clear name-based if we consumed UUID-based
-                            tamingManager.consumePendingNameTagByName(playerName);
-                        }
-                        UUID animalUuid = getUuidFromRef(targetRef);
-
-                        // Check if already tamed by someone else
-                        TamedAnimalData existingTamed = tamingManager.getTamedData(animalUuid);
-                        if (existingTamed != null && !existingTamed.isOwnedBy(playerUuid)) {
-                            sendPlayerMessage(context, "This animal belongs to " + existingTamed.getOwnerUuid() + "!", "#FF5555");
-                            shouldFail = true;
-                            return;
-                        }
-
-                        // Tame the animal (use animalType if available, otherwise null for custom animals)
-                        TamedAnimalData tamedData = tamingManager.tameAnimal(animalUuid, playerUuid, pendingName, animalType);
-                        if (tamedData != null) {
-                            // Update breeding data too (only for known animal types)
-                            if (animalType != null) {
-                                BreedingData bData = breeding.getOrCreateData(animalUuid, animalType);
-                                bData.setTamed(true, playerUuid);
-                                bData.setCustomName(pendingName);
-                                bData.setEntityRef(targetRef);
-                            }
-
-                            // Update position in tamed data
-                            Vector3d pos = getEntityPosition(targetRef);
-                            if (pos != null) {
-                                tamedData.setLastPosition(pos.getX(), pos.getY(), pos.getZ());
-                            }
-                            tamedData.setEntityRef(targetRef);
-
-                            // Consume name tag item
-                            consumePlayerHeldItem(context);
-
-                            // Feedback
-                            sendPlayerMessage(context, pendingName + " is now yours!", "#55FF55");
-                            playTamingSound(targetRef);
-                            spawnHeartParticles(targetRef);
-
-                            log("Tamed animal: " + pendingName + " (" + animalType + ")");
-                        }
-                        shouldFail = true; // Don't proceed with feeding
-                        return;
-                    }
-
-                    // Check interaction permission for tamed animals
                     UUID animalUuid = getUuidFromRef(targetRef);
                     if (!tamingManager.canPlayerInteract(animalUuid, playerUuid)) {
                         TamedAnimalData tamedData = tamingManager.getTamedData(animalUuid);
@@ -683,7 +592,11 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     (thisPos.getY() + otherPos.getY()) / 2.0,
                     (thisPos.getZ() + otherPos.getZ()) / 2.0
                 );
-                spawnBabyAnimal(animalType, midpoint);
+                // Use plugin's spawnBabyAnimal with parent UUIDs for auto-taming
+                LaitsBreedingPlugin pluginInstance = LaitsBreedingPlugin.getInstance();
+                if (pluginInstance != null) {
+                    pluginInstance.spawnBabyAnimal(animalType, midpoint, animalId, otherId);
+                }
                 return;
             }
         }
@@ -874,116 +787,10 @@ public class FeedAnimalInteraction extends SimpleInteraction {
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
     }
 
-    private void spawnBabyAnimal(AnimalType animalType, Vector3d position) {
-        try {
-            boolean hasBabyVariant = animalType.hasBabyVariant();
-            String roleId = hasBabyVariant ? animalType.getBabyNpcRoleId() : animalType.getAdultNpcRoleId();
-            float initialScale = hasBabyVariant ? 1.0f : animalType.getScaleForStage(GrowthStage.BABY);
-
-            if (roleId == null) return;
-
-            World world = Universe.get().getDefaultWorld();
-            if (world == null) return;
-
-            final String finalRoleId = roleId;
-            final AnimalType finalAnimalType = animalType;
-            final boolean finalHasBabyVariant = hasBabyVariant;
-            final float finalInitialScale = initialScale;
-
-            world.execute(() -> {
-                try {
-                    Store<EntityStore> store = world.getEntityStore().getStore();
-
-                    NPCPlugin npcPlugin = NPCPlugin.get();
-                    int roleIndex = npcPlugin.getIndex(finalRoleId);
-
-                    if (roleIndex < 0) return;
-
-                    Vector3f rotation = new Vector3f(0, 0, 0);
-
-                    // Create scaled model if needed
-                    Model scaledModel = null;
-                    if (!finalHasBabyVariant) {
-                        try {
-                            ModelAsset modelAsset = ModelAsset.getAssetMap().getAsset(finalAnimalType.getModelAssetId());
-                            if (modelAsset != null) {
-                                scaledModel = Model.createScaledModel(modelAsset, finalInitialScale);
-                            }
-                        } catch (Exception e) {
-                            // Silent - will spawn at normal scale
-                        }
-                    }
-
-                    // Use reflection for spawnEntity due to complex signature
-                    for (java.lang.reflect.Method m : NPCPlugin.class.getMethods()) {
-                        if (m.getName().equals("spawnEntity") && m.getParameterCount() == 6) {
-                            Class<?> triConsumerClass = m.getParameterTypes()[5];
-                            Object noOpCallback = java.lang.reflect.Proxy.newProxyInstance(
-                                triConsumerClass.getClassLoader(),
-                                new Class<?>[] { triConsumerClass },
-                                (proxy, method, args) -> null
-                            );
-
-                            Object result = m.invoke(npcPlugin, store, roleIndex, position, rotation, scaledModel, noOpCallback);
-
-                            if (result != null) {
-                                try {
-                                    java.lang.reflect.Method getFirst = result.getClass().getMethod("getFirst");
-                                    @SuppressWarnings("unchecked")
-                                    Ref<EntityStore> entityRef = (Ref<EntityStore>) getFirst.invoke(result);
-
-                                    if (entityRef != null) {
-                                        LaitsBreedingPlugin pluginInstance = LaitsBreedingPlugin.getInstance();
-                                        if (pluginInstance != null) {
-                                            UUID babyId = UUID.randomUUID();
-                                            pluginInstance.getBreedingManager().registerBaby(babyId, finalAnimalType, entityRef);
-                                        }
-                                    }
-                                } catch (Exception e) {
-                                    // Silent
-                                }
-                            }
-                            break;
-                        }
-                    }
-
-                } catch (Exception e) {
-                    // Silent
-                }
-            });
-
-        } catch (Exception e) {
-            // Silent
-        }
-    }
-
     private UUID getUuidFromRef(Ref<EntityStore> ref) {
-        try {
-            // Use ECS UUIDComponent for stable entity identification
-            Store<EntityStore> store = ref.getStore();
-            if (store != null) {
-                UUIDComponent uuidComp = store.getComponent(ref, UUID_TYPE);
-                if (uuidComp != null) {
-                    UUID uuid = uuidComp.getUuid();
-                    if (uuid != null) {
-                        return uuid;
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // Silent - fall through to fallback
-        }
-
-        // Fallback: use ref index if available (stable within session)
-        try {
-            Integer index = ref.getIndex();
-            if (index != null) {
-                return UUID.nameUUIDFromBytes(("entity_ref_" + index).getBytes());
-            }
-        } catch (Exception e) {
-            // Silent
-        }
-        return UUID.nameUUIDFromBytes(ref.toString().getBytes());
+        // Delegate to EcsReflectionUtil for consistent UUID handling across all systems
+        // This uses UUIDComponent first (stable), falling back to ref-based UUID
+        return ref != null ? EcsReflectionUtil.getUuidFromRef(ref) : null;
     }
 
     /**

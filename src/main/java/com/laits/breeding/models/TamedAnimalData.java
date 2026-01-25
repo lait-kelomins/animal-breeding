@@ -28,7 +28,10 @@ public class TamedAnimalData {
 
     // Taming metadata
     private long tamedTime;
-    private boolean isDespawned;       // True if awaiting respawn
+    private boolean isDespawned;       // True if awaiting respawn (chunk unload, etc.)
+    private boolean isDead;            // True if animal died (for future revive mechanic)
+    private long deathTime;            // When animal died
+    private long despawnTime;          // When entity was marked despawned (for cleanup)
     private boolean allowInteraction;  // Whether other players can interact
 
     // Transient (not saved) - runtime entity reference
@@ -169,6 +172,28 @@ public class TamedAnimalData {
 
     public void setDespawned(boolean despawned) {
         isDespawned = despawned;
+        if (despawned) {
+            this.despawnTime = System.currentTimeMillis();
+        }
+    }
+
+    public boolean isDead() {
+        return isDead;
+    }
+
+    public void setDead(boolean dead) {
+        isDead = dead;
+        if (dead) {
+            this.deathTime = System.currentTimeMillis();
+        }
+    }
+
+    public long getDeathTime() {
+        return deathTime;
+    }
+
+    public long getDespawnTime() {
+        return despawnTime;
     }
 
     public boolean isAllowInteraction() {

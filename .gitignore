@@ -49,3 +49,6 @@ laits-animal-breeding-*.jar
 *.class
 /com/
 /temp_class/
+
+# Dev presets (local testing only)
+dev-presets/

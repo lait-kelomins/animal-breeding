@@ -18,10 +18,14 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import com.laits.breeding.LaitsBreedingPlugin;
+import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.TamingManager;
 import com.laits.breeding.models.AnimalType;
+import com.laits.breeding.models.BreedingData;
+import com.laits.breeding.models.GrowthStage;
 import com.laits.breeding.models.TamedAnimalData;
 import com.laits.breeding.util.AnimalNameGenerator;
+import com.laits.breeding.util.EcsReflectionUtil;
 import com.laits.breeding.util.NameplateUtil;
 
 import java.util.List;
@@ -158,9 +162,69 @@ public class NametagUIPage extends InteractiveCustomUIPage<NametagUIPage.Nametag
                                 // Rename existing tamed animal
                                 success = tamingManager.renameAnimal(animalUuid, playerUuid, name);
                             } else {
-                                // Tame new animal
-                                TamedAnimalData tamedData = tamingManager.tameAnimal(animalUuid, playerUuid, name, type);
+                                // Get position for taming
+                                double px = 0, py = 0, pz = 0;
+                                try {
+                                    com.hypixel.hytale.math.vector.Vector3d pos = plugin.getPositionFromRef(targetAnimalRef);
+                                    if (pos != null) {
+                                        px = pos.getX();
+                                        py = pos.getY();
+                                        pz = pos.getZ();
+                                    }
+                                } catch (Exception e) {
+                                    // Silent - position not available
+                                }
+
+                                // Check if animal already has BreedingData (e.g., if it's a baby from breeding)
+                                GrowthStage existingGrowthStage = null;
+                                long existingBirthTime = 0;
+                                BreedingManager breedingManager = plugin.getBreedingManager();
+                                if (breedingManager != null) {
+                                    log("Looking up BreedingData for UUID: " + animalUuid);
+                                    BreedingData existingBreedingData = breedingManager.getData(animalUuid);
+                                    if (existingBreedingData != null) {
+                                        log("BreedingData lookup result: found (growthStage=" + existingBreedingData.getGrowthStage() + ")");
+                                    } else {
+                                        log("BreedingData lookup result: NOT FOUND by UUID");
+                                        log(breedingManager.getRegisteredBabiesDebug());
+
+                                        // UUID lookup failed - try ref-based lookup for babies
+                                        // The UUID can change between baby spawn and naming due to Ref instability
+                                        existingBreedingData = breedingManager.findBabyByRef(targetAnimalRef);
+                                        if (existingBreedingData != null) {
+                                            log("Found baby via ref-based lookup (UUID mismatch resolved)");
+                                            log("Resolved growthStage=" + existingBreedingData.getGrowthStage());
+                                        }
+                                    }
+                                    if (existingBreedingData != null && existingBreedingData.getGrowthStage() != GrowthStage.ADULT) {
+                                        existingGrowthStage = existingBreedingData.getGrowthStage();
+                                        existingBirthTime = existingBreedingData.getBirthTime();
+                                        log("Preserving existing growth stage: " + existingGrowthStage);
+                                    }
+                                }
+
+                                // Also check model asset ID for baby variants (e.g., "_Calf", "_Piglet")
+                                if (existingGrowthStage == null && animalType != null) {
+                                    if (animalType.contains("_Calf") || animalType.contains("_Piglet") ||
+                                        animalType.contains("_Chick") || animalType.contains("_Lamb") ||
+                                        animalType.contains("_Foal") || animalType.contains("_Bunny")) {
+                                        existingGrowthStage = GrowthStage.BABY;
+                                        existingBirthTime = System.currentTimeMillis();
+                                        log("Detected baby from model ID: " + animalType);
+                                    }
+                                }
+
+                                // Tame new animal with position and correct growth stage
+                                GrowthStage stageToUse = existingGrowthStage != null ? existingGrowthStage : GrowthStage.ADULT;
+                                TamedAnimalData tamedData = tamingManager.tameAnimal(animalUuid, playerUuid, name, type, targetAnimalRef, px, py, pz, stageToUse);
                                 success = tamedData != null;
+
+                                // Set birth time if this is a baby
+                                if (success && tamedData != null && existingGrowthStage != null && existingBirthTime > 0) {
+                                    tamedData.setBirthTime(existingBirthTime);
+                                    tamingManager.notifyDataChanged();
+                                    log("Tamed baby with growth stage: " + stageToUse);
+                                }
                             }
 
                             if (success) {
@@ -199,20 +263,10 @@ public class NametagUIPage extends InteractiveCustomUIPage<NametagUIPage.Nametag
     }
 
     private UUID getAnimalUuidFromRef(Ref<EntityStore> animalRef) {
-        try {
-            if (animalRef == null) return null;
-            Store<EntityStore> store = animalRef.getStore();
-            if (store == null) return null;
-
-            var uuidComp = store.getComponent(animalRef,
-                com.hypixel.hytale.server.core.entity.UUIDComponent.getComponentType());
-            if (uuidComp != null && uuidComp.getUuid() != null) {
-                return uuidComp.getUuid();
-            }
-        } catch (Exception e) {
-            // Entity may have despawned
-        }
-        return UUID.nameUUIDFromBytes(animalRef.toString().getBytes());
+        if (animalRef == null) return null;
+        // Delegate to EcsReflectionUtil for consistent UUID handling across all systems
+        // This uses UUIDComponent first (stable), falling back to ref-based UUID
+        return EcsReflectionUtil.getUuidFromRef(animalRef);
     }
 
     private void log(String message) {

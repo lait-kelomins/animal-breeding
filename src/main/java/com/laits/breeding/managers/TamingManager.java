@@ -12,30 +12,12 @@ import java.util.stream.Collectors;
 
 /**
  * Manages taming state for animals.
- * Handles pending name tags, tamed animal tracking, and ownership.
+ * Handles tamed animal tracking and ownership.
  */
 public class TamingManager {
 
     // Tamed animals by their UUID
     private final Map<UUID, TamedAnimalData> tamedAnimals = new ConcurrentHashMap<>();
-
-    // Pending name tags: playerUUID -> name they want to apply
-    private final Map<UUID, String> pendingNameTags = new ConcurrentHashMap<>();
-
-    // Pending name tags by player name (for command thread safety)
-    private final Map<String, String> pendingNameTagsByName = new ConcurrentHashMap<>();
-
-    // Pending untame requests: playerUUID -> true (wants to untame next click)
-    private final Map<UUID, Boolean> pendingUntame = new ConcurrentHashMap<>();
-
-    // Pending untame by player name (for command thread safety)
-    private final Map<String, Boolean> pendingUntameByName = new ConcurrentHashMap<>();
-
-    // Timestamps for pending entries (for timeout-based cleanup)
-    private final Map<Object, Long> pendingTimestamps = new ConcurrentHashMap<>();
-
-    // Timeout for pending entries (5 minutes)
-    private static final long PENDING_TIMEOUT_MS = 5 * 60 * 1000;
 
     // Reference to persistence manager for dirty marking
     private PersistenceManager persistenceManager;
@@ -66,10 +48,41 @@ public class TamingManager {
         this.persistenceManager = persistenceManager;
     }
 
-    private void markDirty() {
+    /**
+     * Mark data as dirty (needs saving).
+     * @param saveImmediately If true, forces an immediate save to disk
+     */
+    private void markDirty(boolean saveImmediately) {
         if (persistenceManager != null) {
-            persistenceManager.markDirty();
+            if (saveImmediately) {
+                persistenceManager.forceSave(getAllTamedAnimals());
+            } else {
+                persistenceManager.markDirty();
+            }
         }
+    }
+
+    /**
+     * Mark data as dirty (will be saved on next auto-save).
+     */
+    private void markDirty() {
+        markDirty(false);
+    }
+
+    /**
+     * Force an immediate save to disk.
+     * Use this for critical data changes that must persist immediately.
+     */
+    public void saveImmediately() {
+        markDirty(true);
+    }
+
+    /**
+     * Notify that tamed animal data has been modified externally.
+     * Call this after modifying TamedAnimalData directly (e.g., copyFromBreedingData).
+     */
+    public void notifyDataChanged() {
+        markDirty(true); // External changes should save immediately
     }
 
     // ===========================================
@@ -84,10 +97,14 @@ public class TamingManager {
         tamedAnimals.clear();
         for (TamedAnimalData data : savedAnimals) {
             if (data != null && data.getAnimalUuid() != null) {
+                // Reset despawned flag on load - the world save has the actual entities
+                // If they're truly gone, EntityRemoveEvent will set isDespawned = true
+                data.setDespawned(false);
+                data.setEntityRef(null); // Will be reattached by animal scan
                 tamedAnimals.put(data.getAnimalUuid(), data);
             }
         }
-        log("Loaded " + tamedAnimals.size() + " tamed animals from persistence");
+        log("Loaded " + tamedAnimals.size() + " tamed animals from persistence (all marked as not despawned)");
     }
 
     /**
@@ -120,25 +137,76 @@ public class TamingManager {
      * @param animalId Entity UUID
      * @param ownerUuid Player UUID who is taming
      * @param name Custom name for the animal
-     * @param type Animal type
+     * @param type Animal type (can be null for custom animals)
      * @return The created TamedAnimalData
      */
     public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type) {
-        if (animalId == null || ownerUuid == null || name == null || type == null) {
+        return tameAnimal(animalId, ownerUuid, name, type, null);
+    }
+
+    /**
+     * Tame an animal with entity reference for position tracking.
+     */
+    public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type, Object entityRef) {
+        return tameAnimal(animalId, ownerUuid, name, type, entityRef, 0, 0, 0);
+    }
+
+    /**
+     * Tame an animal with entity reference and initial position.
+     * Note: type can be null for custom animals (e.g., Mosshorn).
+     */
+    public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type, Object entityRef, double x, double y, double z) {
+        return tameAnimal(animalId, ownerUuid, name, type, entityRef, x, y, z, GrowthStage.ADULT);
+    }
+
+    /**
+     * Tame an animal with entity reference, initial position, and growth stage.
+     * Use this when taming babies to ensure correct growth stage is saved.
+     */
+    public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type, Object entityRef, double x, double y, double z, GrowthStage growthStage) {
+        if (animalId == null || ownerUuid == null || name == null) {
             return null;
         }
 
         // Check if already tamed
         if (tamedAnimals.containsKey(animalId)) {
             log("Animal already tamed: " + animalId);
-            return tamedAnimals.get(animalId);
+            TamedAnimalData existing = tamedAnimals.get(animalId);
+            // Update entityRef if provided and not set
+            if (entityRef != null && existing.getEntityRef() == null) {
+                existing.setEntityRef(entityRef);
+            }
+            // Update position if provided
+            if (x != 0 || y != 0 || z != 0) {
+                existing.setLastPosition(x, y, z);
+            }
+            // Update growth stage if different
+            if (growthStage != null && existing.getGrowthStage() != growthStage) {
+                existing.setGrowthStage(growthStage);
+            }
+            return existing;
         }
 
         TamedAnimalData data = new TamedAnimalData(animalId, ownerUuid, name, type);
+        if (entityRef != null) {
+            data.setEntityRef(entityRef);
+        }
+        // Set initial position if provided
+        if (x != 0 || y != 0 || z != 0) {
+            data.setLastPosition(x, y, z);
+        }
+        // Set growth stage before saving
+        if (growthStage != null) {
+            data.setGrowthStage(growthStage);
+        }
+        if (growthStage == GrowthStage.BABY) {
+            data.setBirthTime(System.currentTimeMillis());
+        }
         tamedAnimals.put(animalId, data);
-        markDirty();
+        markDirty(true); // Save immediately - user action
 
-        log("Tamed animal: " + name + " (" + type + ") owned by " + ownerUuid);
+        log("Tamed animal: " + name + " (" + type + ", " + growthStage + ") at (" +
+            String.format("%.1f, %.1f, %.1f", x, y, z) + ") owned by " + ownerUuid);
         return data;
     }
 
@@ -160,7 +228,7 @@ public class TamingManager {
         }
 
         tamedAnimals.remove(animalId);
-        markDirty();
+        markDirty(true); // Save immediately - user action
 
         log("Untamed animal: " + data.getCustomName() + " by " + playerUuid);
         return true;
@@ -186,7 +254,7 @@ public class TamingManager {
 
         String oldName = data.getCustomName();
         data.setCustomName(newName);
-        markDirty();
+        markDirty(true); // Save immediately - user action
 
         log("Renamed animal: " + oldName + " -> " + newName);
         return true;
@@ -265,143 +333,6 @@ public class TamingManager {
     }
 
     // ===========================================
-    // PENDING NAME TAG METHODS
-    // ===========================================
-
-    /**
-     * Set a pending name tag for a player.
-     * The name will be applied when they right-click an animal.
-     */
-    public void setPendingNameTag(UUID playerUuid, String name) {
-        if (playerUuid != null && name != null) {
-            pendingNameTags.put(playerUuid, name);
-            pendingTimestamps.put(playerUuid, System.currentTimeMillis());
-            log("Set pending name tag for " + playerUuid + ": " + name);
-        }
-    }
-
-    /**
-     * Get the pending name tag for a player without consuming it.
-     */
-    public String getPendingNameTag(UUID playerUuid) {
-        return playerUuid != null ? pendingNameTags.get(playerUuid) : null;
-    }
-
-    /**
-     * Get and remove the pending name tag for a player.
-     */
-    public String consumePendingNameTag(UUID playerUuid) {
-        return playerUuid != null ? pendingNameTags.remove(playerUuid) : null;
-    }
-
-    /**
-     * Check if a player has a pending name tag.
-     */
-    public boolean hasPendingNameTag(UUID playerUuid) {
-        return playerUuid != null && pendingNameTags.containsKey(playerUuid);
-    }
-
-    /**
-     * Clear the pending name tag for a player.
-     */
-    public void clearPendingNameTag(UUID playerUuid) {
-        if (playerUuid != null) {
-            pendingNameTags.remove(playerUuid);
-        }
-    }
-
-    // --- Name-based methods (for command thread safety) ---
-
-    /**
-     * Set a pending name tag for a player by their display name.
-     * Use this from commands where UUID is not accessible.
-     */
-    public void setPendingNameTagByName(String playerName, String name) {
-        if (playerName != null && name != null) {
-            String key = playerName.toLowerCase();
-            pendingNameTagsByName.put(key, name);
-            pendingTimestamps.put("name:" + key, System.currentTimeMillis());
-            log("Set pending name tag for " + playerName + ": " + name);
-        }
-    }
-
-    /**
-     * Get the pending name tag for a player by display name.
-     */
-    public String getPendingNameTagByName(String playerName) {
-        return playerName != null ? pendingNameTagsByName.get(playerName.toLowerCase()) : null;
-    }
-
-    /**
-     * Get and remove the pending name tag for a player by display name.
-     */
-    public String consumePendingNameTagByName(String playerName) {
-        return playerName != null ? pendingNameTagsByName.remove(playerName.toLowerCase()) : null;
-    }
-
-    /**
-     * Check if a player has a pending name tag by display name.
-     */
-    public boolean hasPendingNameTagByName(String playerName) {
-        return playerName != null && pendingNameTagsByName.containsKey(playerName.toLowerCase());
-    }
-
-    // ===========================================
-    // PENDING UNTAME METHODS
-    // ===========================================
-
-    /**
-     * Set pending untame for a player.
-     */
-    public void setPendingUntame(UUID playerUuid) {
-        if (playerUuid != null) {
-            pendingUntame.put(playerUuid, true);
-            pendingTimestamps.put("untame:" + playerUuid, System.currentTimeMillis());
-        }
-    }
-
-    /**
-     * Check if a player has pending untame.
-     */
-    public boolean hasPendingUntame(UUID playerUuid) {
-        return playerUuid != null && pendingUntame.containsKey(playerUuid);
-    }
-
-    /**
-     * Consume pending untame for a player.
-     */
-    public boolean consumePendingUntame(UUID playerUuid) {
-        return playerUuid != null && pendingUntame.remove(playerUuid) != null;
-    }
-
-    // --- Name-based untame methods (for command thread safety) ---
-
-    /**
-     * Set pending untame for a player by display name.
-     */
-    public void setPendingUntameByName(String playerName) {
-        if (playerName != null) {
-            String key = playerName.toLowerCase();
-            pendingUntameByName.put(key, true);
-            pendingTimestamps.put("untameName:" + key, System.currentTimeMillis());
-        }
-    }
-
-    /**
-     * Check if a player has pending untame by display name.
-     */
-    public boolean hasPendingUntameByName(String playerName) {
-        return playerName != null && pendingUntameByName.containsKey(playerName.toLowerCase());
-    }
-
-    /**
-     * Consume pending untame for a player by display name.
-     */
-    public boolean consumePendingUntameByName(String playerName) {
-        return playerName != null && pendingUntameByName.remove(playerName.toLowerCase()) != null;
-    }
-
-    // ===========================================
     // ENTITY LIFECYCLE
     // ===========================================
 
@@ -423,13 +354,15 @@ public class TamingManager {
     }
 
     /**
-     * Handle when a tamed animal dies. Removes from tracking (won't respawn).
+     * Handle when a tamed animal dies. Marks as dead (won't respawn, but kept for record).
      */
     public void onTamedAnimalDeath(UUID animalId) {
-        TamedAnimalData data = tamedAnimals.remove(animalId);
+        TamedAnimalData data = tamedAnimals.get(animalId);
         if (data != null) {
-            markDirty();
-            log("Tamed animal died and was unregistered: " + data.getCustomName());
+            data.setDead(true);
+            data.setEntityRef(null);
+            markDirty(true); // Save immediately - death is critical data
+            log("Tamed animal died: " + data.getCustomName() + " (marked as dead, not removed)");
         }
     }
 
@@ -465,6 +398,7 @@ public class TamingManager {
         double radiusSq = radius * radius;
         return tamedAnimals.values().stream()
                 .filter(TamedAnimalData::isDespawned)
+                .filter(data -> !data.isDead()) // Dead animals don't respawn
                 .filter(data -> {
                     double dx = data.getLastX() - x;
                     double dz = data.getLastZ() - z;
@@ -585,78 +519,4 @@ public class TamingManager {
         return toRemove.size();
     }
 
-    /**
-     * Clean up expired pending entries (name tags and untame requests).
-     * Entries expire after PENDING_TIMEOUT_MS (5 minutes).
-     * @return Number of expired entries removed
-     */
-    public int cleanupExpiredPending() {
-        long now = System.currentTimeMillis();
-        int removed = 0;
-
-        // Clean up pendingNameTags
-        Iterator<Map.Entry<UUID, String>> nameTagIt = pendingNameTags.entrySet().iterator();
-        while (nameTagIt.hasNext()) {
-            UUID key = nameTagIt.next().getKey();
-            Long timestamp = pendingTimestamps.get(key);
-            if (timestamp != null && (now - timestamp) > PENDING_TIMEOUT_MS) {
-                nameTagIt.remove();
-                pendingTimestamps.remove(key);
-                removed++;
-            }
-        }
-
-        // Clean up pendingNameTagsByName
-        Iterator<Map.Entry<String, String>> nameTagByNameIt = pendingNameTagsByName.entrySet().iterator();
-        while (nameTagByNameIt.hasNext()) {
-            String key = nameTagByNameIt.next().getKey();
-            Long timestamp = pendingTimestamps.get("name:" + key);
-            if (timestamp != null && (now - timestamp) > PENDING_TIMEOUT_MS) {
-                nameTagByNameIt.remove();
-                pendingTimestamps.remove("name:" + key);
-                removed++;
-            }
-        }
-
-        // Clean up pendingUntame
-        Iterator<Map.Entry<UUID, Boolean>> untameIt = pendingUntame.entrySet().iterator();
-        while (untameIt.hasNext()) {
-            UUID key = untameIt.next().getKey();
-            Long timestamp = pendingTimestamps.get("untame:" + key);
-            if (timestamp != null && (now - timestamp) > PENDING_TIMEOUT_MS) {
-                untameIt.remove();
-                pendingTimestamps.remove("untame:" + key);
-                removed++;
-            }
-        }
-
-        // Clean up pendingUntameByName
-        Iterator<Map.Entry<String, Boolean>> untameByNameIt = pendingUntameByName.entrySet().iterator();
-        while (untameByNameIt.hasNext()) {
-            String key = untameByNameIt.next().getKey();
-            Long timestamp = pendingTimestamps.get("untameName:" + key);
-            if (timestamp != null && (now - timestamp) > PENDING_TIMEOUT_MS) {
-                untameByNameIt.remove();
-                pendingTimestamps.remove("untameName:" + key);
-                removed++;
-            }
-        }
-
-        // Clean up orphaned timestamps
-        pendingTimestamps.entrySet().removeIf(e -> (now - e.getValue()) > PENDING_TIMEOUT_MS);
-
-        if (removed > 0) {
-            log("Cleaned up " + removed + " expired pending taming entries");
-        }
-
-        return removed;
-    }
-
-    /**
-     * Get count of pending entries (for debugging).
-     */
-    public int getPendingCount() {
-        return pendingNameTags.size() + pendingNameTagsByName.size() +
-               pendingUntame.size() + pendingUntameByName.size();
-    }
 }

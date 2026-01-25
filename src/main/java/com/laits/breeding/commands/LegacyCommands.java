@@ -491,11 +491,8 @@ public class LegacyCommands {
             // Taming manager caches
             if (plugin.getTamingManager() != null) {
                 int tamedCount = plugin.getTamingManager().getTamedCount();
-                int pendingCount = plugin.getTamingManager().getPendingCount();
                 ctx.sendMessage(Message.raw("  tamedAnimals: ").color("#AAAAAA")
                         .insert(Message.raw(String.valueOf(tamedCount)).color("#FFFFFF")));
-                ctx.sendMessage(Message.raw("  pendingEntries: ").color("#AAAAAA")
-                        .insert(Message.raw(String.valueOf(pendingCount)).color("#FFFFFF")));
             } else {
                 ctx.sendMessage(Message.raw("  tamedAnimals: ").color("#AAAAAA")
                         .insert(Message.raw("N/A").color("#FF5555")));
@@ -508,126 +505,43 @@ public class LegacyCommands {
     }
 
     /**
-     * Set a pending name tag for taming an animal.
-     * Usage: /nametag <name>
-     * Then right-click an animal while holding a Name Tag item to apply.
+     * [DEPRECATED] Name tag command - replaced by Name Tag item with UI.
+     * Usage: Use a Name Tag item on an animal to open the naming UI.
      */
     public static class NameTagCommand extends AbstractCommand {
         private final RequiredArg<String> nameArg;
 
         public NameTagCommand() {
-            super("nametag", "[Deprecated] Name and tame an animal - Use /breed tame instead");
+            super("nametag", "[Deprecated] Use Name Tag item on animal instead");
             nameArg = withRequiredArg("name", "Name for the animal", ArgTypes.STRING);
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
-            ctx.sendMessage(Message.raw("[Deprecated] Use /breed tame <name> instead").color("#FFAA00"));
-
-            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-            if (plugin == null || plugin.getTamingManager() == null) {
-                ctx.sendMessage(Message.raw("Taming system not initialized!").color("#FF5555"));
-                return CompletableFuture.completedFuture(null);
-            }
-
-            String name = ctx.get(nameArg);
-
-            // Validate name length
-            if (name.length() > 32) {
-                ctx.sendMessage(Message.raw("Name too long (max 32 characters)").color("#FF5555"));
-                return CompletableFuture.completedFuture(null);
-            }
-
-            // Get player from context
-            if (!ctx.isPlayer()) {
-                ctx.sendMessage(Message.raw("This command can only be used by players").color("#FF5555"));
-                return CompletableFuture.completedFuture(null);
-            }
-
-            Player player = (Player) ctx.sender();
-            if (player == null) {
-                ctx.sendMessage(Message.raw("Could not identify player").color("#FF5555"));
-                return CompletableFuture.completedFuture(null);
-            }
-
-            // Schedule UUID lookup on world thread and store pending name tag
-            World world = Universe.get().getDefaultWorld();
-
-            if (world != null) {
-                final String pendingName = name;
-                final Player finalPlayer = player;
-                world.execute(() -> {
-                    try {
-                        UUID playerUuid = plugin.getPlayerUuidFromEntity(finalPlayer);
-                        if (playerUuid != null) {
-                            plugin.getTamingManager().setPendingNameTag(playerUuid, pendingName);
-                        }
-                    } catch (Exception e) {
-                        // Silent
-                    }
-                });
-            }
-
-            // Also store by player name as fallback (thread-safe)
-            String playerName = player.getDisplayName();
-            if (playerName != null) {
-                plugin.getTamingManager().setPendingNameTagByName(playerName, name);
-            }
-
-            ctx.sendMessage(Message.raw("Name tag ready: ").color("#AAAAAA")
-                    .insert(Message.raw(name).color("#55FF55")));
-            ctx.sendMessage(Message.raw("Press F on an animal to tame it with this name.").color("#AAAAAA"));
-
+            ctx.sendMessage(Message.raw("[Deprecated] This command has been replaced.").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("To tame an animal:").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw("  1. Hold a Name Tag item").color("#FFFFFF"));
+            ctx.sendMessage(Message.raw("  2. Press F on an animal").color("#FFFFFF"));
+            ctx.sendMessage(Message.raw("  3. Enter a name in the UI").color("#FFFFFF"));
             return CompletableFuture.completedFuture(null);
         }
     }
 
     /**
-     * Release a tamed animal.
-     * Usage: /untame
-     * Then right-click a tamed animal to release it.
+     * [DEPRECATED] Untame command - use /breed untame <name> instead.
      */
     public static class UntameCommand extends AbstractCommand {
 
         public UntameCommand() {
-            super("untame", "[Deprecated] Release a tamed animal - Use /breed untame instead");
+            super("untame", "[Deprecated] Use /breed untame <name> instead");
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
-            ctx.sendMessage(Message.raw("[Deprecated] Use /breed untame instead").color("#FFAA00"));
-
-            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-            if (plugin == null || plugin.getTamingManager() == null) {
-                ctx.sendMessage(Message.raw("Taming system not initialized!").color("#FF5555"));
-                return CompletableFuture.completedFuture(null);
-            }
-
-            // Get player name from context (thread-safe approach)
-            String playerName = getPlayerNameFromContext(ctx);
-            if (playerName == null) {
-                ctx.sendMessage(Message.raw("Could not identify player").color("#FF5555"));
-                return CompletableFuture.completedFuture(null);
-            }
-
-            plugin.getTamingManager().setPendingUntameByName(playerName);
-
-            ctx.sendMessage(Message.raw("Right-click a tamed animal to release it.").color("#FFAA00"));
-            ctx.sendMessage(Message.raw("(You can only untame animals you own.)").color("#AAAAAA"));
-
+            ctx.sendMessage(Message.raw("[Deprecated] This command has been replaced.").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("To release a tamed animal:").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw("  Use: /breed untame <animal-name>").color("#FFFFFF"));
             return CompletableFuture.completedFuture(null);
-        }
-
-        private String getPlayerNameFromContext(CommandContext ctx) {
-            try {
-                if (ctx.isPlayer()) {
-                    Player player = (Player) ctx.sender();
-                    return player != null ? player.getDisplayName() : null;
-                }
-            } catch (Exception e) {
-                // Silent
-            }
-            return null;
         }
     }
 }
