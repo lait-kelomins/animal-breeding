@@ -1,6 +1,8 @@
 package com.laits.breeding.models;
 
 import java.util.UUID;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 /**
  * Data for a tamed animal that persists across sessions.
@@ -35,7 +37,7 @@ public class TamedAnimalData {
     private boolean allowInteraction;  // Whether other players can interact
 
     // Transient (not saved) - runtime entity reference
-    private transient Object entityRef;
+    private transient Ref<EntityStore> entityRef;
 
     /**
      * Default constructor for Gson deserialization.
@@ -206,11 +208,11 @@ public class TamedAnimalData {
 
     // === Entity Reference (Transient) ===
 
-    public Object getEntityRef() {
+    public Ref<EntityStore> getEntityRef() {
         return entityRef;
     }
 
-    public void setEntityRef(Object entityRef) {
+    public void setEntityRef(Ref<EntityStore> entityRef) {
         this.entityRef = entityRef;
     }
 

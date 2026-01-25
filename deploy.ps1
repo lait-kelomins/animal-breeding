@@ -1,9 +1,37 @@
 # deploy.ps1 - Lait's Animal Breeding build and deploy script
 # Builds both default (F key) and experimental (E key) variants
 # Usage: .\deploy.ps1
+#        .\deploy.ps1 -Reset    (clears saved configuration)
 # Interactive mode: Press SPACE to deploy, Q to quit
 
+param(
+    [switch]$Reset
+)
+
 $ErrorActionPreference = "Stop"
+
+# Handle -Reset flag
+if ($Reset) {
+    Write-Host ""
+    Write-Host "Resetting saved configuration..." -ForegroundColor Yellow
+
+    $varsToReset = @("HYTALE_JAVA_HOME", "HYTALE_INSTALL_PATH", "HYTALE_SERVER_PATH")
+
+    foreach ($varName in $varsToReset) {
+        $currentValue = [Environment]::GetEnvironmentVariable($varName, "User")
+        if ($currentValue) {
+            [Environment]::SetEnvironmentVariable($varName, $null, "User")
+            Write-Host "  Cleared: $varName" -ForegroundColor DarkYellow
+        } else {
+            Write-Host "  Not set: $varName" -ForegroundColor DarkGray
+        }
+    }
+
+    Write-Host ""
+    Write-Host "Configuration reset. You will be prompted for values on next run." -ForegroundColor Green
+    Write-Host ""
+    exit 0
+}
 
 # ============================================
 # CONFIGURATION
@@ -168,6 +196,13 @@ function Deploy {
     Copy-Item $defaultJar $defaultDestFile -Force
     Write-Host "DEPLOYED (client): $defaultDestFile" -ForegroundColor Green
 
+    # Deploy to server immediately if default is selected
+    if (-not [string]::IsNullOrWhiteSpace($serverDest) -and $script:serverBuildType -eq "default") {
+        $serverFile = Join-Path $serverDest "$PLUGIN_NAME-$VERSION.jar"
+        Copy-Item $defaultJar $serverFile -Force
+        Write-Host "DEPLOYED (server): $serverFile" -ForegroundColor Green
+    }
+
     Write-Host ""
 
     # ========================================
@@ -193,22 +228,11 @@ function Deploy {
     Copy-Item $expJar $expDestFile -Force
     Write-Host "DEPLOYED (client): $expDestFile" -ForegroundColor Green
 
-    # ========================================
-    # DEPLOY SELECTED VERSION TO SERVER
-    # ========================================
-    if (-not [string]::IsNullOrWhiteSpace($serverDest)) {
-        Write-Host ""
-        Write-Host "Deploying $($script:serverBuildType.ToUpper()) to server..." -ForegroundColor Cyan
-
-        if ($script:serverBuildType -eq "experimental") {
-            $serverFile = Join-Path $serverDest "$PLUGIN_NAME-$VERSION-experimental.jar"
-            Copy-Item $expJar $serverFile -Force
-            Write-Host "DEPLOYED (server): $serverFile" -ForegroundColor Yellow
-        } else {
-            $serverFile = Join-Path $serverDest "$PLUGIN_NAME-$VERSION.jar"
-            Copy-Item $defaultJar $serverFile -Force
-            Write-Host "DEPLOYED (server): $serverFile" -ForegroundColor Green
-        }
+    # Deploy to server immediately if experimental is selected
+    if (-not [string]::IsNullOrWhiteSpace($serverDest) -and $script:serverBuildType -eq "experimental") {
+        $serverFile = Join-Path $serverDest "$PLUGIN_NAME-$VERSION-experimental.jar"
+        Copy-Item $expJar $serverFile -Force
+        Write-Host "DEPLOYED (server): $serverFile" -ForegroundColor Yellow
     }
 
     Write-Host ""

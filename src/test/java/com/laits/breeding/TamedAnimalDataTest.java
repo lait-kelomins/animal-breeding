@@ -1,5 +1,7 @@
 package com.laits.breeding;
 
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.GrowthStage;
@@ -223,7 +225,7 @@ class TamedAnimalDataTest {
         @DisplayName("should store and retrieve entity ref")
         void shouldStoreEntityRef() {
             TamedAnimalData data = new TamedAnimalData();
-            Object mockRef = new Object();
+            Ref<EntityStore> mockRef = new Ref<EntityStore>(null);
 
             data.setEntityRef(mockRef);
 

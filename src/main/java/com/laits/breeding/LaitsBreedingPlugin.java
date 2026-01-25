@@ -37,6 +37,7 @@ import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.component.Holder;
 import com.hypixel.hytale.component.AddReason;
 import com.hypixel.hytale.component.RemoveReason;
@@ -47,10 +48,12 @@ import com.hypixel.hytale.server.core.modules.entity.player.PlayerCreativeSettin
 import com.hypixel.hytale.server.core.modules.entity.player.PlayerSettings;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.RespondToHit;
+import com.hypixel.hytale.server.core.modules.entity.DespawnComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.Interactable;
 import com.hypixel.hytale.server.core.modules.interaction.Interactions;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.npc.NPCPlugin;
+import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
 
@@ -60,6 +63,8 @@ import com.laits.breeding.managers.TamingManager;
 import com.laits.breeding.managers.PersistenceManager;
 import com.laits.breeding.models.TamedAnimalData;
 import com.laits.breeding.listeners.UseBlockHandler;
+import com.laits.breeding.listeners.DetectTamedDeath;
+import com.laits.breeding.listeners.DetectTamedDespawn;
 import com.laits.breeding.listeners.LaitDamageDisabler;
 import com.laits.breeding.listeners.NewAnimalSpawnDetector;
 import com.laits.breeding.interactions.FeedAnimalInteraction;
@@ -73,12 +78,16 @@ import com.laits.breeding.models.OriginalInteractionState;
 import com.laits.breeding.util.ConfigManager;
 import com.laits.breeding.util.AnimalFinder;
 import com.laits.breeding.util.EcsReflectionUtil;
+
+import it.unimi.dsi.fastutil.Pair;
+
 import com.laits.breeding.commands.BreedCommand;
 import com.laits.breeding.commands.BreedingConfigCommand;
 import com.laits.breeding.commands.CustomAnimalCommand;
 import com.laits.breeding.commands.LegacyCommands;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -142,6 +151,38 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private static int useBlockPreCount = 0;
     private static int useBlockPostCount = 0;
 
+    // Track last detected despawn UUIDs for debugging (max 10)
+    private static final java.util.List<UUID> lastDetectedDespawns = java.util.Collections
+            .synchronizedList(new java.util.ArrayList<>());
+    private static final int MAX_DESPAWN_TRACKED = 10;
+
+    /**
+     * Get the last detected despawn UUIDs (most recent first).
+     */
+    public static java.util.List<UUID> getLastDetectedDespawns() {
+        synchronized (lastDetectedDespawns) {
+            return new java.util.ArrayList<>(lastDetectedDespawns);
+        }
+    }
+
+    /**
+     * Clear the tracked despawn UUIDs.
+     */
+    public static void clearTrackedDespawns() {
+        lastDetectedDespawns.clear();
+    }
+
+    private static void trackDetectedDespawn(UUID uuid) {
+        synchronized (lastDetectedDespawns) {
+            // Add at beginning (most recent first)
+            lastDetectedDespawns.add(0, uuid);
+            // Keep only max entries
+            while (lastDetectedDespawns.size() > MAX_DESPAWN_TRACKED) {
+                lastDetectedDespawns.remove(lastDetectedDespawns.size() - 1);
+            }
+        }
+    }
+
     public static int getPlayerReadyCount() {
         return playerReadyCount;
     }
@@ -185,34 +226,45 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         devMode = enabled;
     }
 
-    // Entity-based interaction system - controlled by build variant (see BuildConfig)
-    // When true: Sets "Press [F] to Feed" hints directly on animal entities (Use key)
-    // When false: Uses item-based Ability2 interactions (food templates have Ability2: Root_FeedAnimal)
-    // Value is set at build time via Gradle: buildAbility2 (false) or buildEntityBased (true)
+    // Entity-based interaction system - controlled by build variant (see
+    // BuildConfig)
+    // When true: Sets "Press [F] to Feed" hints directly on animal entities (Use
+    // key)
+    // When false: Uses item-based Ability2 interactions (food templates have
+    // Ability2: Root_FeedAnimal)
+    // Value is set at build time via Gradle: buildAbility2 (false) or
+    // buildEntityBased (true)
     private static final boolean USE_ENTITY_BASED_INTERACTIONS = BuildConfig.USE_ENTITY_BASED_INTERACTIONS;
 
     // Show interaction hints on animals even when using item-based Ability2
-    // When true: Animals show "Press [Ability2] to Feed" hint (but actual feeding is via item)
+    // When true: Animals show "Press [Ability2] to Feed" hint (but actual feeding
+    // is via item)
     // When false: No hints on animals (player must know to use Ability2)
     // Only applies when USE_ENTITY_BASED_INTERACTIONS is false
     private static final boolean SHOW_ABILITY2_HINTS_ON_ENTITIES = true;
 
     // Store original interaction state (ID + hint) before we override them
-    // Used to restore original behavior when feeding doesn't make sense (love mode, cooldown)
-    // Key is entity UUID string (stable across different Ref objects for same entity)
+    // Used to restore original behavior when feeding doesn't make sense (love mode,
+    // cooldown)
+    // Key is entity UUID string (stable across different Ref objects for same
+    // entity)
     private static final Map<String, OriginalInteractionState> originalStates = new ConcurrentHashMap<>();
 
     /**
-     * Check if an entity ref corresponds to a player (prevents treating players with animal models as animals).
-     * COPIED FROM FeedAnimalInteraction.isPlayerEntity() - known working implementation.
+     * Check if an entity ref corresponds to a player (prevents treating players
+     * with animal models as animals).
+     * COPIED FROM FeedAnimalInteraction.isPlayerEntity() - known working
+     * implementation.
      */
     private boolean isPlayerEntity(Ref<EntityStore> ref) {
         try {
             UUID entityUuid = getUuidFromRef(ref);
-            if (entityUuid == null) return false;
+            if (entityUuid == null)
+                return false;
 
             World world = Universe.get().getDefaultWorld();
-            if (world == null) return false;
+            if (world == null)
+                return false;
 
             for (Player player : world.getPlayers()) {
                 UUID playerUuid = getPlayerUuidFromPlayer(player);
@@ -236,7 +288,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     /**
      * Get UUID from a Player entity.
-     * COPIED FROM FeedAnimalInteraction.getPlayerUuidFromPlayer() - known working implementation.
+     * COPIED FROM FeedAnimalInteraction.getPlayerUuidFromPlayer() - known working
+     * implementation.
      */
     @SuppressWarnings("unchecked")
     private UUID getPlayerUuidFromPlayer(Player player) {
@@ -245,7 +298,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             if (entityRef != null && entityRef instanceof Ref) {
                 Store<EntityStore> store = ((Ref<EntityStore>) entityRef).getStore();
                 if (store != null) {
-                    UUIDComponent uuidComp = store.getComponent((Ref<EntityStore>) entityRef, EcsReflectionUtil.UUID_TYPE);
+                    UUIDComponent uuidComp = store.getComponent((Ref<EntityStore>) entityRef,
+                            EcsReflectionUtil.UUID_TYPE);
                     if (uuidComp != null) {
                         return uuidComp.getUuid();
                     }
@@ -258,8 +312,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Get the original interaction ID for an entity (before we set Root_FeedAnimal).
-     * Used by FeedAnimalInteraction to fall back to default behavior (e.g., mounting).
+     * Get the original interaction ID for an entity (before we set
+     * Root_FeedAnimal).
+     * Used by FeedAnimalInteraction to fall back to default behavior (e.g.,
+     * mounting).
      */
     public static String getOriginalInteractionId(Object entityRef) {
         return getOriginalInteractionId(entityRef, null);
@@ -267,8 +323,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     /**
      * Get the original interaction ID for an entity.
-     * Only returns an ID if we actually saved the original interaction when setting up the entity.
-     * Does NOT assume a fallback like "Root_Mount" as it may not exist in all versions.
+     * Only returns an ID if we actually saved the original interaction when setting
+     * up the entity.
+     * Does NOT assume a fallback like "Root_Mount" as it may not exist in all
+     * versions.
      */
     public static String getOriginalInteractionId(Object entityRef, AnimalType animalType) {
         String key = EcsReflectionUtil.getStableEntityKey(entityRef);
@@ -295,7 +353,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     /**
      * Store the original interaction state (ID + hint) for an entity.
-     * ALWAYS stores, even if interactionId is null - that's the correct original state for horses
+     * ALWAYS stores, even if interactionId is null - that's the correct original
+     * state for horses
      * (null Use interaction allows mounting to work via default behavior).
      */
     private static void storeOriginalState(Ref<EntityStore> entityRef, String interactionId, String hint,
@@ -310,7 +369,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Legacy overload for backwards compatibility - stores interaction ID without hint.
+     * Legacy overload for backwards compatibility - stores interaction ID without
+     * hint.
      */
     private static void storeOriginalInteractionId(Ref<EntityStore> entityRef, String interactionId,
             AnimalType animalType) {
@@ -327,6 +387,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     /**
      * Clean up stale entries in originalStates map.
      * Removes index-based keys (ephemeral) and validates UUID-based keys.
+     * 
      * @return Number of entries removed
      */
     private int cleanupStaleOriginalInteractions() {
@@ -340,7 +401,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 it.remove();
                 removed++;
             }
-            // UUID-based keys could be validated, but for simplicity we rely on EntityRemoveEvent
+            // UUID-based keys could be validated, but for simplicity we rely on
+            // EntityRemoveEvent
         }
         return removed;
     }
@@ -477,11 +539,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         getLogger().atInfo().log("=== Lait's Animal Breeding v%s ===", BuildConfig.VERSION);
         getLogger().atInfo().log("Build variant: %s", BuildConfig.VARIANT);
         getLogger().atInfo().log("Feeding mode: %s",
-            USE_ENTITY_BASED_INTERACTIONS ? "Entity-based (F key)" : "Item Ability2 (E key)");
+                USE_ENTITY_BASED_INTERACTIONS ? "Entity-based (F key)" : "Item Ability2 (E key)");
 
         // Initialize config manager and load from file
         configManager = new ConfigManager();
-        configManager.setLogger(msg -> { if (verboseLogging) getLogger().atInfo().log(msg); });
+        configManager.setLogger(msg -> {
+            if (verboseLogging)
+                getLogger().atInfo().log(msg);
+        });
 
         // Load config from plugin's data directory (created automatically by the
         // server)
@@ -493,11 +558,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Initialize taming and persistence managers
         persistenceManager = new PersistenceManager();
-        persistenceManager.setLogger(msg -> { if (verboseLogging) getLogger().atInfo().log("[Taming] " + msg); });
+        persistenceManager.setLogger(msg -> {
+            if (verboseLogging)
+                getLogger().atInfo().log("[Taming] " + msg);
+        });
         persistenceManager.initialize(getDataDirectory());
 
         tamingManager = new TamingManager();
-        tamingManager.setLogger(msg -> { if (verboseLogging) getLogger().atInfo().log("[Taming] " + msg); });
+        tamingManager.setLogger(msg -> {
+            if (verboseLogging)
+                getLogger().atInfo().log("[Taming] " + msg);
+        });
         tamingManager.setPersistenceManager(persistenceManager);
 
         // Load saved tamed animals
@@ -545,15 +616,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         // Register ECS system for block interactions
         try {
             getEntityStoreRegistry().registerSystem(new UseBlockHandler());
-            // TODO: LaitDamageDisabler needs to implement ISystem<EntityStore> - commenting out for now
+            // TODO: LaitDamageDisabler needs to implement ISystem<EntityStore> - commenting
+            // out for now
             // getEntityStoreRegistry().registerSystem(new LaitDamageDisabler());
         } catch (Exception e) {
             // Silent
         }
 
-        // Register death detection for tamed animals
+        // Register death and despawn detection for tamed animals
         try {
-            getEntityStoreRegistry().registerSystem(new com.laits.breeding.listeners.DetectTamedDeath());
+            getEntityStoreRegistry().registerSystem(new DetectTamedDeath());
+            getEntityStoreRegistry().registerSystem(new DetectTamedDespawn());
             logVerbose("DetectTamedDeath system registered");
         } catch (Exception e) {
             logWarning("Failed to register DetectTamedDeath: " + e.getMessage());
@@ -566,15 +639,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Register legacy commands (with deprecation warnings)
         // These are kept for backwards compatibility but show deprecation notices
-        getCommandRegistry().registerCommand(new LegacyCommands.BreedingHelpCommand());      // Use /breed help
-        getCommandRegistry().registerCommand(new LegacyCommands.BreedingStatusCommand());    // Use /breed status
-        getCommandRegistry().registerCommand(new BreedingConfigCommand());    // Use /breed config
-        getCommandRegistry().registerCommand(new LegacyCommands.BreedingGrowthCommand());    // Use /breed growth
-        getCommandRegistry().registerCommand(new LegacyCommands.NameTagCommand());           // Use /breed tame
-        getCommandRegistry().registerCommand(new LegacyCommands.TamingInfoCommand());        // Use /breed info
-        getCommandRegistry().registerCommand(new LegacyCommands.TamingSettingsCommand());    // Use /breed settings
-        getCommandRegistry().registerCommand(new LegacyCommands.UntameCommand());            // Use /breed untame
-        getCommandRegistry().registerCommand(new CustomAnimalCommand());      // Use /breed custom
+        getCommandRegistry().registerCommand(new LegacyCommands.BreedingHelpCommand()); // Use /breed help
+        getCommandRegistry().registerCommand(new LegacyCommands.BreedingStatusCommand()); // Use /breed status
+        getCommandRegistry().registerCommand(new BreedingConfigCommand()); // Use /breed config
+        getCommandRegistry().registerCommand(new LegacyCommands.BreedingGrowthCommand()); // Use /breed growth
+        getCommandRegistry().registerCommand(new LegacyCommands.NameTagCommand()); // Use /breed tame
+        getCommandRegistry().registerCommand(new LegacyCommands.TamingInfoCommand()); // Use /breed info
+        getCommandRegistry().registerCommand(new LegacyCommands.TamingSettingsCommand()); // Use /breed settings
+        getCommandRegistry().registerCommand(new LegacyCommands.UntameCommand()); // Use /breed untame
+        getCommandRegistry().registerCommand(new CustomAnimalCommand()); // Use /breed custom
 
         // Dev/debug commands (no unified equivalent)
         getCommandRegistry().registerCommand(new LegacyCommands.BreedingLogsCommand());
@@ -635,9 +708,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         // Start respawn check tick (every 5 seconds)
         scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
             try {
+                logVerbose("[RespawnCheck] Scheduler tick running...");
                 checkAndRespawnTamedAnimals();
             } catch (Exception e) {
-                // Silent - respawn errors shouldn't crash the plugin
+                getLogger().atWarning().log("[RespawnCheck] Exception in scheduler: " + e.getMessage());
+                e.printStackTrace();
             }
         }, 5, 5, TimeUnit.SECONDS));
 
@@ -690,7 +765,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 }
             }, 5, 5, TimeUnit.MINUTES));
 
-            // Periodically clean up originalStates map (safety net for missed EntityRemoveEvents)
+            // Periodically clean up originalStates map (safety net for missed
+            // EntityRemoveEvents)
             scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
                 try {
                     int removed = cleanupStaleOriginalInteractions();
@@ -718,6 +794,16 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
                 try {
                     updateTamedAnimalPositions();
+                } catch (Exception e) {
+                    // Silent
+                }
+            }, 30, 30, TimeUnit.SECONDS));
+
+            // Periodically scan for untracked babies (every 30 seconds)
+            // This catches babies that slipped through primary detection
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                try {
+                    scanForUntrackedBabies();
                 } catch (Exception e) {
                     // Silent
                 }
@@ -774,8 +860,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }, 5, TimeUnit.SECONDS);
         });
 
-        // Safety net: Periodic scan every 5 minutes (primary detection via NewAnimalSpawnDetector)
-        // Reduced from 30s - real-time detection handles spawns, this is just a fallback
+        // Safety net: Periodic scan every 5 minutes (primary detection via
+        // NewAnimalSpawnDetector)
+        // Reduced from 30s - real-time detection handles spawns, this is just a
+        // fallback
         scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
             try {
                 autoSetupNearbyAnimals();
@@ -910,7 +998,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                     logVerbose("Interactions set up for new animal: " + finalModelAssetId);
                                 } else if (finalCustomAnimal != null) {
                                     setupCustomAnimalInteractions(worldStore, finalEntityRef, finalCustomAnimal);
-                                    if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] Interactions set up for: %s", finalModelAssetId);
+                                    if (verboseLogging)
+                                        getLogger().atInfo().log("[CustomAnimal] Interactions set up for: %s",
+                                                finalModelAssetId);
                                 }
                             } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
                                 // Item-based with hints: Show Ability2 hint on animals
@@ -952,7 +1042,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      */
     private void setupEntityInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef, AnimalType animalType) {
         try {
-            // Skip players (even if they have animal models) - same check as FeedAnimalInteraction
+            // Skip players (even if they have animal models) - same check as
+            // FeedAnimalInteraction
             if (isPlayerEntity(entityRef)) {
                 logVerbose("[SetupInteraction] Skipping player entity with animal model");
                 return;
@@ -965,37 +1056,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 return;
             }
 
-            // Get component types via reflection
-            Object interactableType = EcsReflectionUtil.getInteractableComponentType();
-            Object interactionsType = EcsReflectionUtil.getInteractionsComponentType();
-            if (interactionsType == null) {
-                getLogger().atWarning().log("[SetupInteraction] interactionsType is NULL for %s", animalType);
-                return;
-            }
-
-            // Ensure entity has Interactable component (required for hints to display in solo mode)
-            if (interactableType != null) {
-                try {
-                    java.lang.reflect.Method ensureMethod = store.getClass().getMethod(
-                            "ensureAndGetComponent", Ref.class, ComponentType.class);
-                    ensureMethod.invoke(store, entityRef, interactableType);
-                } catch (Exception e) {
-                    // Silent - component may already exist
-                }
+            // Ensure entity has Interactable component (required for hints to display in
+            // solo mode)
+            try {
+                store.ensureAndGetComponent(entityRef, Interactable.getComponentType());
+            } catch (Exception e) {
+                // Silent - component may already exist
             }
 
             // Check if entity already has Interactions component (real NPCs have this)
             // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
-            java.lang.reflect.Method getCompMethod = null;
-            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
-                if (m.getName().equals("getComponent") && m.getParameterCount() == 2) {
-                    getCompMethod = m;
-                    break;
-                }
-            }
-            if (getCompMethod == null) return;
-
-            Object interactions = getCompMethod.invoke(store, entityRef, interactionsType);
+            Interactions interactions = store.getComponent(entityRef, Interactions.getComponentType());
             if (interactions == null) {
                 // Entity doesn't have Interactions component - not a real NPC, skip
                 logVerbose("[SetupInteraction] Skipping non-NPC entity (no Interactions component)");
@@ -1006,43 +1077,38 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
             // Use reflection for non-public methods - use Class.forName to avoid
             // classloader issues
-            Class<?> interactionTypeClass = Class.forName("com.hypixel.hytale.protocol.InteractionType");
-            Object useType = null;
-            for (Object enumConst : interactionTypeClass.getEnumConstants()) {
+            InteractionType useType = null;
+            for (InteractionType enumConst : InteractionType.class.getEnumConstants()) {
                 if (enumConst.toString().equals("Use")) {
                     useType = enumConst;
                     break;
                 }
             }
 
-            java.lang.reflect.Method getIntId = interactions.getClass().getMethod(
-                    "getInteractionId", interactionTypeClass);
-            String currentUse = (String) getIntId.invoke(interactions, useType);
+            String currentUse = interactions.getInteractionHint();
 
             // Get current hint BEFORE overwriting (for restoration later)
-            java.lang.reflect.Method getHint = interactions.getClass().getMethod("getInteractionHint");
-            String currentHint = (String) getHint.invoke(interactions);
+            String currentHint = interactions.getInteractionHint();
 
             if (currentUse == null || !currentUse.equals(feedInteractionId)) {
                 // Save original interaction ID AND hint for fallback (e.g., horse mounting)
                 storeOriginalState(entityRef, currentUse, currentHint, animalType);
-                if (verboseLogging) getLogger().atInfo().log("[BuiltIn] %s: set interaction to %s (was: %s, hint was: %s)",
-                    animalType, feedInteractionId, currentUse, currentHint);
+                if (verboseLogging)
+                    getLogger().atInfo().log("[BuiltIn] %s: set interaction to %s (was: %s, hint was: %s)",
+                            animalType, feedInteractionId, currentUse, currentHint);
 
-                java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
-                        "setInteractionId", interactionTypeClass, String.class);
-                setIntId.invoke(interactions, useType, feedInteractionId);
+                interactions.setInteractionId(useType, feedInteractionId);
             }
 
-            // ALWAYS set the interaction hint (even if interaction was already set)
-            java.lang.reflect.Method setHint = interactions.getClass().getMethod(
-                    "setInteractionHint", String.class);
             // Use combined hint for mountable animals (Feed / Mount)
             String hintKey = animalType.isMountable()
                     ? "animalbreeding.interactionHints.legacyFeedOrMount"
                     : "animalbreeding.interactionHints.legacyFeed";
-            setHint.invoke(interactions, hintKey);
-            if (verboseLogging) getLogger().atInfo().log("[SetupInteraction] SUCCESS for %s: interactionId=%s, hint=%s", animalType, feedInteractionId, hintKey);
+            // ALWAYS set the interaction hint (even if interaction was already set)
+            interactions.setInteractionHint(hintKey);
+            if (verboseLogging)
+                getLogger().atInfo().log("[SetupInteraction] SUCCESS for %s: interactionId=%s, hint=%s", animalType,
+                        feedInteractionId, hintKey);
 
         } catch (Exception e) {
             getLogger().atWarning().log("[SetupInteraction] ERROR for %s: %s", animalType, e.getMessage());
@@ -1053,11 +1119,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Set up breeding interactions on a custom animal entity (from config).
      * IDENTICAL to setupEntityInteractions - copy-pasted to ensure same behavior.
      */
-    private void setupCustomAnimalInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef, CustomAnimalConfig customAnimal) {
+    private void setupCustomAnimalInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef,
+            CustomAnimalConfig customAnimal) {
         String animalName = customAnimal.getModelAssetId();
-        if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] setupCustomAnimalInteractions CALLED for: %s", animalName);
+        if (verboseLogging)
+            getLogger().atInfo().log("[CustomAnimal] setupCustomAnimalInteractions CALLED for: %s", animalName);
         try {
-            // Skip players (even if they have animal models) - same check as FeedAnimalInteraction
+            // Skip players (even if they have animal models) - same check as
+            // FeedAnimalInteraction
             if (isPlayerEntity(entityRef)) {
                 logVerbose("[CustomAnimal] Skipping player entity with custom animal model: " + animalName);
                 return;
@@ -1070,36 +1139,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 return;
             }
 
-            Object interactableType = EcsReflectionUtil.getInteractableComponentType();
-            Object interactionsType = EcsReflectionUtil.getInteractionsComponentType();
-            if (interactionsType == null) {
-                getLogger().atWarning().log("[CustomAnimal] %s: interactionsType is NULL, aborting", animalName);
-                return;
-            }
-
-            // Ensure entity has Interactable component (required for hints to display in solo mode)
-            if (interactableType != null) {
-                try {
-                    java.lang.reflect.Method ensureMethod = store.getClass().getMethod(
-                            "ensureAndGetComponent", Ref.class, ComponentType.class);
-                    ensureMethod.invoke(store, entityRef, interactableType);
-                } catch (Exception e) {
-                    // Silent - component may already exist
-                }
+            // Ensure entity has Interactable component (required for hints to display in
+            // solo mode)
+            try {
+                store.ensureAndGetComponent(entityRef, Interactable.getComponentType());
+            } catch (Exception e) {
+                // Silent - component may already exist
             }
 
             // Check if entity already has Interactions component (real NPCs have this)
             // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
-            java.lang.reflect.Method getCompMethod = null;
-            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
-                if (m.getName().equals("getComponent") && m.getParameterCount() == 2) {
-                    getCompMethod = m;
-                    break;
-                }
-            }
-            if (getCompMethod == null) return;
-
-            Object interactions = getCompMethod.invoke(store, entityRef, interactionsType);
+            Interactions interactions = store.getComponent(entityRef, Interactions.getComponentType());
             if (interactions == null) {
                 // Entity doesn't have Interactions component - not a real NPC, skip
                 logVerbose("[CustomAnimal] Skipping non-NPC entity (no Interactions component): " + animalName);
@@ -1108,51 +1158,47 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
             String feedInteractionId = "Root_FeedAnimal";
 
-            Class<?> interactionTypeClass = Class.forName("com.hypixel.hytale.protocol.InteractionType");
-            Object useType = null;
-            for (Object enumConst : interactionTypeClass.getEnumConstants()) {
+            InteractionType useType = null;
+            for (InteractionType enumConst : InteractionType.class.getEnumConstants()) {
                 if (enumConst.toString().equals("Use")) {
                     useType = enumConst;
                     break;
                 }
             }
 
-            java.lang.reflect.Method getIntId = interactions.getClass().getMethod(
-                    "getInteractionId", interactionTypeClass);
-            String currentUse = (String) getIntId.invoke(interactions, useType);
+            String currentUse = interactions.getInteractionId(useType);
 
             // Get current hint BEFORE overwriting (for restoration later)
-            java.lang.reflect.Method getHint = interactions.getClass().getMethod("getInteractionHint");
-            String currentHint = (String) getHint.invoke(interactions);
-            if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] %s: currentUse='%s', currentHint='%s', feedInteractionId='%s'",
-                animalName, currentUse, currentHint, feedInteractionId);
+            String currentHint = interactions.getInteractionHint();
+            if (verboseLogging)
+                getLogger().atInfo().log("[CustomAnimal] %s: currentUse='%s', currentHint='%s', feedInteractionId='%s'",
+                        animalName, currentUse, currentHint, feedInteractionId);
 
             if (currentUse == null || !currentUse.equals(feedInteractionId)) {
                 // Store original interaction ID AND hint for fallback
                 storeOriginalState(entityRef, currentUse, currentHint, null);
-                if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] %s: SETTING interaction to %s (was: %s, hint was: %s)",
-                    animalName, feedInteractionId, currentUse, currentHint);
-
-                java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
-                        "setInteractionId", interactionTypeClass, String.class);
+                if (verboseLogging)
+                    getLogger().atInfo().log("[CustomAnimal] %s: SETTING interaction to %s (was: %s, hint was: %s)",
+                            animalName, feedInteractionId, currentUse, currentHint);
 
                 // FIX: Clear the *UseNPC interaction first (set to null like built-in animals)
                 // Built-in animals have null as original interaction, custom NPCs have *UseNPC
                 // The NPC system may intercept *UseNPC before our override takes effect
                 if (currentUse != null && currentUse.startsWith("*")) {
-                    setIntId.invoke(interactions, useType, null);
-                    if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] %s: cleared special interaction '%s' to null", animalName, currentUse);
+                    interactions.setInteractionId(useType, null);
+                    if (verboseLogging)
+                        getLogger().atInfo().log("[CustomAnimal] %s: cleared special interaction '%s' to null",
+                                animalName, currentUse);
                 }
 
                 // Now set our interaction
-                setIntId.invoke(interactions, useType, feedInteractionId);
+                interactions.setInteractionId(useType, feedInteractionId);
             }
 
             // ALWAYS set hint - custom animals use standard feed hint (not mountable)
-            java.lang.reflect.Method setHint = interactions.getClass().getMethod(
-                    "setInteractionHint", String.class);
-            setHint.invoke(interactions, "animalbreeding.interactionHints.legacyFeed");
-            if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] %s: setup complete", animalName);
+            interactions.setInteractionHint("animalbreeding.interactionHints.legacyFeed");
+            if (verboseLogging)
+                getLogger().atInfo().log("[CustomAnimal] %s: setup complete", animalName);
 
         } catch (Exception e) {
             getLogger().atSevere().log("[CustomAnimal] %s: setup error: %s", animalName, e.getMessage());
@@ -1164,14 +1210,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Called periodically to switch between "feed mode" and "original mode".
      *
      * - FEED MODE: Animal can be fed (not in love, not on cooldown)
-     *   Shows "Press F to Feed" or "Press F to Feed / Mount"
+     * Shows "Press F to Feed" or "Press F to Feed / Mount"
      *
      * - ORIGINAL MODE: Feeding doesn't make sense (in love or on cooldown)
-     *   Shows original interaction (e.g., "Press F to Mount" for horses)
+     * Shows original interaction (e.g., "Press F to Mount" for horses)
      *
-     * @param entityRef The entity reference
+     * @param entityRef  The entity reference
      * @param animalType The animal type
-     * @param data The breeding data for this animal
+     * @param data       The breeding data for this animal
      */
     @SuppressWarnings("unchecked")
     private void updateAnimalInteractionState(Ref<EntityStore> entityRef, AnimalType animalType, BreedingData data) {
@@ -1186,7 +1232,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         try {
             Store<EntityStore> store = entityRef.getStore();
-            if (store == null) return;
+            if (store == null)
+                return;
 
             // Determine if we should show feed interaction
             boolean shouldShowFeed = true;
@@ -1202,67 +1249,53 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
 
             // Get interactions component
-            Object interactionsType = EcsReflectionUtil.getInteractionsComponentType();
-            if (interactionsType == null) return;
-
-            java.lang.reflect.Method getCompMethod = null;
-            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
-                if (m.getName().equals("getComponent") && m.getParameterCount() == 2) {
-                    getCompMethod = m;
-                    break;
-                }
-            }
-            if (getCompMethod == null) return;
-
-            Object interactions = getCompMethod.invoke(store, entityRef, interactionsType);
-            if (interactions == null) return;
+            Interactions interactions = store.getComponent(entityRef, Interactions.getComponentType());
+            if (interactions == null)
+                return;
 
             // Get InteractionType.Use enum value
-            Class<?> interactionTypeClass = Class.forName("com.hypixel.hytale.protocol.InteractionType");
-            Object useType = null;
-            for (Object enumConst : interactionTypeClass.getEnumConstants()) {
+            InteractionType useType = null;
+            for (InteractionType enumConst : InteractionType.class.getEnumConstants()) {
                 if (enumConst.toString().equals("Use")) {
                     useType = enumConst;
                     break;
                 }
             }
 
-            java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
-                    "setInteractionId", interactionTypeClass, String.class);
-            java.lang.reflect.Method setHint = interactions.getClass().getMethod(
-                    "setInteractionHint", String.class);
-
             String entityKey = EcsReflectionUtil.getStableEntityKey(entityRef);
 
             if (shouldShowFeed) {
                 // FEED MODE - show feed interaction
-                setIntId.invoke(interactions, useType, "Root_FeedAnimal");
+                interactions.setInteractionId((InteractionType) useType, "Root_FeedAnimal");
                 String hintKey = animalType.isMountable()
                         ? "animalbreeding.interactionHints.legacyFeedOrMount"
                         : "animalbreeding.interactionHints.legacyFeed";
-                setHint.invoke(interactions, hintKey);
+                interactions.setInteractionHint(hintKey);
             } else {
                 // ORIGINAL MODE - restore original interaction if we have it saved
                 OriginalInteractionState original = entityKey != null ? originalStates.get(entityKey) : null;
                 if (original != null) {
-                    // Restore original interaction ID (even if null - that's the correct original state)
+                    // Restore original interaction ID (even if null - that's the correct original
+                    // state)
                     // For horses, original Use interaction is null which allows mounting to work
-                    setIntId.invoke(interactions, useType, original.getInteractionId());
+                    interactions.setInteractionId(useType, original.getInteractionId());
                     if (original.hasHint()) {
-                        setHint.invoke(interactions, original.getHint());
+                        interactions.setInteractionHint(original.getHint());
                     } else {
                         // Clear hint if original had none
-                        setHint.invoke(interactions, (String) null);
+                        interactions.setInteractionHint((String) null);
                     }
-                    // logVerbose(String.format("[StateUpdate] %s: restored original interaction=%s, hint=%s",
-                    //     animalType, original.getInteractionId(), original.getHint()));
+                    // logVerbose(String.format("[StateUpdate] %s: restored original interaction=%s,
+                    // hint=%s",
+                    // animalType, original.getInteractionId(), original.getHint()));
                 }
                 // If we don't have saved state, keep showing feed interaction
             }
 
         } catch (Exception e) {
             // Entity may have despawned - ignore silently
-            // logVerbose(String.format("[StateUpdate] Error updating %s: %s", animalType, e.getMessage()));
+            // logVerbose(String.format("[StateUpdate] Error updating %s: %s", animalType,
+            // e.getMessage()));
         }
     }
 
@@ -1279,7 +1312,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             Object refObj = data.getEntityRef();
             AnimalType animalType = data.getAnimalType();
 
-            if (refObj == null || animalType == null) continue;
+            if (refObj == null || animalType == null)
+                continue;
 
             try {
                 @SuppressWarnings("unchecked")
@@ -1301,40 +1335,22 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     /**
      * Set up Ability2 hint on an entity (for item-based feeding).
-     * This only sets up the hint display - the actual interaction is handled by the item's Ability2.
+     * This only sets up the hint display - the actual interaction is handled by the
+     * item's Ability2.
      * Shows "Press [Ability2 key] to Feed" when player looks at the animal.
      */
     private void setupAbility2HintOnly(Store<EntityStore> store, Ref<EntityStore> entityRef, String hintKey) {
         try {
-            Object interactableType = EcsReflectionUtil.getInteractableComponentType();
-            Object interactionsType = EcsReflectionUtil.getInteractionsComponentType();
-
-            if (interactableType == null || interactionsType == null) {
-                return;
-            }
-
-            java.lang.reflect.Method ensureMethod = store.getClass().getMethod(
-                    "ensureAndGetComponent", Ref.class, ComponentType.class);
-
             // Ensure entity has Interactable component (enables hint display)
             try {
-                ensureMethod.invoke(store, entityRef, interactableType);
+                store.ensureAndGetComponent(entityRef, Interactable.getComponentType());
             } catch (Exception e) {
                 // Silent - may already have component
             }
 
             // Check if entity already has Interactions component (real NPCs have this)
             // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
-            java.lang.reflect.Method getCompMethod = null;
-            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
-                if (m.getName().equals("getComponent") && m.getParameterCount() == 2) {
-                    getCompMethod = m;
-                    break;
-                }
-            }
-            if (getCompMethod == null) return;
-
-            Object interactions = getCompMethod.invoke(store, entityRef, interactionsType);
+            Interactions interactions = store.getComponent(entityRef, Interactions.getComponentType());
             if (interactions == null) {
                 // Entity doesn't have Interactions component - not a real NPC, skip
                 logVerbose("[SetupInteraction] Skipping non-NPC entity (no Interactions component)");
@@ -1342,9 +1358,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
 
             // Get Ability2 enum value
-            Class<?> interactionTypeClass = Class.forName("com.hypixel.hytale.protocol.InteractionType");
-            Object ability2Type = null;
-            for (Object enumConst : interactionTypeClass.getEnumConstants()) {
+            InteractionType ability2Type = null;
+            for (InteractionType enumConst : InteractionType.class.getEnumConstants()) {
                 if (enumConst.toString().equals("Ability2")) {
                     ability2Type = enumConst;
                     break;
@@ -1357,14 +1372,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
 
             // Set interaction for Ability2 (don't touch Use - it breaks other interactions)
-            java.lang.reflect.Method setIntId = interactions.getClass().getMethod(
-                    "setInteractionId", interactionTypeClass, String.class);
-            setIntId.invoke(interactions, ability2Type, "Root_FeedAnimal");
+            interactions.setInteractionId(ability2Type, "Root_FeedAnimal");
 
             // Set the hint (API only supports simple string, no per-type hints)
-            java.lang.reflect.Method setHint = interactions.getClass().getMethod(
-                    "setInteractionHint", String.class);
-            setHint.invoke(interactions, hintKey);
+            interactions.setInteractionHint(hintKey);
             logVerbose("Set up Ability2 hint: " + hintKey);
 
         } catch (Exception e) {
@@ -1375,7 +1386,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     /**
      * Store the original interaction ID for a custom animal entity (for fallback).
      */
-    private void storeOriginalInteractionIdForCustom(Ref<EntityStore> entityRef, String originalId, CustomAnimalConfig customAnimal) {
+    private void storeOriginalInteractionIdForCustom(Ref<EntityStore> entityRef, String originalId,
+            CustomAnimalConfig customAnimal) {
         // Use the same storage mechanism as regular animals
         // Store whatever the original interaction was so we can fall back to it
         String key = EcsReflectionUtil.getStableEntityKey(entityRef);
@@ -1417,6 +1429,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         double x = pos != null ? pos.getX() : 0;
                         double y = pos != null ? pos.getY() : 0;
                         double z = pos != null ? pos.getZ() : 0;
+
+                        // Track despawn for debugging
+                        trackDetectedDespawn(entityId);
 
                         // Mark as despawned but keep data for respawn
                         tamingManager.onTamedAnimalDespawn(entityId, x, y, z);
@@ -1462,19 +1477,23 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Called every 30 seconds to keep positions current for respawning.
      */
     private void updateTamedAnimalPositions() {
-        if (tamingManager == null) return;
+        if (tamingManager == null)
+            return;
 
         World world = Universe.get().getDefaultWorld();
-        if (world == null) return;
+        if (world == null)
+            return;
 
         world.execute(() -> {
             try {
                 int updated = 0;
                 for (TamedAnimalData data : tamingManager.getAllTamedAnimals()) {
-                    if (data == null || data.isDespawned()) continue;
+                    if (data == null || data.isDespawned())
+                        continue;
 
                     Object refObj = data.getEntityRef();
-                    if (refObj == null) continue;
+                    if (refObj == null)
+                        continue;
 
                     @SuppressWarnings("unchecked")
                     Ref<EntityStore> entityRef = (Ref<EntityStore>) refObj;
@@ -1515,21 +1534,35 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Called every 5 seconds by the tick scheduler.
      */
     private void checkAndRespawnTamedAnimals() {
-        if (tamingManager == null) return;
+        if (tamingManager == null) {
+            logVerbose("[RespawnCheck] tamingManager is null");
+            return;
+        }
 
         World world = Universe.get().getDefaultWorld();
-        if (world == null) return;
+        if (world == null) {
+            logVerbose("[RespawnCheck] world is null");
+            return;
+        }
 
         // Must run on world thread to access entity components
         world.execute(() -> {
             double respawnRadius = 64.0; // Configurable in future
 
             try {
+                Collection<TamedAnimalData> allAnimals = tamingManager.getAllTamedAnimals();
+                logVerbose("[RespawnCheck] Tamed animals count: " + allAnimals.size());
+
+                if (allAnimals.isEmpty()) {
+                    return;
+                }
+
                 // Get all players
                 for (Player player : world.getPlayers()) {
                     try {
                         Vector3d playerPos = player.getTransformComponent().getPosition();
-                        if (playerPos == null) continue;
+                        if (playerPos == null)
+                            continue;
 
                         // Find despawned tamed animals near this player
                         java.util.List<TamedAnimalData> toRespawn = tamingManager.getDespawnedAnimalsInRegion(
@@ -1538,12 +1571,64 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         for (TamedAnimalData tamedData : toRespawn) {
                             respawnTamedAnimal(world, tamedData);
                         }
+
+                        for (TamedAnimalData tamedData : allAnimals) {
+                            boolean entityExists = true;
+
+                            // Skip if no entity reference
+                            Ref<EntityStore> tamedRef = tamedData.getEntityRef();
+                            if (tamedRef == null || !tamedRef.isValid()) {
+                                entityExists = false;
+                            }
+
+                            Store<EntityStore> store = world.getEntityStore().getStore();
+                            // if the ref is still valid, check if the entity is despawning
+                            if (entityExists) {
+                                NPCEntity npcEntity = store.getComponent(tamedRef, NPCEntity.getComponentType());
+
+                                if (npcEntity == null || npcEntity.isDespawning()) {
+                                    entityExists = false;
+                                }
+
+                                DespawnComponent despawnComp = store.getComponent(tamedRef,
+                                        DespawnComponent.getComponentType());
+                                if (despawnComp != null) {
+                                    entityExists = false;
+                                }
+                            }
+
+                            getLogger().atInfo().log("Checking tamed entity: " + tamedData.getAnimalUuid()
+                                    + ", exists=" + entityExists);
+                            if (entityExists) {
+                                // Entity is not despawning
+                                return;
+                            } else {
+
+                                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                                if (plugin == null) {
+                                    getLogger().atInfo().log("Plugin instance is null");
+                                    return;
+                                }
+
+                                TamingManager tamingManager = plugin.getTamingManager();
+                                if (tamingManager == null) {
+                                    getLogger().atInfo().log("TamingManager is null");
+                                    return;
+                                }
+
+                                double x = tamedData.getLastX();
+                                double y = tamedData.getLastY();
+                                double z = tamedData.getLastZ();
+                                tamingManager.onTamedAnimalDespawn(tamedData.getAnimalUuid(), x, y, z);
+                            }
+                        }
                     } catch (Exception e) {
-                        // Silent - skip this player
+                        logVerbose("[RespawnCheck] Error processing player: " + e.getMessage());
                     }
                 }
             } catch (Exception e) {
-                // Silent
+                getLogger().atWarning().log("[RespawnCheck] Exception in world.execute: " + e.getMessage());
+                e.printStackTrace();
             }
         });
     }
@@ -1552,16 +1637,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Respawn a tamed animal at its saved position.
      */
     private void respawnTamedAnimal(World world, TamedAnimalData tamedData) {
-        if (tamedData == null || !tamedData.isDespawned()) return;
+        if (tamedData == null || !tamedData.isDespawned())
+            return;
 
         AnimalType animalType = tamedData.getAnimalType();
-        if (animalType == null) return;
+        if (animalType == null)
+            return;
 
         Vector3d spawnPos = new Vector3d(
                 tamedData.getLastX(),
                 tamedData.getLastY() + 0.5, // Slightly above ground
-                tamedData.getLastZ()
-        );
+                tamedData.getLastZ());
 
         final UUID oldUuid = tamedData.getAnimalUuid();
         final AnimalType finalAnimalType = animalType;
@@ -1576,9 +1662,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 if (tamedData.getGrowthStage() == GrowthStage.ADULT || tamedData.getGrowthStage() == null) {
                     roleId = finalAnimalType.getAdultNpcRoleId();
                 } else {
-                    roleId = finalAnimalType.hasBabyVariant() ?
-                            finalAnimalType.getBabyNpcRoleId() :
-                            finalAnimalType.getAdultNpcRoleId();
+                    roleId = finalAnimalType.hasBabyVariant() ? finalAnimalType.getBabyNpcRoleId()
+                            : finalAnimalType.getAdultNpcRoleId();
                 }
 
                 NPCPlugin npcPlugin = NPCPlugin.get();
@@ -1591,56 +1676,50 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 Vector3f rotation = new Vector3f(0, finalTamedData.getLastRotation(), 0);
 
                 // Spawn the entity
-                for (java.lang.reflect.Method m : NPCPlugin.class.getMethods()) {
-                    if (m.getName().equals("spawnEntity") && m.getParameterCount() == 6) {
-                        Class<?> triConsumerClass = m.getParameterTypes()[5];
-                        Object noOpCallback = java.lang.reflect.Proxy.newProxyInstance(
-                                triConsumerClass.getClassLoader(),
-                                new Class<?>[] { triConsumerClass },
-                                (proxy, method, args) -> null
-                        );
+                Pair<Ref<EntityStore>, NPCEntity> newNpc = NPCPlugin.get().spawnEntity(store, roleIndex, spawnPos,
+                        rotation, null, null);
 
-                        Object result = m.invoke(npcPlugin, store, roleIndex, spawnPos, rotation, null, noOpCallback);
+                if (newNpc != null) {
+                    Ref<EntityStore> entityRef = newNpc.first();
 
-                        if (result != null) {
-                            java.lang.reflect.Method getFirst = result.getClass().getMethod("getFirst");
-                            @SuppressWarnings("unchecked")
-                            Ref<EntityStore> entityRef = (Ref<EntityStore>) getFirst.invoke(result);
+                    if (entityRef != null) {
+                        // Get new UUID
+                        UUID newUuid = null;
+                        try {
+                            UUIDComponent uuidComp = store.getComponent(entityRef, EcsReflectionUtil.UUID_TYPE);
 
-                            if (entityRef != null) {
-                                // Get new UUID
-                                UUID newUuid = null;
-                                try {
-                                    UUIDComponent uuidComp = store.getComponent(entityRef, EcsReflectionUtil.UUID_TYPE);
-                                    if (uuidComp != null) {
-                                        newUuid = uuidComp.getUuid();
-                                    }
-                                } catch (Exception e) {
-                                    newUuid = UUID.randomUUID();
-                                }
-
-                                if (newUuid == null) {
-                                    newUuid = UUID.randomUUID();
-                                }
-
-                                // Update taming manager with new UUID and ref
-                                tamingManager.markRespawned(oldUuid, newUuid, entityRef);
-
-                                // Restore breeding data
-                                BreedingData bData = breedingManager.getOrCreateData(newUuid, finalAnimalType);
-                                finalTamedData.applyToBreedingData(bData);
-                                bData.setTamed(true, finalTamedData.getOwnerUuid());
-                                bData.setCustomName(finalTamedData.getCustomName());
-                                bData.setEntityRef(entityRef);
-
-                                // Note: Interaction will be set up by the periodic scan
-                                // This avoids duplicating complex reflection code
-
-                                logVerbose("Respawned tamed animal: " + finalTamedData.getCustomName() +
-                                        " (" + finalAnimalType + ")");
+                            if (uuidComp != null) {
+                                newUuid = uuidComp.getUuid();
                             }
+                        } catch (Exception e) {
+                            newUuid = UUID.randomUUID();
                         }
-                        break;
+
+                        if (newUuid == null) {
+                            newUuid = UUID.randomUUID();
+                        }
+
+                        // Update taming manager with new UUID and ref
+                        tamingManager.markRespawned(oldUuid, newUuid, entityRef);
+
+                        // Restore breeding data
+                        BreedingData bData = breedingManager.getOrCreateData(newUuid, finalAnimalType);
+                        finalTamedData.applyToBreedingData(bData);
+                        bData.setTamed(true, finalTamedData.getOwnerUuid());
+                        bData.setCustomName(finalTamedData.getCustomName());
+                        bData.setEntityRef(entityRef);
+
+                        // Restore nameplate
+                        String customName = finalTamedData.getCustomName();
+                        if (customName != null && !customName.isEmpty()) {
+                            com.laits.breeding.util.NameplateUtil.setEntityNameplate(entityRef, customName);
+                        }
+
+                        // Note: Interaction will be set up by the periodic scan
+                        // This avoids duplicating complex reflection code
+
+                        logVerbose("Respawned tamed animal: " + finalTamedData.getCustomName() +
+                                " (" + finalAnimalType + ")");
                     }
                 }
 
@@ -1655,7 +1734,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Public so it can be called from command classes.
      */
     public void autoSetupNearbyAnimals() {
-        if (verboseLogging) getLogger().atInfo().log("[AutoScan] autoSetupNearbyAnimals CALLED");
+        if (verboseLogging)
+            getLogger().atInfo().log("[AutoScan] autoSetupNearbyAnimals CALLED");
         try {
             World world = Universe.get().getDefaultWorld();
             if (world == null) {
@@ -1673,11 +1753,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
 
             // Find all farm animals (including babies)
-            if (verboseLogging) getLogger().atInfo().log("[AutoScan] Starting animal scan (customAnimals registered: %d)",
-                configManager.getCustomAnimals().size());
+            if (verboseLogging)
+                getLogger().atInfo().log("[AutoScan] Starting animal scan (customAnimals registered: %d)",
+                        configManager.getCustomAnimals().size());
             AnimalFinder.findAnimals(world, false, animals -> {
                 try {
-                    if (verboseLogging) getLogger().atInfo().log("[AutoScan] Found %d animals total", animals.size());
+                    if (verboseLogging)
+                        getLogger().atInfo().log("[AutoScan] Found %d animals total", animals.size());
                     if (animals.isEmpty())
                         return;
 
@@ -1687,8 +1769,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     int skippedBaby = 0;
 
                     // Log the registered custom animals for debugging
-                    if (verboseLogging) getLogger().atInfo().log("[AutoScan] Registered custom animals: %s",
-                        String.join(", ", configManager.getCustomAnimals().keySet()));
+                    if (verboseLogging)
+                        getLogger().atInfo().log("[AutoScan] Registered custom animals: %s",
+                                String.join(", ", configManager.getCustomAnimals().keySet()));
 
                     for (AnimalFinder.FoundAnimal animal : animals) {
                         Object entityRef = animal.getEntityRef();
@@ -1697,10 +1780,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                         // Check if this modelId matches any registered custom animal
                         if (configManager.isCustomAnimal(modelId)) {
-                            if (verboseLogging) getLogger().atInfo().log("[AutoScan] Processing potential custom animal: '%s' (animalType=%s)", modelId, animalType);
+                            if (verboseLogging)
+                                getLogger().atInfo().log(
+                                        "[AutoScan] Processing potential custom animal: '%s' (animalType=%s)", modelId,
+                                        animalType);
                         }
 
-                        // Skip if this is a player entity (prevents attaching interactions to players with animal models)
+                        // Skip if this is a player entity (prevents attaching interactions to players
+                        // with animal models)
                         if (entityRef instanceof Ref) {
                             @SuppressWarnings("unchecked")
                             Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
@@ -1715,7 +1802,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                     UUIDComponent uuidComp = refStore.getComponent(ref, EcsReflectionUtil.UUID_TYPE);
                                     if (uuidComp != null && uuidComp.getUuid() != null) {
                                         if (playerUuids.contains(uuidComp.getUuid())) {
-                                            logVerbose("Skipping player entity with animal model: " + animal.getModelAssetId());
+                                            logVerbose("Skipping player entity with animal model: "
+                                                    + animal.getModelAssetId());
                                             continue;
                                         }
                                     }
@@ -1725,9 +1813,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                 // This is OK: the check is only to filter players, not to validate animals
                                 // Don't skip any animals - proceed with interaction setup
                                 if (configManager.isCustomAnimal(modelId)) {
-                                    logVerbose("[CustomAnimal] " + modelId + " has no UUID component (expected for custom NPCs), proceeding");
+                                    logVerbose("[CustomAnimal] " + modelId
+                                            + " has no UUID component (expected for custom NPCs), proceeding");
                                 } else {
-                                    logVerbose("[AnimalScan] UUID check failed for " + animal.getModelAssetId() + " (proceeding anyway): " + e.getMessage());
+                                    logVerbose("[AnimalScan] UUID check failed for " + animal.getModelAssetId()
+                                            + " (proceeding anyway): " + e.getMessage());
                                 }
                                 // Note: Do NOT skip - both built-in and custom animals should proceed
                             }
@@ -1739,16 +1829,21 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             customAnimal = configManager.getCustomAnimal(modelId);
                             // Debug: log custom animal lookup attempts
                             if (customAnimal != null) {
-                                if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] Found match for '%s' (enabled=%s)", modelId, customAnimal.isEnabled());
+                                if (verboseLogging)
+                                    getLogger().atInfo().log("[CustomAnimal] Found match for '%s' (enabled=%s)",
+                                            modelId, customAnimal.isEnabled());
                             } else if (configManager.getCustomAnimals().size() > 0) {
                                 // Only log if there are custom animals registered - ALWAYS LOG THIS
-                                if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] No match for '%s' (registered: %s)",
-                                    modelId, String.join(", ", configManager.getCustomAnimals().keySet()));
+                                if (verboseLogging)
+                                    getLogger().atInfo().log("[CustomAnimal] No match for '%s' (registered: %s)",
+                                            modelId, String.join(", ", configManager.getCustomAnimals().keySet()));
                             }
                         } else {
                             // Log if a potential custom animal is being detected as built-in
                             if (configManager.isCustomAnimal(modelId)) {
-                                getLogger().atWarning().log("[CustomAnimal] '%s' matched as built-in %s instead of custom!", modelId, animalType);
+                                getLogger().atWarning().log(
+                                        "[CustomAnimal] '%s' matched as built-in %s instead of custom!", modelId,
+                                        animalType);
                             }
                         }
 
@@ -1787,11 +1882,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                 if (USE_ENTITY_BASED_INTERACTIONS) {
                                     // Legacy: Set up entity-based interactions (Use key)
                                     if (animalType != null) {
-                                        logVerbose("Setting up interactions for adult: " + animal.getModelAssetId() + " (type: "
+                                        logVerbose("Setting up interactions for adult: " + animal.getModelAssetId()
+                                                + " (type: "
                                                 + animalType + ")");
                                         setupEntityInteractions(refStore, ref, animalType);
                                     } else if (customAnimal != null) {
-                                        if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] ABOUT TO CALL setupCustomAnimalInteractions for: %s", animal.getModelAssetId());
+                                        if (verboseLogging)
+                                            getLogger().atInfo().log(
+                                                    "[CustomAnimal] ABOUT TO CALL setupCustomAnimalInteractions for: %s",
+                                                    animal.getModelAssetId());
                                         setupCustomAnimalInteractions(refStore, ref, customAnimal);
                                     }
                                 } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
@@ -1803,11 +1902,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                 }
                                 processedCount++;
                             } else {
-                                getLogger().atWarning().log("[CustomAnimal] refStore is NULL for: %s", animal.getModelAssetId());
+                                getLogger().atWarning().log("[CustomAnimal] refStore is NULL for: %s",
+                                        animal.getModelAssetId());
                             }
                         } else {
                             if (customAnimal != null) {
-                                if (verboseLogging) getLogger().atInfo().log("[CustomAnimal] Skipping baby custom animal: %s", animal.getModelAssetId());
+                                if (verboseLogging)
+                                    getLogger().atInfo().log("[CustomAnimal] Skipping baby custom animal: %s",
+                                            animal.getModelAssetId());
                             }
                             skippedBaby++;
                         }
@@ -1886,7 +1988,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             if (targetEntity == null)
                 return;
 
-            // Skip if target is a Player (prevents attaching animal interactions to players with animal models)
+            // Skip if target is a Player (prevents attaching animal interactions to players
+            // with animal models)
             if (targetEntity instanceof Player) {
                 return;
             }
@@ -1933,19 +2036,22 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             return;
         }
 
-        // Skip if target is a Player (prevents treating players with animal models as animals)
+        // Skip if target is a Player (prevents treating players with animal models as
+        // animals)
         if (targetEntity instanceof Player) {
             return;
         }
 
         // Debug log
-        if (verboseLogging) getLogger().atInfo().log("[TamingDebug] handleMouseClick triggered on entity");
+        if (verboseLogging)
+            getLogger().atInfo().log("[TamingDebug] handleMouseClick triggered on entity");
 
         // Get held item early for taming check
         Item heldItem = event.getItemInHand();
         String itemId = heldItem != null ? heldItem.getId() : null;
 
-        // Note: Taming is now handled via NameAnimalInteraction with UI (using Name Tag item)
+        // Note: Taming is now handled via NameAnimalInteraction with UI (using Name Tag
+        // item)
 
         // Get entity model ID to determine type (via ECS ModelComponent)
         String entityName = getEntityModelId(targetEntity);
@@ -2387,14 +2493,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     /**
      * Get position from an entity reference.
+     * 
      * @param entityRef The entity reference
      * @return The entity's position, or null if not available
      */
     public Vector3d getPositionFromRef(Ref<EntityStore> entityRef) {
-        if (entityRef == null) return null;
+        if (entityRef == null)
+            return null;
         try {
             Store<EntityStore> store = entityRef.getStore();
-            if (store == null) return null;
+            if (store == null)
+                return null;
 
             TransformComponent transform = store.getComponent(entityRef, TransformComponent.getComponentType());
             if (transform != null) {
@@ -2432,7 +2541,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 World world = player.getWorld();
                 if (world != null) {
                     Store<EntityStore> store = world.getEntityStore().getStore();
-                    UUIDComponent uuidComp = store.getComponent((Ref<EntityStore>) entityRef, EcsReflectionUtil.UUID_TYPE);
+                    UUIDComponent uuidComp = store.getComponent((Ref<EntityStore>) entityRef,
+                            EcsReflectionUtil.UUID_TYPE);
                     if (uuidComp != null && uuidComp.getUuid() != null) {
                         return uuidComp.getUuid();
                     }
@@ -2448,7 +2558,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Check if an item ID is a Name Tag item.
      */
     private boolean isNameTagItem(String itemId) {
-        if (itemId == null) return false;
+        if (itemId == null)
+            return false;
         String lower = itemId.toLowerCase();
         return lower.contains("nametag") || lower.contains("name_tag");
     }
@@ -2477,7 +2588,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Always log status when any animal is in love (for debugging)
         if (inLoveTotal > 0) {
-            if (verboseLogging) getLogger().atInfo().log("[TickLove] Running: tracked=" + trackedCount + ", inLove=" + inLoveTotal);
+            if (verboseLogging)
+                getLogger().atInfo().log("[TickLove] Running: tracked=" + trackedCount + ", inLove=" + inLoveTotal);
         }
 
         if (trackedCount == 0)
@@ -2531,9 +2643,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Debug: Log love status every tick
         if (inLoveWithRef > 0 || inLoveNoRef > 0) {
-            if (verboseLogging) getLogger().atInfo().log("[Hearts] Tracked: " + trackedCount +
-                    ", InLove w/ref: " + inLoveWithRef +
-                    ", InLove no ref: " + inLoveNoRef);
+            if (verboseLogging)
+                getLogger().atInfo().log("[Hearts] Tracked: " + trackedCount +
+                        ", InLove w/ref: " + inLoveWithRef +
+                        ", InLove no ref: " + inLoveNoRef);
         }
 
         // Spawn heart particles for all animals in love (runs every 1 second)
@@ -2550,8 +2663,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             spawnHeartParticlesAtRef(store, entityRef);
                             spawned++;
                         }
-                        if (verboseLogging) getLogger().atInfo()
-                                .log("[Hearts] Spawned particles for " + spawned + "/" + refsSnapshot.size() + " entities");
+                        if (verboseLogging)
+                            getLogger().atInfo()
+                                    .log("[Hearts] Spawned particles for " + spawned + "/" + refsSnapshot.size()
+                                            + " entities");
                     } catch (Exception e) {
                         getLogger().atWarning().log("[Hearts] Error spawning: " + e.getMessage());
                     }
@@ -2633,14 +2748,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         }
 
         // For each type with 2+ animals in love, check distance
-        for (java.util.Map.Entry<String, java.util.List<BreedingManager.CustomAnimalLoveData>> entry : byType.entrySet()) {
+        for (java.util.Map.Entry<String, java.util.List<BreedingManager.CustomAnimalLoveData>> entry : byType
+                .entrySet()) {
             java.util.List<BreedingManager.CustomAnimalLoveData> animalsOfType = entry.getValue();
-            if (animalsOfType.size() < 2) continue;
+            if (animalsOfType.size() < 2)
+                continue;
 
             BreedingManager.CustomAnimalLoveData animal1 = animalsOfType.get(0);
             BreedingManager.CustomAnimalLoveData animal2 = animalsOfType.get(1);
 
-            if (animal1.getEntityRef() == null || animal2.getEntityRef() == null) continue;
+            if (animal1.getEntityRef() == null || animal2.getEntityRef() == null)
+                continue;
 
             final BreedingManager.CustomAnimalLoveData finalAnimal1 = animal1;
             final BreedingManager.CustomAnimalLoveData finalAnimal2 = animal2;
@@ -2654,21 +2772,24 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     Vector3d pos1 = getPositionOnWorldThread(store, finalAnimal1.getEntityRef());
                     Vector3d pos2 = getPositionOnWorldThread(store, finalAnimal2.getEntityRef());
 
-                    if (pos1 == null || pos2 == null) return;
+                    if (pos1 == null || pos2 == null)
+                        return;
 
                     double distance = calculateDistance(pos1, pos2);
 
                     if (distance <= BREEDING_DISTANCE) {
-                        if (verboseLogging) getLogger().atInfo().log("[CustomBreed] Breeding %s at distance %.1f", modelAssetId, distance);
+                        if (verboseLogging)
+                            getLogger().atInfo().log("[CustomBreed] Breeding %s at distance %.1f", modelAssetId,
+                                    distance);
 
                         finalAnimal1.completeBreeding();
                         finalAnimal2.completeBreeding();
 
                         // Spawn baby at midpoint between the two parents
                         Vector3d midpoint = new Vector3d(
-                            (pos1.getX() + pos2.getX()) / 2.0,
-                            (pos1.getY() + pos2.getY()) / 2.0,
-                            (pos1.getZ() + pos2.getZ()) / 2.0);
+                                (pos1.getX() + pos2.getX()) / 2.0,
+                                (pos1.getY() + pos2.getY()) / 2.0,
+                                (pos1.getZ() + pos2.getZ()) / 2.0);
 
                         // Get custom animal config for baby spawning
                         CustomAnimalConfig customConfig = configManager.getCustomAnimal(modelAssetId);
@@ -2689,7 +2810,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position) {
         try {
             World world = Universe.get().getDefaultWorld();
-            if (world == null) return;
+            if (world == null)
+                return;
 
             final String finalModelAssetId = modelAssetId;
             final CustomAnimalConfig finalConfig = customConfig;
@@ -2722,7 +2844,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     // 2. If no baby role, use adult role with scaling fallback
                     if (!roleExists) {
                         String adultRole = finalConfig != null ? finalConfig.getAdultNpcRoleId() : null;
-                        if (adultRole == null) adultRole = finalModelAssetId;
+                        if (adultRole == null)
+                            adultRole = finalModelAssetId;
 
                         java.lang.reflect.Method hasRoleName = npcPluginClass.getMethod("hasRoleName", String.class);
                         roleExists = (boolean) hasRoleName.invoke(npcPlugin, adultRole);
@@ -2776,7 +2899,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         try {
                             ModelComponent modelComp = store.getComponent(babyRef, ModelComponent.getComponentType());
                             if (modelComp != null) {
-                                java.lang.reflect.Method setScale = modelComp.getClass().getMethod("setScale", float.class);
+                                java.lang.reflect.Method setScale = modelComp.getClass().getMethod("setScale",
+                                        float.class);
                                 setScale.invoke(modelComp, babyScale);
                                 logVerbose("Applied baby scale " + babyScale + " to custom animal");
                             }
@@ -2787,8 +2911,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                     // NOTE: Babies don't get feed interactions - they'll get them when they grow up
 
-                    if (verboseLogging) getLogger().atInfo().log("[CustomBreed] Spawned baby %s at (%.1f, %.1f, %.1f)",
-                        finalModelAssetId, spawnPos.getX(), spawnPos.getY(), spawnPos.getZ());
+                    if (verboseLogging)
+                        getLogger().atInfo().log("[CustomBreed] Spawned baby %s at (%.1f, %.1f, %.1f)",
+                                finalModelAssetId, spawnPos.getX(), spawnPos.getY(), spawnPos.getZ());
 
                 } catch (Exception e) {
                     getLogger().atWarning().log("[CustomBreed] Error spawning baby: " + e.getMessage());
@@ -2864,7 +2989,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 return null;
 
             Store<EntityStore> store = world.getEntityStore().getStore();
-            TransformComponent transform = store.getComponent((Ref<EntityStore>) entityRef, EcsReflectionUtil.TRANSFORM_TYPE);
+            TransformComponent transform = store.getComponent((Ref<EntityStore>) entityRef,
+                    EcsReflectionUtil.TRANSFORM_TYPE);
 
             if (transform != null) {
                 return transform.getPosition();
@@ -2899,15 +3025,16 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     /**
      * Spawn a baby animal with parent UUIDs for auto-taming.
-     * If BOTH parents are tamed by the same player, the baby will be auto-tamed to that player.
+     * If BOTH parents are tamed by the same player, the baby will be auto-tamed to
+     * that player.
      *
      * For animals WITH baby variants: spawns baby NPC
      * For animals WITHOUT baby variants: spawns adult NPC at small scale (0.4)
      *
      * @param animalType The type of animal to spawn
-     * @param position The spawn position
-     * @param parent1Id UUID of first parent (pass null if unknown)
-     * @param parent2Id UUID of second parent (pass null if unknown)
+     * @param position   The spawn position
+     * @param parent1Id  UUID of first parent (pass null if unknown)
+     * @param parent2Id  UUID of second parent (pass null if unknown)
      */
     public void spawnBabyAnimal(AnimalType animalType, Vector3d position, UUID parent1Id, UUID parent2Id) {
         try {
@@ -3040,27 +3167,36 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                 ? "Baby " + finalAnimalType.getId() + " born"
                                 : "Young " + finalAnimalType.getId() + " born (scale "
                                         + String.format("%.1f", finalInitialScale) + ")";
-                        if (verboseLogging) getLogger().atInfo().log("[Lait:AnimalBreeding] " + logMessage + " at " +
-                                String.format("%.0f, %.0f, %.0f", spawnPos.getX(), spawnPos.getY(), spawnPos.getZ()));
+                        if (verboseLogging)
+                            getLogger().atInfo().log("[Lait:AnimalBreeding] " + logMessage + " at " +
+                                    String.format("%.0f, %.0f, %.0f", spawnPos.getX(), spawnPos.getY(),
+                                            spawnPos.getZ()));
 
                         Object entityRef = null;
                         try {
-                            // Try multiple method names - different Pair implementations use different names
-                            // FastUtil's ObjectObjectImmutablePair uses left()/first(), Hytale's Pair might use getFirst()
+                            // Try multiple method names - different Pair implementations use different
+                            // names
+                            // FastUtil's ObjectObjectImmutablePair uses left()/first(), Hytale's Pair might
+                            // use getFirst()
                             java.lang.reflect.Method extractMethod = null;
-                            for (String methodName : new String[]{"left", "first", "getFirst", "key"}) {
+                            for (String methodName : new String[] { "left", "first", "getFirst", "key" }) {
                                 try {
                                     extractMethod = result.getClass().getMethod(methodName);
                                     break;
-                                } catch (NoSuchMethodException ignored) {}
+                                } catch (NoSuchMethodException ignored) {
+                                }
                             }
                             if (extractMethod != null) {
                                 entityRef = extractMethod.invoke(result);
                             } else {
-                                getLogger().atWarning().log("[Lait:AnimalBreeding] Could not find method to extract Ref from Pair: " + result.getClass().getName());
+                                getLogger().atWarning()
+                                        .log("[Lait:AnimalBreeding] Could not find method to extract Ref from Pair: "
+                                                + result.getClass().getName());
                             }
                         } catch (Exception e) {
-                            getLogger().atSevere().log("[Lait:AnimalBreeding] Error extracting entity ref from spawn result: " + e.getMessage());
+                            getLogger().atSevere()
+                                    .log("[Lait:AnimalBreeding] Error extracting entity ref from spawn result: "
+                                            + e.getMessage());
                         }
 
                         if (entityRef != null && entityRef instanceof Ref) {
@@ -3077,8 +3213,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                 TamedAnimalData parent2Data = tamingManager.getTamedData(finalParent2Id);
 
                                 // Debug logging for parent UUID lookup
-                                logVerbose("Parent1 UUID: " + finalParent1Id + " -> data: " + (parent1Data != null ? "found" : "NOT FOUND"));
-                                logVerbose("Parent2 UUID: " + finalParent2Id + " -> data: " + (parent2Data != null ? "found" : "NOT FOUND"));
+                                logVerbose("Parent1 UUID: " + finalParent1Id + " -> data: "
+                                        + (parent1Data != null ? "found" : "NOT FOUND"));
+                                logVerbose("Parent2 UUID: " + finalParent2Id + " -> data: "
+                                        + (parent2Data != null ? "found" : "NOT FOUND"));
 
                                 // Both parents must be tamed for baby to be auto-tamed
                                 if (parent1Data != null && parent2Data != null) {
@@ -3090,7 +3228,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                                     if (ownerUuid != null) {
                                         // Generate a name for the baby
-                                        java.util.List<String> names = com.laits.breeding.util.AnimalNameGenerator.getSuggestedNames(finalAnimalType);
+                                        java.util.List<String> names = com.laits.breeding.util.AnimalNameGenerator
+                                                .getSuggestedNames(finalAnimalType);
                                         String babyName = names.isEmpty() ? "Baby" : names.get(0);
 
                                         @SuppressWarnings("unchecked")
@@ -3106,7 +3245,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                                 spawnPos.getX(),
                                                 spawnPos.getY(),
                                                 spawnPos.getZ(),
-                                                GrowthStage.BABY  // Pass growth stage so it's saved correctly
+                                                GrowthStage.BABY // Pass growth stage so it's saved correctly
                                         );
 
                                         if (babyTameData != null) {
@@ -3145,9 +3284,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                                     if (getComponent != null) {
                                         Object modelComp = getComponent.invoke(store, entityRef, modelType);
-                                        if (modelComp != null && EcsReflectionUtil.isModelFieldInitialized() && EcsReflectionUtil.getCachedModelField() != null) {
+                                        if (modelComp != null && EcsReflectionUtil.isModelFieldInitialized()
+                                                && EcsReflectionUtil.getCachedModelField() != null) {
                                             // Use cached Field for performance
-                                            Object currentModel = EcsReflectionUtil.getCachedModelField().get(modelComp);
+                                            Object currentModel = EcsReflectionUtil.getCachedModelField()
+                                                    .get(modelComp);
 
                                             if (currentModel != null) {
                                                 java.lang.reflect.Field assetIdField = currentModel.getClass()
@@ -3245,7 +3386,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             getLogger().atWarning().log("[Lait:AnimalBreeding] Extracted entity is not a Ref: " +
                                     entityRef.getClass().getName() + " - baby registration skipped");
                         } else {
-                            getLogger().atWarning().log("[Lait:AnimalBreeding] Could not extract entity ref from spawn result");
+                            getLogger().atWarning()
+                                    .log("[Lait:AnimalBreeding] Could not extract entity ref from spawn result");
                         }
                     } else {
                         logWarning("Failed to spawn " + (finalHasBabyVariant ? "baby" : "young") + " "
@@ -3345,7 +3487,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     }
 
                     // Use cached Field for performance (avoid getDeclaredField per call)
-                    if (!EcsReflectionUtil.isModelFieldInitialized() || EcsReflectionUtil.getCachedModelField() == null) {
+                    if (!EcsReflectionUtil.isModelFieldInitialized()
+                            || EcsReflectionUtil.getCachedModelField() == null) {
                         logWarning("Model field cache not initialized");
                         return;
                     }
@@ -3456,8 +3599,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         logVerbose("CommandBuffer approach failed: " + cbEx.getMessage());
                     }
 
-                    if (verboseLogging) getLogger().atInfo().log("[Lait:AnimalBreeding] " + capitalize(animalType.getId()) +
-                            " grew to scale " + String.format("%.1f", targetScale));
+                    if (verboseLogging)
+                        getLogger().atInfo().log("[Lait:AnimalBreeding] " + capitalize(animalType.getId()) +
+                                " grew to scale " + String.format("%.1f", targetScale));
 
                 } catch (Exception e) {
                     Throwable cause = e;
@@ -3497,8 +3641,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
             Object entityRef = data.getEntityRef();
             if (entityRef == null) {
-                logWarning("Cannot transform - no entity ref for animal");
-                return;
+                // Attempt to re-acquire entityRef by scanning for matching baby
+                entityRef = tryReacquireBabyRef(animalId, animalType);
+                if (entityRef != null) {
+                    data.setEntityRef(entityRef);
+                    logVerbose("Re-acquired entityRef for baby " + animalType.getId());
+                } else {
+                    logWarning("Cannot transform - no entity ref for animal (re-acquisition failed)");
+                    return;
+                }
             }
 
             World world = Universe.get().getDefaultWorld();
@@ -3669,6 +3820,150 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         } catch (Exception e) {
             logError("Error in transformBabyToAdult: " + e.getMessage());
         }
+    }
+
+    /**
+     * Attempt to re-acquire an entityRef for a baby animal by scanning the world.
+     * Used when the stored entityRef becomes stale (entity unloaded/reloaded).
+     *
+     * @param animalId   The tracked animal's UUID
+     * @param animalType The type of animal (used to determine baby model ID)
+     * @return The entity ref if found, null otherwise
+     */
+    @SuppressWarnings("unchecked")
+    private Ref<EntityStore> tryReacquireBabyRef(UUID animalId, AnimalType animalType) {
+        try {
+            World world = Universe.get().getDefaultWorld();
+            if (world == null)
+                return null;
+
+            String babyModelId = animalType.getBabyModelAssetId();
+            if (babyModelId == null)
+                return null;
+
+            Store<EntityStore> store = world.getEntityStore().getStore();
+
+            // Get all entity refs in the store
+            java.lang.reflect.Method getAllRefs = null;
+            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
+                if (m.getName().equals("getAllRefs") && m.getParameterCount() == 0) {
+                    getAllRefs = m;
+                    break;
+                }
+            }
+            if (getAllRefs == null)
+                return null;
+
+            Iterable<Ref<EntityStore>> refs = (Iterable<Ref<EntityStore>>) getAllRefs.invoke(store);
+
+            for (Ref<EntityStore> ref : refs) {
+                try {
+                    String modelAssetId = getEntityModelAssetId(store, ref);
+                    if (modelAssetId != null && modelAssetId.equalsIgnoreCase(babyModelId)) {
+                        // Found a baby of this type - check if it matches our tracked baby
+                        // Generate UUID the same way we do when registering
+                        UUID candidateId = UUID.nameUUIDFromBytes(ref.toString().getBytes());
+                        if (candidateId.equals(animalId)) {
+                            logVerbose("tryReacquireBabyRef: Found matching baby by UUID");
+                            return ref;
+                        }
+
+                        // Also check via findBabyByRef in case UUID changed
+                        BreedingData foundData = breedingManager.findBabyByRef(ref);
+                        if (foundData != null && foundData.getAnimalId().equals(animalId)) {
+                            logVerbose("tryReacquireBabyRef: Found matching baby by ref comparison");
+                            return ref;
+                        }
+                    }
+                } catch (Exception e) {
+                    // Skip invalid refs
+                }
+            }
+
+            logVerbose("tryReacquireBabyRef: No matching baby found for " + animalType.getId());
+            return null;
+        } catch (Exception e) {
+            logVerbose("tryReacquireBabyRef error: " + e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Scan the world for untracked baby animals and register them.
+     * This is a fallback detection system for babies that slipped through primary
+     * registration.
+     *
+     * @return Number of newly registered babies
+     */
+    @SuppressWarnings("unchecked")
+    public int scanForUntrackedBabies() {
+        int registered = 0;
+        try {
+            World world = Universe.get().getDefaultWorld();
+            if (world == null)
+                return 0;
+
+            Store<EntityStore> store = world.getEntityStore().getStore();
+
+            // Get all entity refs in the store
+            java.lang.reflect.Method getAllRefs = null;
+            for (java.lang.reflect.Method m : store.getClass().getMethods()) {
+                if (m.getName().equals("getAllRefs") && m.getParameterCount() == 0) {
+                    getAllRefs = m;
+                    break;
+                }
+            }
+            if (getAllRefs == null)
+                return 0;
+
+            Iterable<Ref<EntityStore>> refs = (Iterable<Ref<EntityStore>>) getAllRefs.invoke(store);
+            java.util.List<BreedingManager.UntrackedBaby> untrackedBabies = new java.util.ArrayList<>();
+
+            for (Ref<EntityStore> ref : refs) {
+                try {
+                    String modelAssetId = getEntityModelAssetId(store, ref);
+                    if (modelAssetId == null)
+                        continue;
+
+                    // Check if this is a baby model
+                    if (!AnimalType.isBabyVariant(modelAssetId))
+                        continue;
+
+                    // Get the animal type for this baby
+                    AnimalType animalType = AnimalType.fromModelAssetId(modelAssetId);
+                    if (animalType == null)
+                        continue;
+
+                    // Check if already tracked
+                    UUID refUuid = UUID.nameUUIDFromBytes(ref.toString().getBytes());
+                    if (breedingManager.isBabyTracked(ref, refUuid))
+                        continue;
+
+                    // Found an untracked baby
+                    untrackedBabies.add(new BreedingManager.UntrackedBaby(ref, modelAssetId, animalType));
+                } catch (Exception e) {
+                    // Skip invalid refs
+                }
+            }
+
+            // Register all untracked babies
+            for (BreedingManager.UntrackedBaby baby : untrackedBabies) {
+                UUID babyId = UUID.nameUUIDFromBytes(baby.getEntityRef().toString().getBytes());
+                breedingManager.registerBaby(babyId, baby.getAnimalType(), baby.getEntityRef());
+                registered++;
+                logVerbose("[BabyScan] Registered untracked baby: " + baby.getModelAssetId());
+            }
+
+            if (registered > 0 || verboseLogging) {
+                if (registered > 0) {
+                    getLogger().atInfo().log("[BabyScan] Found %d untracked babies, registered all", registered);
+                }
+            }
+
+        } catch (Exception e) {
+            logVerbose("[BabyScan] Error: " + e.getMessage());
+        }
+        return registered;
     }
 
     @Override

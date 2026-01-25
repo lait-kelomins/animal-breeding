@@ -6,13 +6,18 @@ import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.modules.entity.damage.DeathComponent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.systems.NPCSystems.OnDeathSystem;
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.managers.TamingManager;
+import com.laits.breeding.util.EcsReflectionUtil;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -20,6 +25,37 @@ import java.util.UUID;
  * Marks them as dead (not despawned) so they don't respawn.
  */
 public class DetectTamedDeath extends OnDeathSystem {
+
+    // Track last detected death UUIDs for debugging (max 10)
+    private static final List<UUID> lastDetectedDeaths = Collections.synchronizedList(new ArrayList<>());
+    private static final int MAX_TRACKED = 10;
+
+    /**
+     * Get the last detected death UUIDs (most recent first).
+     */
+    public static List<UUID> getLastDetectedDeaths() {
+        synchronized (lastDetectedDeaths) {
+            return new ArrayList<>(lastDetectedDeaths);
+        }
+    }
+
+    /**
+     * Clear the tracked death UUIDs.
+     */
+    public static void clearTrackedDeaths() {
+        lastDetectedDeaths.clear();
+    }
+
+    private static void trackDetectedDeath(UUID uuid) {
+        synchronized (lastDetectedDeaths) {
+            // Add at beginning (most recent first)
+            lastDetectedDeaths.add(0, uuid);
+            // Keep only max entries
+            while (lastDetectedDeaths.size() > MAX_TRACKED) {
+                lastDetectedDeaths.remove(lastDetectedDeaths.size() - 1);
+            }
+        }
+    }
 
     // Match all entities with DeathComponent (no additional requirements)
     @Nonnull
@@ -41,8 +77,18 @@ public class DetectTamedDeath extends OnDeathSystem {
         try {
             // Use deterministic UUID from ref - this matches how TamingManager tracks animals
             // TamingManager uses UUID.nameUUIDFromBytes(entityRef.toString().getBytes())
-            UUID entityId = UUID.nameUUIDFromBytes(ref.toString().getBytes());
+            UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
+
+            if (uuidComp == null) {
+                log("UUIDComponent is null for entity with DeathComponent");
+                return;
+            }
+
+            UUID entityId = uuidComp.getUuid();
             log("Dying entity deterministic UUID: " + entityId);
+
+            // Track all death UUIDs for debugging
+            trackDetectedDeath(entityId);
 
             // Check if this is a tamed animal
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();

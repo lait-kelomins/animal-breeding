@@ -4,6 +4,9 @@ import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.GrowthStage;
 import com.laits.breeding.models.TamedAnimalData;
+import com.laits.breeding.util.EcsReflectionUtil;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -99,7 +102,7 @@ public class TamingManager {
             if (data != null && data.getAnimalUuid() != null) {
                 // Reset despawned flag on load - the world save has the actual entities
                 // If they're truly gone, EntityRemoveEvent will set isDespawned = true
-                data.setDespawned(false);
+                // data.setDespawned(false);
                 data.setEntityRef(null); // Will be reattached by animal scan
                 tamedAnimals.put(data.getAnimalUuid(), data);
             }
@@ -147,7 +150,7 @@ public class TamingManager {
     /**
      * Tame an animal with entity reference for position tracking.
      */
-    public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type, Object entityRef) {
+    public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type, Ref<EntityStore> entityRef) {
         return tameAnimal(animalId, ownerUuid, name, type, entityRef, 0, 0, 0);
     }
 
@@ -155,7 +158,7 @@ public class TamingManager {
      * Tame an animal with entity reference and initial position.
      * Note: type can be null for custom animals (e.g., Mosshorn).
      */
-    public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type, Object entityRef, double x, double y, double z) {
+    public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type, Ref<EntityStore> entityRef, double x, double y, double z) {
         return tameAnimal(animalId, ownerUuid, name, type, entityRef, x, y, z, GrowthStage.ADULT);
     }
 
@@ -163,7 +166,7 @@ public class TamingManager {
      * Tame an animal with entity reference, initial position, and growth stage.
      * Use this when taming babies to ensure correct growth stage is saved.
      */
-    public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type, Object entityRef, double x, double y, double z, GrowthStage growthStage) {
+    public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type, Ref<EntityStore> entityRef, double x, double y, double z, GrowthStage growthStage) {
         if (animalId == null || ownerUuid == null || name == null) {
             return null;
         }
@@ -380,7 +383,7 @@ public class TamingManager {
     /**
      * Update entity reference for a tamed animal.
      */
-    public void updateEntityRef(UUID animalId, Object entityRef) {
+    public void updateEntityRef(UUID animalId, Ref<EntityStore> entityRef) {
         TamedAnimalData data = tamedAnimals.get(animalId);
         if (data != null) {
             data.setEntityRef(entityRef);
@@ -413,7 +416,7 @@ public class TamingManager {
      * @param newUuid The new UUID after respawn
      * @param entityRef The new entity reference
      */
-    public void markRespawned(UUID oldUuid, UUID newUuid, Object entityRef) {
+    public void markRespawned(UUID oldUuid, UUID newUuid, Ref<EntityStore> entityRef) {
         TamedAnimalData data = tamedAnimals.remove(oldUuid);
         if (data != null) {
             data.setAnimalUuid(newUuid);

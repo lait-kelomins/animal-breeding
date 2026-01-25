@@ -1,13 +1,16 @@
-# **Lait's Animal Breeding**
+# Currently merging this mod with TheBrandolorian's "Tameable Animals"
 
-[![X Twitter profile](https://img.shields.io/badge/@lait__kelomins-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins) [![Personal discord](https://img.shields.io/badge/Join%20my%20Discord-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/uSKWDCq8e) [![Mod%20Community%20Discord](https://img.shields.io/discord/1461295822137327673?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Mod%20Community)](https://discord.gg/UKQCgN5SJ)</br>
-This mod is actively being developed. For issues or suggestions, click on one of the links above or add me on Discord: **lait\_kelomins**
+# **HyTame**
+
+[![X Twitter profile](https://img.shields.io/badge/@lait__kelomins-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins) [![Personal discord](https://img.shields.io/badge/Join%20our%20Discord-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/uSKWDCq8e) [![Mod%20Community%20Discord](https://img.shields.io/discord/1461295822137327673?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Mod%20Community)](https://discord.gg/UKQCgN5SJ)
+
+This mod is actively being developed. For issues or suggestions, click on one of the links above.
 
 ## Quick Overview
 
 **Animal breeding and baby growth for Hytale to expand your farm.**
 
-> **Disclaimer:** This mod prioritizes making livestock reproduction possible. I recommend keeping animals in a pen and close together for best results. Always make a backup before trying new mods - though this one only spawns entities and doesn't modify save data for now.
+> **Disclaimer:** This mod prioritizes making livestock reproduction possible. I recommend keeping animals in a pen and close together for best results. Always make a backup before trying new mods.
 
 **What It Does**
 
@@ -27,9 +30,9 @@ This mod is actively being developed. For issues or suggestions, click on one of
 
 **Quick Start:** Find two animals → feed each one their favorite food → they breed → baby grows up.
 
-**Useful commands:** `/breed config info Cow` (check foods) · `/breed config preset apply zoo` (enable all real animals)
+**Useful commands:** `/breed config info Cow` (check foods).
 
-![Lait's Animal Breeding with a family of sheeps and a family of cows in an animal pen](https://media.forgecdn.net/attachments/description/1431060/description_a865b611-7b51-4d79-8ce7-7c705a9e5498.png)
+![HyTame with a family of sheeps and a family of cows in an animal pen](https://media.forgecdn.net/attachments/description/1431060/description_b17e3b9e-9d37-4560-8f53-24355750c7a0.png)
 
 ***
 
@@ -41,17 +44,13 @@ This mod is actively being developed. For issues or suggestions, click on one of
 
 ***
 
-## What's New in v1.3.2
+## What's New in v1.3.x (doesn't work in solo, enable alpha files for server)
 
-*   Fixed interaction hints not showing in solo/local server mode
-*   Fixed log spam from stale entity references (Rabbit errors, etc.)
-*   Improved stability when animals despawn
-
-## What's New in v1.3.1
-
+*   Fixed a bug with animals disappearing on game restart after using name tags (data may be recoverable in next update but no)
+*   Fixed a bug that made the mod break in solo games
 *   Removed excessive logging in the server console
 
-## What's New in v1.3.0
+## What's New in v1.3.0 (doesn't work in solo, enable alpha files for server)
 
 #### Deprecated Commands
 
@@ -310,8 +309,8 @@ Config file: `mods/laits-breeding-config.json`
 
 ## Contact
 
-This mod is actively being developed. For issues or suggestions, click on one of the links below add me on Discord: **lait\_kelomins**
+This mod is actively being developed. For issues or suggestions, click on one of the links below.
 
-[![X Twitter profile](https://img.shields.io/badge/@lait__kelomins-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins) [![Personal discord](https://img.shields.io/badge/Join%20my%20Discord-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/uSKWDCq8e) [![Mod%20Community%20Discord](https://img.shields.io/discord/1461295822137327673?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Mod%20Community)](https://discord.gg/UKQCgN5SJ)
+[![X Twitter profile](https://img.shields.io/badge/@lait__kelomins-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins) [![Personal discord](https://img.shields.io/badge/Join%20our%20Discord-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/uSKWDCq8e) [![Mod%20Community%20Discord](https://img.shields.io/discord/1461295822137327673?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Mod%20Community)](https://discord.gg/UKQCgN5SJ)
 
 [![BisectHosting partnership program, code lait for 25% discount on a gaming server](https://www.bisecthosting.com/partners/custom-banners/2aa6078b-c5d0-416b-89a6-347d410d20cb.webp)](https://bisecthosting.com/lait)

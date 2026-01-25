@@ -10,10 +10,15 @@ import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 
 import com.laits.breeding.LaitsBreedingPlugin;
+import com.laits.breeding.listeners.DetectTamedDeath;
 import com.laits.breeding.managers.BreedingManager;
+import com.laits.breeding.managers.PersistenceManager;
 import com.laits.breeding.managers.TamingManager;
+import com.laits.breeding.models.TamedAnimalData;
 import com.laits.breeding.util.ConfigManager;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
@@ -34,6 +39,8 @@ public class BreedCommand extends AbstractCommand {
         addSubCommand(new BreedInfoSubCommand());
         addSubCommand(new BreedSettingsSubCommand());
         addSubCommand(new BreedCustomSubCommand());
+        addSubCommand(new BreedScanSubCommand());
+        addSubCommand(new BreedDebugSubCommand());
     }
 
     @Override
@@ -67,6 +74,10 @@ public class BreedCommand extends AbstractCommand {
                 .insert(Message.raw(" - Taming settings").color("#AAAAAA")));
         ctx.sendMessage(Message.raw("/breed custom ...").color("#FFFFFF")
                 .insert(Message.raw(" - Manage custom animals").color("#AAAAAA")));
+        ctx.sendMessage(Message.raw("/breed scan").color("#FFFFFF")
+                .insert(Message.raw(" - Scan for untracked babies").color("#AAAAAA")));
+        ctx.sendMessage(Message.raw("/breed debug ...").color("#FFFFFF")
+                .insert(Message.raw(" - Debug commands").color("#AAAAAA")));
         ctx.sendMessage(Message.raw(""));
         ctx.sendMessage(Message.raw("Feed animals their favorite food to breed!").color("#55FF55"));
     }
@@ -301,6 +312,232 @@ public class BreedCommand extends AbstractCommand {
                     .insert(Message.raw("/breed custom scan").color("#FFFF55"))
                     .insert(Message.raw(" first to find creature names!").color("#AAAAAA")));
             return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    // --- Subcommand: scan ---
+    public static class BreedScanSubCommand extends AbstractCommand {
+        public BreedScanSubCommand() {
+            super("scan", "Scan for untracked baby animals");
+        }
+
+        @Override
+        protected CompletableFuture<Void> execute(CommandContext ctx) {
+            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+            if (plugin == null) {
+                ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                return CompletableFuture.completedFuture(null);
+            }
+
+            ctx.sendMessage(Message.raw("Scanning for untracked babies...").color("#AAAAAA"));
+
+            // Run scan on world thread
+            World world = Universe.get().getDefaultWorld();
+            if (world != null) {
+                world.execute(() -> {
+                    int found = plugin.scanForUntrackedBabies();
+                    if (found > 0) {
+                        ctx.sendMessage(Message.raw("Found and registered ").color("#55FF55")
+                                .insert(Message.raw(String.valueOf(found)).color("#FFFFFF"))
+                                .insert(Message.raw(" untracked babies!").color("#55FF55")));
+                    } else {
+                        ctx.sendMessage(Message.raw("No untracked babies found.").color("#AAAAAA"));
+                    }
+
+                    // Also show current baby count
+                    BreedingManager breeding = plugin.getBreedingManager();
+                    int babyCount = breeding.getTrackedBabyUuids().size();
+                    ctx.sendMessage(Message.raw("Total tracked babies: ").color("#AAAAAA")
+                            .insert(Message.raw(String.valueOf(babyCount)).color("#FFFFFF")));
+                });
+            } else {
+                ctx.sendMessage(Message.raw("World not available!").color("#FF5555"));
+            }
+
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    // --- Subcommand: debug ---
+    public static class BreedDebugSubCommand extends AbstractCommand {
+        public BreedDebugSubCommand() {
+            super("debug", "Debug commands for taming system");
+            addSubCommand(new DebugMemorySubCommand());
+            addSubCommand(new DebugFileSubCommand());
+            addSubCommand(new DebugEventsSubCommand());
+            addSubCommand(new DebugClearSubCommand());
+        }
+
+        @Override
+        protected CompletableFuture<Void> execute(CommandContext ctx) {
+            ctx.sendMessage(Message.raw("=== Debug Commands ===").color("#FF9900"));
+            ctx.sendMessage(Message.raw("/breed debug memory").color("#FFFFFF")
+                    .insert(Message.raw(" - Log tamed animals in memory").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/breed debug file").color("#FFFFFF")
+                    .insert(Message.raw(" - Log tamed animals from save file").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/breed debug events").color("#FFFFFF")
+                    .insert(Message.raw(" - Log last detected death/despawn UUIDs").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/breed debug clear").color("#FFFFFF")
+                    .insert(Message.raw(" - Clear tracked event UUIDs").color("#AAAAAA")));
+            return CompletableFuture.completedFuture(null);
+        }
+
+        // --- Debug: memory ---
+        public static class DebugMemorySubCommand extends AbstractCommand {
+            public DebugMemorySubCommand() {
+                super("memory", "Log tamed animals currently in memory");
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getTamingManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                TamingManager taming = plugin.getTamingManager();
+                Collection<TamedAnimalData> animals = taming.getAllTamedAnimals();
+
+                ctx.sendMessage(Message.raw("=== Tamed Animals in Memory ===").color("#FF9900"));
+                ctx.sendMessage(Message.raw("Total: ").color("#AAAAAA")
+                        .insert(Message.raw(String.valueOf(animals.size())).color("#FFFFFF")));
+                ctx.sendMessage(Message.raw(""));
+
+                if (animals.isEmpty()) {
+                    ctx.sendMessage(Message.raw("No tamed animals in memory.").color("#AAAAAA"));
+                } else {
+                    int index = 1;
+                    for (TamedAnimalData data : animals) {
+                        String status = data.isDead() ? "[DEAD]" : (data.isDespawned() ? "[DESPAWNED]" : "[ACTIVE]");
+                        String statusColor = data.isDead() ? "#FF5555" : (data.isDespawned() ? "#FFFF55" : "#55FF55");
+
+                        ctx.sendMessage(Message.raw(index + ". ").color("#AAAAAA")
+                                .insert(Message.raw(data.getCustomName()).color("#FFFFFF"))
+                                .insert(Message.raw(" ").color("#AAAAAA"))
+                                .insert(Message.raw(status).color(statusColor)));
+
+                        ctx.sendMessage(Message.raw("   UUID: ").color("#AAAAAA")
+                                .insert(Message.raw(data.getAnimalUuid().toString()).color("#888888")));
+
+                        String typeStr = data.getAnimalType() != null ? data.getAnimalType().name() : "CUSTOM";
+                        ctx.sendMessage(Message.raw("   Type: ").color("#AAAAAA")
+                                .insert(Message.raw(typeStr).color("#FFFFFF")));
+
+                        index++;
+                    }
+                }
+
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        // --- Debug: file ---
+        public static class DebugFileSubCommand extends AbstractCommand {
+            public DebugFileSubCommand() {
+                super("file", "Log tamed animals from save file");
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin == null || plugin.getPersistenceManager() == null) {
+                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                PersistenceManager persistence = plugin.getPersistenceManager();
+                List<TamedAnimalData> animals = persistence.loadData();
+
+                ctx.sendMessage(Message.raw("=== Tamed Animals in File ===").color("#FF9900"));
+                ctx.sendMessage(Message.raw("File: ").color("#AAAAAA")
+                        .insert(Message.raw(persistence.getSaveFilePath().toString()).color("#888888")));
+                ctx.sendMessage(Message.raw("Total: ").color("#AAAAAA")
+                        .insert(Message.raw(String.valueOf(animals.size())).color("#FFFFFF")));
+                ctx.sendMessage(Message.raw(""));
+
+                if (animals.isEmpty()) {
+                    ctx.sendMessage(Message.raw("No tamed animals in save file.").color("#AAAAAA"));
+                } else {
+                    int index = 1;
+                    for (TamedAnimalData data : animals) {
+                        String status = data.isDead() ? "[DEAD]" : (data.isDespawned() ? "[DESPAWNED]" : "[ACTIVE]");
+                        String statusColor = data.isDead() ? "#FF5555" : (data.isDespawned() ? "#FFFF55" : "#55FF55");
+
+                        ctx.sendMessage(Message.raw(index + ". ").color("#AAAAAA")
+                                .insert(Message.raw(data.getCustomName()).color("#FFFFFF"))
+                                .insert(Message.raw(" ").color("#AAAAAA"))
+                                .insert(Message.raw(status).color(statusColor)));
+
+                        ctx.sendMessage(Message.raw("   UUID: ").color("#AAAAAA")
+                                .insert(Message.raw(data.getAnimalUuid().toString()).color("#888888")));
+
+                        String typeStr = data.getAnimalType() != null ? data.getAnimalType().name() : "CUSTOM";
+                        ctx.sendMessage(Message.raw("   Type: ").color("#AAAAAA")
+                                .insert(Message.raw(typeStr).color("#FFFFFF")));
+
+                        index++;
+                    }
+                }
+
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        // --- Debug: events ---
+        public static class DebugEventsSubCommand extends AbstractCommand {
+            public DebugEventsSubCommand() {
+                super("events", "Log last detected death and despawn UUIDs");
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                ctx.sendMessage(Message.raw("=== Last Detected Events ===").color("#FF9900"));
+
+                // Deaths from DetectTamedDeath
+                List<UUID> deaths = DetectTamedDeath.getLastDetectedDeaths();
+                ctx.sendMessage(Message.raw(""));
+                ctx.sendMessage(Message.raw("Deaths (last " + deaths.size() + "):").color("#FF5555"));
+                if (deaths.isEmpty()) {
+                    ctx.sendMessage(Message.raw("  None").color("#AAAAAA"));
+                } else {
+                    for (int i = 0; i < deaths.size(); i++) {
+                        ctx.sendMessage(Message.raw("  " + (i + 1) + ". ").color("#AAAAAA")
+                                .insert(Message.raw(deaths.get(i).toString()).color("#888888")));
+                    }
+                }
+
+                // Despawns from LaitsBreedingPlugin
+                List<UUID> despawns = LaitsBreedingPlugin.getLastDetectedDespawns();
+                ctx.sendMessage(Message.raw(""));
+                ctx.sendMessage(Message.raw("Despawns (last " + despawns.size() + "):").color("#FFFF55"));
+                if (despawns.isEmpty()) {
+                    ctx.sendMessage(Message.raw("  None").color("#AAAAAA"));
+                } else {
+                    for (int i = 0; i < despawns.size(); i++) {
+                        ctx.sendMessage(Message.raw("  " + (i + 1) + ". ").color("#AAAAAA")
+                                .insert(Message.raw(despawns.get(i).toString()).color("#888888")));
+                    }
+                }
+
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        // --- Debug: clear ---
+        public static class DebugClearSubCommand extends AbstractCommand {
+            public DebugClearSubCommand() {
+                super("clear", "Clear tracked event UUIDs");
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                DetectTamedDeath.clearTrackedDeaths();
+                LaitsBreedingPlugin.clearTrackedDespawns();
+
+                ctx.sendMessage(Message.raw("Cleared tracked death and despawn UUIDs.").color("#55FF55"));
+                return CompletableFuture.completedFuture(null);
+            }
         }
     }
 }
