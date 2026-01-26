@@ -130,7 +130,7 @@ import java.util.function.BiConsumer;
  */
 public class LaitsBreedingPlugin extends JavaPlugin {
 
-    public static final String VERSION = "1.4.0";
+    public static final String VERSION = "1.4.2";
 
     private static LaitsBreedingPlugin instance;
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClassFull();
@@ -2388,11 +2388,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
         }
 
-        // Save tamed animal data before shutdown
+        // Save tamed animal data before shutdown (must be sync to ensure completion)
         if (persistenceManager != null && tamingManager != null) {
             getLogger().atInfo().log("[Taming] Saving tamed animals on shutdown...");
             persistenceManager.stopAutoSave();
-            persistenceManager.forceSave(tamingManager.getAllTamedAnimals());
+            persistenceManager.forceSaveSync(tamingManager.getAllTamedAnimals());
         }
 
         // Clear breeding data
