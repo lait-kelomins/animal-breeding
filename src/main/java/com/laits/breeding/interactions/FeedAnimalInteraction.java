@@ -231,9 +231,9 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                             final Ref<EntityStore> finalTargetRef = targetRef;
 
                             // Use deferred taming (handles component creation if needed)
-                            TameHelper.tameAnimalDeferred(targetRef, tamerUuid, tamerName, world, (tameComp) -> {
-                                if (tameComp != null) {
-                                    log("Animal tamed successfully via TameComponent");
+                            TameHelper.tameAnimalDeferred(targetRef, tamerUuid, tamerName, world, (hyTameComp) -> {
+                                if (hyTameComp != null) {
+                                    log("Animal tamed successfully via HyTameComponent");
                                     // Also register with TamingManager for persistence
                                     UUID entityUuid = getUuidFromRef(finalTargetRef);
                                     String animalName = NameplateUtil.UNDEFINED_NAME;
@@ -243,7 +243,7 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                                     double posZ = pos != null ? pos.getZ() : 0;
 
                                     TamedAnimalData tamedData = tamingManager.tameAnimal(
-                                            tameComp.getHytameId(),
+                                            hyTameComp.getHytameId(),
                                             entityUuid,
                                             finalTamerUuid,
                                             animalName,
@@ -259,7 +259,7 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
                                     log("Successfully tamed " + finalAnimalType + " for player " + finalTamerName);
                                 } else {
-                                    log("Failed to tame animal - TameComponent is null");
+                                    log("Failed to tame animal - HyTameComponent is null");
                                 }
                             });
 

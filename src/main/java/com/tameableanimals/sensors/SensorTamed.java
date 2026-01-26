@@ -7,7 +7,7 @@ import com.hypixel.hytale.server.npc.asset.builder.BuilderSupport;
 import com.hypixel.hytale.server.npc.corecomponents.SensorBase;
 import com.hypixel.hytale.server.npc.role.Role;
 import com.hypixel.hytale.server.npc.sensorinfo.InfoProvider;
-import com.tameableanimals.tame.TameComponent;
+import com.tameableanimals.tame.HyTameComponent;
 
 import javax.annotation.Nonnull;
 
@@ -21,10 +21,10 @@ public class SensorTamed extends SensorBase {
 
     @Override
     public boolean matches(@Nonnull Ref<EntityStore> ref, @Nonnull Role role, double dt, @Nonnull Store<EntityStore> store) {
-        TameComponent tameComponent = store.getComponent(ref, TameComponent.getComponentType());
-        if (tameComponent == null) return false;
+        HyTameComponent hyTameComponent = store.getComponent(ref, HyTameComponent.getComponentType());
+        if (hyTameComponent == null) return false;
 
-        return super.matches(ref, role, dt, store) && tameComponent.isTamed() == this.value;
+        return super.matches(ref, role, dt, store) && hyTameComponent.isTamed() == this.value;
     }
 
     @Override

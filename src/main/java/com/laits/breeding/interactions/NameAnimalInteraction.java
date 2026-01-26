@@ -175,8 +175,8 @@ public class NameAnimalInteraction extends SimpleInteraction {
                 if (isEcsTamed && existingTamed == null && ecsOwner != null && ecsOwner.equals(playerUuid)) {
                     // Sync: create TamingManager entry from ECS state
                     UUID hytameId = TameHelper.getHytameId(targetRef);
-                    String tamerName = TameHelper.getTameComponent(targetRef) != null ?
-                        TameHelper.getTameComponent(targetRef).getTamerName() : playerName;
+                    String tamerName = TameHelper.getHyTameComponent(targetRef) != null ?
+                        TameHelper.getHyTameComponent(targetRef).getTamerName() : playerName;
                     String defaultName = (animalType != null ? animalType.name() : modelAssetId) + "_" + animalUuid.toString().substring(0, 4);
 
                     tamingManager.tameAnimal(

@@ -65,6 +65,7 @@ import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
 
 import com.laits.breeding.managers.BreedingManager;
+import com.laits.breeding.managers.BreedingTickManager;
 import com.laits.breeding.managers.GrowthManager;
 import com.laits.breeding.managers.TamingManager;
 import com.laits.breeding.managers.PersistenceManager;
@@ -86,7 +87,9 @@ import com.laits.breeding.models.OriginalInteractionState;
 import com.laits.breeding.util.ConfigManager;
 import com.laits.breeding.util.AnimalFinder;
 import com.laits.breeding.util.EcsReflectionUtil;
+import com.laits.breeding.util.EntityUtil;
 import com.laits.breeding.util.NameplateUtil;
+import com.laits.breeding.interactions.InteractionStateCache;
 
 import it.unimi.dsi.fastutil.Pair;
 
@@ -96,9 +99,9 @@ import com.laits.breeding.commands.CustomAnimalCommand;
 import com.laits.breeding.commands.LegacyCommands;
 
 // Taming integration imports
-import com.tameableanimals.tame.TameComponent;
-import com.tameableanimals.tame.TameSystems;
-import com.tameableanimals.actions.BuilderActionTame;
+import com.tameableanimals.tame.HyTameComponent;
+import com.tameableanimals.tame.HyTameSystems;
+import com.tameableanimals.actions.BuilderActionHyTameOrFeed;
 import com.tameableanimals.actions.BuilderActionRemovePlayerHeldItems;
 import com.tameableanimals.sensors.BuilderSensorTamed;
 import com.hypixel.hytale.server.npc.role.support.WorldSupport;
@@ -164,16 +167,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private GrowthManager growthManager;
     private TamingManager tamingManager;
     private PersistenceManager persistenceManager;
+    private BreedingTickManager breedingTickManager;
 
-    // TameComponent type for ECS integration
-    private ComponentType<EntityStore, TameComponent> tameComponentType;
+    // HyTameComponent type for ECS integration
+    private ComponentType<EntityStore, HyTameComponent> hyTameComponentType;
     private ScheduledExecutorService tickScheduler;
     private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
     private NewAnimalSpawnDetector spawnDetector;
-
-    // Reusable collections for tickLoveAnimals (avoid allocation per tick)
-    private final java.util.Map<AnimalType, java.util.List<BreedingData>> tickLoveByType = new java.util.HashMap<>();
-    private final java.util.List<Object> tickLoveEntityRefs = new java.util.ArrayList<>();
 
     // Getter for tick scheduler (used by commands)
     public ScheduledExecutorService getTickScheduler() {
@@ -278,6 +278,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // buildEntityBased (true)
     private static final boolean USE_ENTITY_BASED_INTERACTIONS = BuildConfig.USE_ENTITY_BASED_INTERACTIONS;
 
+    // Legacy FeedAnimalInteraction system toggle
+    // When false: Disables the old interaction-based feeding system entirely
+    // The new ActionHyTameOrFeed handles all feeding/taming via NPC behavior tree
+    // Keep the code as legacy but don't activate it
+    private static final boolean USE_LEGACY_FEED_INTERACTION = false;
+
     // Show interaction hints on animals even when using item-based Ability2
     // When true: Animals show "Press [Ability2] to Feed" hint (but actual feeding
     // is via item)
@@ -285,175 +291,102 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // Only applies when USE_ENTITY_BASED_INTERACTIONS is false
     private static final boolean SHOW_ABILITY2_HINTS_ON_ENTITIES = true;
 
-    // Store original interaction state (ID + hint) before we override them
-    // Used to restore original behavior when feeding doesn't make sense (love mode,
-    // cooldown)
-    // Key is entity UUID string (stable across different Ref objects for same
-    // entity)
-    private static final Map<String, OriginalInteractionState> originalStates = new ConcurrentHashMap<>();
+    // ========================================================================
+    // ENTITY UTILITIES - Delegating to EntityUtil
+    // ========================================================================
 
     /**
-     * Check if an entity ref corresponds to a player (prevents treating players
-     * with animal models as animals).
-     * COPIED FROM FeedAnimalInteraction.isPlayerEntity() - known working
-     * implementation.
+     * Check if an entity ref corresponds to a player.
+     * @see EntityUtil#isPlayerEntity(Ref)
      */
     private boolean isPlayerEntity(Ref<EntityStore> ref) {
-        try {
-            UUID entityUuid = getUuidFromRef(ref);
-            if (entityUuid == null)
-                return false;
-
-            World world = Universe.get().getDefaultWorld();
-            if (world == null)
-                return false;
-
-            for (Player player : world.getPlayers()) {
-                UUID playerUuid = getPlayerUuidFromPlayer(player);
-                if (entityUuid.equals(playerUuid)) {
-                    return true;
-                }
-            }
-        } catch (Exception e) {
-            // Silent - assume not a player if we can't check
-        }
-        return false;
+        return EntityUtil.isPlayerEntity(ref);
     }
 
     /**
      * Get UUID from an entity ref.
-     * Delegates to EcsReflectionUtil.
+     * @see EntityUtil#getUuidFromRef(Ref)
      */
     private UUID getUuidFromRef(Ref<EntityStore> ref) {
-        return EcsReflectionUtil.getUuidFromRef(ref);
+        return EntityUtil.getUuidFromRef(ref);
     }
 
     /**
      * Get UUID from a Player entity.
-     * COPIED FROM FeedAnimalInteraction.getPlayerUuidFromPlayer() - known working
-     * implementation.
+     * @see EntityUtil#getPlayerUuidFromPlayer(Player)
      */
-    @SuppressWarnings("unchecked")
     private UUID getPlayerUuidFromPlayer(Player player) {
-        try {
-            Object entityRef = player.getReference();
-            if (entityRef != null && entityRef instanceof Ref) {
-                Store<EntityStore> store = ((Ref<EntityStore>) entityRef).getStore();
-                if (store != null) {
-                    UUIDComponent uuidComp = store.getComponent((Ref<EntityStore>) entityRef,
-                            EcsReflectionUtil.UUID_TYPE);
-                    if (uuidComp != null) {
-                        return uuidComp.getUuid();
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // Silent
-        }
-        return null;
+        return EntityUtil.getPlayerUuidFromPlayer(player);
     }
 
+    // ========================================================================
+    // INTERACTION STATE CACHE - Delegating to InteractionStateCache
+    // ========================================================================
+
     /**
-     * Get the original interaction ID for an entity (before we set
-     * Root_FeedAnimal).
-     * Used by FeedAnimalInteraction to fall back to default behavior (e.g.,
-     * mounting).
+     * Get the original interaction ID for an entity.
+     * @see InteractionStateCache#getOriginalInteractionId(Ref)
      */
     public static String getOriginalInteractionId(Ref<EntityStore> entityRef) {
-        return getOriginalInteractionId(entityRef, null);
+        return InteractionStateCache.getInstance().getOriginalInteractionId(entityRef);
     }
 
     /**
      * Get the original interaction ID for an entity.
-     * Only returns an ID if we actually saved the original interaction when setting
-     * up the entity.
-     * Does NOT assume a fallback like "Root_Mount" as it may not exist in all
-     * versions.
+     * @see InteractionStateCache#getOriginalInteractionId(Ref, AnimalType)
      */
     public static String getOriginalInteractionId(Ref<EntityStore> entityRef, AnimalType animalType) {
-        String key = EcsReflectionUtil.getStableEntityKey(entityRef);
-        if (key != null) {
-            OriginalInteractionState stored = originalStates.get(key);
-            if (stored != null && stored.hasInteraction()) {
-                return stored.getInteractionId();
-            }
-        }
-        // No fallback - if we didn't save the original, we don't know what it was
-        return null;
+        return InteractionStateCache.getInstance().getOriginalInteractionId(entityRef, animalType);
     }
 
     /**
      * Get the full original interaction state for an entity.
+     * @see InteractionStateCache#getOriginalState(Ref)
      */
     public static OriginalInteractionState getOriginalState(Ref<EntityStore> entityRef) {
-        String key = EcsReflectionUtil.getStableEntityKey(entityRef);
-        if (key != null) {
-            return originalStates.get(key);
-        }
-        return null;
+        return InteractionStateCache.getInstance().getOriginalState(entityRef);
     }
 
     /**
-     * Store the original interaction state (ID + hint) for an entity.
-     * ALWAYS stores, even if interactionId is null - that's the correct original
-     * state for horses
-     * (null Use interaction allows mounting to work via default behavior).
+     * Store the original interaction state for an entity.
+     * @see InteractionStateCache#storeOriginalState(Ref, String, String, AnimalType)
      */
     private static void storeOriginalState(Ref<EntityStore> entityRef, String interactionId, String hint,
             AnimalType animalType) {
-        String key = EcsReflectionUtil.getStableEntityKey(entityRef);
-        if (key == null)
-            return;
-
-        // Always store the original state, even if interactionId is null
-        // For horses, null is the correct original state - it allows mounting to work
-        originalStates.put(key, new OriginalInteractionState(interactionId, hint));
+        InteractionStateCache.getInstance().storeOriginalState(entityRef, interactionId, hint, animalType);
     }
 
     /**
-     * Legacy overload for backwards compatibility - stores interaction ID without
-     * hint.
+     * Store the original interaction ID for an entity.
+     * @see InteractionStateCache#storeOriginalInteractionId(Ref, String, AnimalType)
      */
     private static void storeOriginalInteractionId(Ref<EntityStore> entityRef, String interactionId,
             AnimalType animalType) {
-        storeOriginalState(entityRef, interactionId, null, animalType);
+        InteractionStateCache.getInstance().storeOriginalInteractionId(entityRef, interactionId, animalType);
     }
 
     /**
-     * Legacy overload for backwards compatibility.
+     * Store the original interaction ID for an entity.
+     * @see InteractionStateCache#storeOriginalInteractionId(Ref, String)
      */
     private static void storeOriginalInteractionId(Ref<EntityStore> entityRef, String interactionId) {
-        storeOriginalState(entityRef, interactionId, null, null);
+        InteractionStateCache.getInstance().storeOriginalInteractionId(entityRef, interactionId);
     }
 
     /**
-     * Clean up stale entries in originalStates map.
-     * Removes index-based keys (ephemeral) and validates UUID-based keys.
-     * 
-     * @return Number of entries removed
+     * Clean up stale entries in the interaction state cache.
+     * @see InteractionStateCache#cleanupStaleEntries()
      */
     private int cleanupStaleOriginalInteractions() {
-        int removed = 0;
-        Iterator<Map.Entry<String, OriginalInteractionState>> it = originalStates.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<String, OriginalInteractionState> entry = it.next();
-            String key = entry.getKey();
-            // Index-based keys are ephemeral and should be cleaned up periodically
-            if (key.startsWith("idx:")) {
-                it.remove();
-                removed++;
-            }
-            // UUID-based keys could be validated, but for simplicity we rely on
-            // EntityRemoveEvent
-        }
-        return removed;
+        return InteractionStateCache.getInstance().cleanupStaleEntries();
     }
 
     /**
-     * Get the current size of the originalStates cache (for debugging).
+     * Get the current size of the interaction state cache.
+     * @see InteractionStateCache#getCacheSize()
      */
     public static int getOriginalInteractionsCacheSize() {
-        return originalStates.size();
+        return InteractionStateCache.getInstance().getCacheSize();
     }
 
     /** Broadcast a message to all online players in chat */
@@ -587,6 +520,54 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         java.util.List<TamedAnimalData> savedAnimals = persistenceManager.loadData();
         tamingManager.loadFromPersistence(savedAnimals);
 
+        // Initialize breeding tick manager
+        breedingTickManager = new BreedingTickManager(breedingManager, configManager);
+        breedingTickManager.setVerboseLogging(verboseLogging);
+        breedingTickManager.setLogger(msg -> getLogger().atInfo().log(msg));
+        breedingTickManager.setWarningLogger(msg -> getLogger().atWarning().log(msg));
+
+        // Set up breeding callbacks
+        breedingTickManager.setOnBreedingComplete((type, animals) -> {
+            // Get positions for midpoint calculation
+            Vector3d pos1 = getPositionFromBreedingData(animals[0]);
+            Vector3d pos2 = getPositionFromBreedingData(animals[1]);
+            if (pos1 != null && pos2 != null) {
+                Vector3d midpoint = new Vector3d(
+                        (pos1.getX() + pos2.getX()) / 2.0,
+                        (pos1.getY() + pos2.getY()) / 2.0,
+                        (pos1.getZ() + pos2.getZ()) / 2.0);
+                spawnBabyAnimal(type, midpoint, animals[0].getAnimalId(), animals[1].getAnimalId());
+            }
+        });
+
+        breedingTickManager.setOnCustomBreedingComplete((modelAssetId, animals) -> {
+            // Get positions for midpoint calculation
+            Vector3d pos1 = getPositionFromRef(animals[0].getEntityRef());
+            Vector3d pos2 = getPositionFromRef(animals[1].getEntityRef());
+            if (pos1 != null && pos2 != null) {
+                Vector3d midpoint = new Vector3d(
+                        (pos1.getX() + pos2.getX()) / 2.0,
+                        (pos1.getY() + pos2.getY()) / 2.0,
+                        (pos1.getZ() + pos2.getZ()) / 2.0);
+                CustomAnimalConfig customConfig = configManager.getCustomAnimal(modelAssetId);
+                spawnCustomAnimalBaby(modelAssetId, customConfig, midpoint);
+            }
+        });
+
+        breedingTickManager.setHeartParticleSpawner(entityRef -> {
+            World world = Universe.get().getDefaultWorld();
+            if (world != null) {
+                world.execute(() -> {
+                    try {
+                        Store<EntityStore> store = world.getEntityStore().getStore();
+                        spawnHeartParticlesAtRef(store, entityRef);
+                    } catch (Exception e) {
+                        // Silent
+                    }
+                });
+            }
+        });
+
         // Set up growth callback - handle growth stage changes
         growthManager.setOnGrowthCallback(event -> {
             if (event.usesScaling()) {
@@ -625,13 +606,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             logWarning("NameAnimalInteraction codec registration skipped (may already exist): " + e.getMessage());
         }
 
-        // Register TameComponent for ECS-based taming (from tameable-animals)
+        // Register HyTameComponent for ECS-based taming
         try {
-            tameComponentType = getEntityStoreRegistry().registerComponent(
-                    TameComponent.class, "Tame", TameComponent.CODEC);
-            getLogger().atInfo().log("TameComponent registered successfully");
+            hyTameComponentType = getEntityStoreRegistry().registerComponent(
+                    HyTameComponent.class, "HyTame", HyTameComponent.CODEC);
+            getLogger().atInfo().log("HyTameComponent registered successfully");
         } catch (Exception e) {
-            logWarning("TameComponent registration failed: " + e.getMessage());
+            logWarning("HyTameComponent registration failed: " + e.getMessage());
         }
 
         // Register ECS system for block interactions
@@ -710,7 +691,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             try {
                 breedingManager.tickPregnancies();
                 growthManager.tickGrowth();
-                tickLoveAnimals();
+                breedingTickManager.tick(); // Handle love mode, heart particles, breeding
                 updateTrackedAnimalStates(); // Dynamic hint switching based on love/cooldown
             } catch (Exception e) {
                 // Log tick errors for debugging
@@ -750,15 +731,20 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             getEntityStoreRegistry().registerSystem(spawnDetector);
             logVerbose("NewAnimalSpawnDetector system registered in start()");
 
-            // Register TameActivateSystem (sets REVERED attitude when tamed)
-            getEntityStoreRegistry().registerSystem(new TameSystems.TameActivateSystem());
-            logVerbose("TameActivateSystem registered");
+            // Register HyTameActivateSystem (sets REVERED attitude when tamed)
+            getEntityStoreRegistry().registerSystem(new HyTameSystems.HyTameActivateSystem());
+            logVerbose("HyTameActivateSystem registered");
+
+            // Register HyTameTickSystem (manages actionReady state based on cooldowns)
+            getEntityStoreRegistry().registerSystem(new HyTameSystems.HyTameTickSystem());
+            logVerbose("HyTameTickSystem registered");
 
             // Register NPC core components for behavior tree support
-            NPCPlugin.get().registerCoreComponentType("Tame", BuilderActionTame::new);
+            // "HyTameOrFeed" routes feeding to taming (wild) or breeding (tamed)
+            NPCPlugin.get().registerCoreComponentType("HyTameOrFeed", BuilderActionHyTameOrFeed::new);
             NPCPlugin.get().registerCoreComponentType("Tamed", BuilderSensorTamed::new);
             NPCPlugin.get().registerCoreComponentType("RemovePlayerHeldItems", BuilderActionRemovePlayerHeldItems::new);
-            logVerbose("NPC taming components registered (Tame, Tamed, RemovePlayerHeldItems)");
+            logVerbose("NPC taming components registered (HyTameOrFeed, Tamed, RemovePlayerHeldItems)");
 
             // Periodically update player UUIDs for the spawn detector to exclude players
             scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
@@ -863,8 +849,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Note: Event-based detection (PrefabPlaceEntityEvent, LoadedNPCEvent) was
      * tested
      * but these events don't fire for natural animal spawns in Hytale.
+     *
+     * LEGACY: This method is disabled when USE_LEGACY_FEED_INTERACTION is false.
+     * The new ActionHyTameOrFeed system handles feeding/taming via NPC behavior tree.
      */
     public void attachInteractionsToAnimals() {
+        // Skip if legacy feed interaction system is disabled
+        if (!USE_LEGACY_FEED_INTERACTION) {
+            logVerbose("Legacy FeedAnimalInteraction disabled - skipping interaction attachment");
+            return;
+        }
+
         // Scan when a player connects (entities spawn when chunks load around players)
         // Multiple scans to catch animals as they load
         getEventRegistry().register(PlayerConnectEvent.class, event -> {
@@ -1070,8 +1065,16 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     /**
      * Set up breeding interactions on a single entity.
      * Note: Interactions methods are not public, so we must use reflection.
+     *
+     * LEGACY: This method is disabled when USE_LEGACY_FEED_INTERACTION is false.
+     * The new ActionHyTameOrFeed system handles feeding/taming via NPC behavior tree.
      */
     private void setupEntityInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef, AnimalType animalType) {
+        // Skip if legacy feed interaction system is disabled
+        if (!USE_LEGACY_FEED_INTERACTION) {
+            return;
+        }
+
         try {
             // Skip players (even if they have animal models) - same check as
             // FeedAnimalInteraction
@@ -1149,9 +1152,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     /**
      * Set up breeding interactions on a custom animal entity (from config).
      * IDENTICAL to setupEntityInteractions - copy-pasted to ensure same behavior.
+     *
+     * LEGACY: This method is disabled when USE_LEGACY_FEED_INTERACTION is false.
+     * The new ActionHyTameOrFeed system handles feeding/taming via NPC behavior tree.
      */
     private void setupCustomAnimalInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef,
             CustomAnimalConfig customAnimal) {
+        // Skip if legacy feed interaction system is disabled
+        if (!USE_LEGACY_FEED_INTERACTION) {
+            return;
+        }
+
         String animalName = customAnimal.getModelAssetId();
         if (verboseLogging)
             getLogger().atInfo().log("[CustomAnimal] setupCustomAnimalInteractions CALLED for: %s", animalName);
@@ -1304,7 +1315,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 interactions.setInteractionHint(hintKey);
             } else {
                 // ORIGINAL MODE - restore original interaction if we have it saved
-                OriginalInteractionState original = entityKey != null ? originalStates.get(entityKey) : null;
+                OriginalInteractionState original = getOriginalState(entityRef);
                 if (original != null) {
                     // Restore original interaction ID (even if null - that's the correct original
                     // state)
@@ -1421,12 +1432,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             CustomAnimalConfig customAnimal) {
         // Use the same storage mechanism as regular animals
         // Store whatever the original interaction was so we can fall back to it
-        String key = EcsReflectionUtil.getStableEntityKey(entityRef);
-        if (key == null)
-            return;
-
         if (originalId != null && !originalId.isEmpty()) {
-            originalStates.put(key, new OriginalInteractionState(originalId, null));
+            InteractionStateCache.getInstance().storeOriginalState(entityRef, originalId, null, null);
         }
     }
 
@@ -1478,15 +1485,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         breedingManager.removeData(entityId);
                     }
 
-                    // Clean up originalStates map to prevent memory leak
+                    // Clean up interaction state cache to prevent memory leak
                     try {
                         Ref<EntityStore> ref = entity.getReference();
 
                         if (ref != null) {
-                            String key = EcsReflectionUtil.getStableEntityKey(ref);
-                            if (key != null) {
-                                originalStates.remove(key);
-                            }
+                            InteractionStateCache.getInstance().remove(ref);
                         }
                     } catch (Exception ex) {
                         // Silent - entity may not have getReference method
@@ -1598,18 +1602,18 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                 Store<EntityStore> store = world.getEntityStore().getStore();
 
-                // Phase 0: Scan all entities for TameComponent and build hytameId -> entityRef
+                // Phase 0: Scan all entities for HyTameComponent and build hytameId -> entityRef
                 // map
                 // This catches entities that exist but whose entityRef in JSON is stale
                 Map<UUID, Ref<EntityStore>> entitiesByHytameId = new HashMap<>();
-                ComponentType<EntityStore, TameComponent> tameType = getTameComponentType();
-                if (tameType != null) {
+                ComponentType<EntityStore, HyTameComponent> hyTameType = getHyTameComponentType();
+                if (hyTameType != null) {
                     store.forEachChunk((ArchetypeChunk<EntityStore> chunk, CommandBuffer<EntityStore> buffer) -> {
                         int chunkSize = chunk.size();
                         for (int i = 0; i < chunkSize; i++) {
                             try {
-                                TameComponent tameComp = chunk.getComponent(i, tameType);
-                                if (tameComp != null && tameComp.isTamed() && tameComp.getHytameId() != null) {
+                                HyTameComponent hyTameComp = chunk.getComponent(i, hyTameType);
+                                if (hyTameComp != null && hyTameComp.isTamed() && hyTameComp.getHytameId() != null) {
                                     Ref<EntityStore> ref = chunk.getReferenceTo(i);
                                     if (ref != null && ref.isValid()) {
                                         // Check entity is valid (not despawning)
@@ -1617,7 +1621,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                         DespawnComponent despawn = store.getComponent(ref,
                                                 DespawnComponent.getComponentType());
                                         if (npc != null && !npc.isDespawning() && despawn == null) {
-                                            entitiesByHytameId.put(tameComp.getHytameId(), ref);
+                                            entitiesByHytameId.put(hyTameComp.getHytameId(), ref);
                                         }
                                     }
                                 }
@@ -1626,7 +1630,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             }
                         }
                     });
-                    logVerbose("[RespawnCheck] Found " + entitiesByHytameId.size() + " entities with TameComponent");
+                    logVerbose("[RespawnCheck] Found " + entitiesByHytameId.size() + " entities with HyTameComponent");
                 }
 
                 // Phase 1: Update entity status for all JSON entries
@@ -1789,7 +1793,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         // Update taming manager with new UUID and ref
                         tamingManager.markRespawned(oldUuid, newUuid, entityRef);
 
-                        // Set TameComponent on the respawned entity
+                        // Set HyTameComponent on the respawned entity
                         UUID ownerUuid = finalTamedData.getOwnerUuid();
                         String ownerName = finalTamedData.getOwnerName();
                         UUID hytameId = finalTamedData.getHytameId();
@@ -1797,17 +1801,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                             // Use fallback name for legacy data without ownerName
                             String effectiveOwnerName = (ownerName != null) ? ownerName : "Unknown";
 
-                            // Get or create TameComponent and set tamed state
-                            ComponentType<EntityStore, TameComponent> tameType = getTameComponentType();
-                            if (tameType != null) {
-                                TameComponent tameComp = store.ensureAndGetComponent(entityRef, tameType);
-                                if (tameComp != null) {
-                                    tameComp.setTamed(ownerUuid, effectiveOwnerName);
+                            // Get or create HyTameComponent and set tamed state
+                            ComponentType<EntityStore, HyTameComponent> hyTameType = getHyTameComponentType();
+                            if (hyTameType != null) {
+                                HyTameComponent hyTameComp = store.ensureAndGetComponent(entityRef, hyTameType);
+                                if (hyTameComp != null) {
+                                    hyTameComp.setTamed(ownerUuid, effectiveOwnerName);
                                     // Restore the hytameId from JSON (don't generate new one)
                                     if (hytameId != null) {
-                                        tameComp.setHytameId(hytameId);
+                                        hyTameComp.setHytameId(hytameId);
                                     }
-                                    logVerbose("Set TameComponent on respawned entity: owner=" + effectiveOwnerName
+                                    logVerbose("Set HyTameComponent on respawned entity: owner=" + effectiveOwnerName
                                             + ", hytameId=" + hytameId);
                                 }
                             }
@@ -2494,112 +2498,48 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         }
     }
 
+    // ========================================================================
+    // MORE ENTITY UTILITIES - Delegating to EntityUtil
+    // ========================================================================
+
     /**
      * Get entity position from Entity object.
+     * @see EntityUtil#getEntityPosition(Entity)
      */
     private Vector3d getEntityPosition(Entity entity) {
-        Ref<EntityStore> ref = entity.getReference();
-        if (ref != null) {
-            return getPositionFromRef(ref);
-        }
-
-        try {
-            // Fallback: Try to get position directly from Entity (probably doesnt work but
-            // leaving just in case)
-            java.lang.reflect.Method getPosition = entity.getClass().getMethod("getPosition");
-            Object pos = getPosition.invoke(entity);
-            if (pos instanceof Vector3d) {
-                return (Vector3d) pos;
-            }
-            // Try to convert Vector3f to Vector3d
-            if (pos != null && pos.getClass().getSimpleName().equals("Vector3f")) {
-                java.lang.reflect.Method getX = pos.getClass().getMethod("getX");
-                java.lang.reflect.Method getY = pos.getClass().getMethod("getY");
-                java.lang.reflect.Method getZ = pos.getClass().getMethod("getZ");
-                float x = (Float) getX.invoke(pos);
-                float y = (Float) getY.invoke(pos);
-                float z = (Float) getZ.invoke(pos);
-                return new Vector3d(x, y, z);
-            }
-        } catch (NoSuchMethodException e) {
-            // Try alternate method names
-            try {
-                java.lang.reflect.Method getPos = entity.getClass().getMethod("getPos");
-                Object pos = getPos.invoke(entity);
-                if (pos instanceof Vector3d) {
-                    return (Vector3d) pos;
-                }
-            } catch (Exception e2) {
-                // Continue to fallback
-            }
-        } catch (Exception e) {
-            // Silent
-        }
-
-        return null;
+        return EntityUtil.getEntityPosition(entity);
     }
 
     /**
      * Get position from an entity reference.
-     * 
-     * @param entityRef The entity reference
-     * @return The entity's position, or null if not available
+     * @see EntityUtil#getPositionFromRef(Ref)
      */
     public Vector3d getPositionFromRef(Ref<EntityStore> entityRef) {
-        if (entityRef == null)
-            return null;
-        try {
-            Store<EntityStore> store = entityRef.getStore();
-            if (store == null)
-                return null;
-
-            TransformComponent transform = store.getComponent(entityRef, TransformComponent.getComponentType());
-            if (transform != null) {
-                return transform.getPosition();
-            }
-        } catch (Exception e) {
-            // Entity may have despawned
-        }
-        return null;
+        return EntityUtil.getPositionFromRef(entityRef);
     }
 
     /**
      * Get the Ref<EntityStore> from an Entity object.
+     * @see EntityUtil#getEntityRef(Entity)
      */
     private Ref<EntityStore> getEntityRef(Entity entity) {
-        return EcsReflectionUtil.getEntityRef(entity);
+        return EntityUtil.getEntityRef(entity);
     }
 
     /**
      * Get UUID for an entity using ECS UUIDComponent.
-     * Delegates to EcsReflectionUtil.
+     * @see EntityUtil#getEntityUUID(Entity)
      */
     private UUID getEntityUUID(Entity entity) {
-        return EcsReflectionUtil.getEntityUUID(entity);
+        return EntityUtil.getEntityUUID(entity);
     }
 
     /**
      * Get UUID for a player entity.
+     * @see EntityUtil#getPlayerUuidFromEntity(Player)
      */
-    @SuppressWarnings("unchecked")
     public UUID getPlayerUuidFromEntity(Player player) {
-        try {
-            Object entityRef = player.getReference();
-            if (entityRef != null && entityRef instanceof Ref) {
-                World world = player.getWorld();
-                if (world != null) {
-                    Store<EntityStore> store = world.getEntityStore().getStore();
-                    UUIDComponent uuidComp = store.getComponent((Ref<EntityStore>) entityRef,
-                            EcsReflectionUtil.UUID_TYPE);
-                    if (uuidComp != null && uuidComp.getUuid() != null) {
-                        return uuidComp.getUuid();
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // Silent
-        }
-        return null;
+        return EntityUtil.getPlayerUuidFromEntity(player);
     }
 
     /**
@@ -2613,242 +2553,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Get model asset ID for an entity using ECS ModelComponent (avoids deprecated
-     * getLegacyDisplayName()).
-     * This is used to determine the animal type.
+     * Get model asset ID for an entity.
+     * @see EntityUtil#getEntityModelId(Entity)
      */
-    @SuppressWarnings("unchecked")
     private String getEntityModelId(Entity entity) {
-        return EcsReflectionUtil.getEntityModelId(entity);
+        return EntityUtil.getEntityModelId(entity);
     }
 
-    /**
-     * Tick method to handle animals in love (optimized):
-     * - Check if two animals of same type are in love and nearby
-     * - If close enough, breed them
-     * - If too far apart, wait for player to herd them together
-     * - Love expires after LOVE_DURATION (30 seconds)
-     */
-    private void tickLoveAnimals() {
-        // Early exit if nothing tracked
-        int trackedCount = breedingManager.getTrackedCount();
-        int inLoveTotal = breedingManager.getInLoveCount();
-
-        // Always log status when any animal is in love (for debugging)
-        if (inLoveTotal > 0) {
-            if (verboseLogging)
-                getLogger().atInfo().log("[TickLove] Running: tracked=" + trackedCount + ", inLove=" + inLoveTotal);
-        }
-
-        if (trackedCount == 0)
-            return;
-
-        long now = System.currentTimeMillis();
-
-        // Single pass: expire love AND collect eligible animals AND group by type
-        // Reuse collections to avoid allocation per tick
-        tickLoveByType.values().forEach(java.util.List::clear);
-        tickLoveByType.clear();
-        tickLoveEntityRefs.clear();
-        int inLoveCount = 0;
-        int inLoveWithRef = 0;
-        int inLoveNoRef = 0;
-
-        for (BreedingData data : breedingManager.getAllBreedingData()) {
-            if (data.isInLove()) {
-                // Check expiration
-                if (now - data.getLoveStartTime() > LOVE_DURATION) {
-                    data.resetLove();
-                    continue;
-                }
-
-                // Collect entity ref for heart particles (all in-love animals)
-                if (data.getEntityRef() != null) {
-                    tickLoveEntityRefs.add(data.getEntityRef());
-                    inLoveWithRef++;
-                } else {
-                    inLoveNoRef++;
-                }
-
-                // Collect if eligible for breeding
-                if (!data.isPregnant() && data.getGrowthStage().canBreed()) {
-                    tickLoveByType.computeIfAbsent(data.getAnimalType(), k -> new java.util.ArrayList<>()).add(data);
-                    inLoveCount++;
-                }
-            }
-        }
-
-        // Also process custom animals in love mode
-        breedingManager.tickCustomAnimalLove(); // Expire old love modes
-        for (BreedingManager.CustomAnimalLoveData customData : breedingManager.getCustomAnimalsInLove()) {
-            if (customData.getEntityRef() != null) {
-                tickLoveEntityRefs.add(customData.getEntityRef());
-                inLoveWithRef++;
-            } else {
-                inLoveNoRef++;
-            }
-        }
-
-        // Debug: Log love status every tick
-        if (inLoveWithRef > 0 || inLoveNoRef > 0) {
-            if (verboseLogging)
-                getLogger().atInfo().log("[Hearts] Tracked: " + trackedCount +
-                        ", InLove w/ref: " + inLoveWithRef +
-                        ", InLove no ref: " + inLoveNoRef);
-        }
-
-        // Spawn heart particles for all animals in love (runs every 1 second)
-        if (!tickLoveEntityRefs.isEmpty()) {
-            World world = Universe.get().getDefaultWorld();
-            if (world != null) {
-                // Copy refs for async execution (list will be cleared on next tick)
-                final java.util.List<Object> refsSnapshot = new java.util.ArrayList<>(tickLoveEntityRefs);
-                world.execute(() -> {
-                    try {
-                        Store<EntityStore> store = world.getEntityStore().getStore();
-                        int spawned = 0;
-                        for (Object entityRef : refsSnapshot) {
-                            spawnHeartParticlesAtRef(store, entityRef);
-                            spawned++;
-                        }
-                        if (verboseLogging)
-                            getLogger().atInfo()
-                                    .log("[Hearts] Spawned particles for " + spawned + "/" + refsSnapshot.size()
-                                            + " entities");
-                    } catch (Exception e) {
-                        getLogger().atWarning().log("[Hearts] Error spawning: " + e.getMessage());
-                    }
-                });
-            }
-        }
-
-        // Early exit if less than 2 animals in love
-        if (inLoveCount < 2)
-            return;
-
-        // Must execute ECS operations on world thread
-        World world = Universe.get().getDefaultWorld();
-        if (world == null)
-            return;
-
-        // For each type with 2+ animals in love, check distance and breed if close
-        for (java.util.Map.Entry<AnimalType, java.util.List<BreedingData>> entry : tickLoveByType.entrySet()) {
-            java.util.List<BreedingData> animalsOfType = entry.getValue();
-            if (animalsOfType.size() < 2)
-                continue;
-
-            BreedingData animal1 = animalsOfType.get(0);
-            BreedingData animal2 = animalsOfType.get(1);
-
-            if (animal1.getEntityRef() == null || animal2.getEntityRef() == null) {
-                continue;
-            }
-
-            final BreedingData finalAnimal1 = animal1;
-            final BreedingData finalAnimal2 = animal2;
-            final AnimalType finalType = entry.getKey();
-
-            // Execute on world thread for ECS access
-            world.execute(() -> {
-                try {
-                    Store<EntityStore> store = world.getEntityStore().getStore();
-
-                    Vector3d pos1 = getPositionOnWorldThread(store, finalAnimal1.getEntityRef());
-                    Vector3d pos2 = getPositionOnWorldThread(store, finalAnimal2.getEntityRef());
-
-                    if (pos1 == null || pos2 == null)
-                        return;
-
-                    double distance = calculateDistance(pos1, pos2);
-
-                    if (distance <= BREEDING_DISTANCE) {
-                        finalAnimal1.completeBreeding();
-                        finalAnimal2.completeBreeding();
-                        // Spawn baby at midpoint between the two parents
-                        Vector3d midpoint = new Vector3d(
-                                (pos1.getX() + pos2.getX()) / 2.0,
-                                (pos1.getY() + pos2.getY()) / 2.0,
-                                (pos1.getZ() + pos2.getZ()) / 2.0);
-                        // Pass parent UUIDs for auto-taming
-                        spawnBabyAnimal(finalType, midpoint, finalAnimal1.getAnimalId(), finalAnimal2.getAnimalId());
-                    }
-                } catch (Exception e) {
-                    // Silent
-                }
-            });
-        }
-
-        // Also check custom animal breeding (same logic, different data source)
-        checkCustomAnimalBreeding(world);
-    }
-
-    /**
-     * Check for custom animals in love that are close enough to breed.
-     * Similar to built-in animal breeding, but uses CustomAnimalLoveData.
-     */
-    private void checkCustomAnimalBreeding(World world) {
-        // Group custom animals in love by modelAssetId
-        java.util.Map<String, java.util.List<BreedingManager.CustomAnimalLoveData>> byType = new java.util.HashMap<>();
-        for (BreedingManager.CustomAnimalLoveData data : breedingManager.getCustomAnimalsInLove()) {
-            if (data.isInLove() && data.getEntityRef() != null) {
-                byType.computeIfAbsent(data.getModelAssetId(), k -> new java.util.ArrayList<>()).add(data);
-            }
-        }
-
-        // For each type with 2+ animals in love, check distance
-        for (java.util.Map.Entry<String, java.util.List<BreedingManager.CustomAnimalLoveData>> entry : byType
-                .entrySet()) {
-            java.util.List<BreedingManager.CustomAnimalLoveData> animalsOfType = entry.getValue();
-            if (animalsOfType.size() < 2)
-                continue;
-
-            BreedingManager.CustomAnimalLoveData animal1 = animalsOfType.get(0);
-            BreedingManager.CustomAnimalLoveData animal2 = animalsOfType.get(1);
-
-            if (animal1.getEntityRef() == null || animal2.getEntityRef() == null)
-                continue;
-
-            final BreedingManager.CustomAnimalLoveData finalAnimal1 = animal1;
-            final BreedingManager.CustomAnimalLoveData finalAnimal2 = animal2;
-            final String modelAssetId = entry.getKey();
-
-            // Execute on world thread for ECS access
-            world.execute(() -> {
-                try {
-                    Store<EntityStore> store = world.getEntityStore().getStore();
-
-                    Vector3d pos1 = getPositionOnWorldThread(store, finalAnimal1.getEntityRef());
-                    Vector3d pos2 = getPositionOnWorldThread(store, finalAnimal2.getEntityRef());
-
-                    if (pos1 == null || pos2 == null)
-                        return;
-
-                    double distance = calculateDistance(pos1, pos2);
-
-                    if (distance <= BREEDING_DISTANCE) {
-                        if (verboseLogging)
-                            getLogger().atInfo().log("[CustomBreed] Breeding %s at distance %.1f", modelAssetId,
-                                    distance);
-
-                        finalAnimal1.completeBreeding();
-                        finalAnimal2.completeBreeding();
-
-                        // Spawn baby at midpoint between the two parents
-                        Vector3d midpoint = new Vector3d(
-                                (pos1.getX() + pos2.getX()) / 2.0,
-                                (pos1.getY() + pos2.getY()) / 2.0,
-                                (pos1.getZ() + pos2.getZ()) / 2.0);
-
-                        // Get custom animal config for baby spawning
-                        CustomAnimalConfig customConfig = configManager.getCustomAnimal(modelAssetId);
-                        spawnCustomAnimalBaby(modelAssetId, customConfig, midpoint);
-                    }
-                } catch (Exception e) {
-                    // Silent
-                }
-            });
-        }
-    }
+    // NOTE: tickLoveAnimals() and checkCustomAnimalBreeding() have been moved to BreedingTickManager
 
     /**
      * Spawn a baby custom animal at the given position.
@@ -3207,18 +2919,18 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                                         String ownerName = babyTameData.getOwnerName();
                                         if (ownerUuid != null && ownerName != null) {
-                                            // Get or create TameComponent and set tamed state
-                                            ComponentType<EntityStore, TameComponent> tameType = getTameComponentType();
-                                            if (tameType != null) {
-                                                TameComponent tameComp = store.ensureAndGetComponent(entityRef,
-                                                        tameType);
-                                                if (tameComp != null) {
-                                                    tameComp.setTamed(ownerUuid, ownerName);
+                                            // Get or create HyTameComponent and set tamed state
+                                            ComponentType<EntityStore, HyTameComponent> hyTameType = getHyTameComponentType();
+                                            if (hyTameType != null) {
+                                                HyTameComponent hyTameComp = store.ensureAndGetComponent(entityRef,
+                                                        hyTameType);
+                                                if (hyTameComp != null) {
+                                                    hyTameComp.setTamed(ownerUuid, ownerName);
                                                     // Restore the hytameId from JSON (don't generate new one)
                                                     if (babyTameData.getHytameId() != null) {
-                                                        tameComp.setHytameId(babyTameData.getHytameId());
+                                                        hyTameComp.setHytameId(babyTameData.getHytameId());
                                                     }
-                                                    logVerbose("Set TameComponent on respawned entity: owner="
+                                                    logVerbose("Set HyTameComponent on respawned entity: owner="
                                                             + ownerName + ", hytameId=" + babyTameData.getHytameId());
                                                 }
                                             }
@@ -3878,11 +3590,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Get the TameComponent type for ECS operations.
+     * Get the HyTameComponent type for ECS operations.
      * Used by TameHelper and other classes that need to check/set tame state.
      */
-    public ComponentType<EntityStore, TameComponent> getTameComponentType() {
-        return tameComponentType;
+    public ComponentType<EntityStore, HyTameComponent> getHyTameComponentType() {
+        return hyTameComponentType;
     }
 
 }
