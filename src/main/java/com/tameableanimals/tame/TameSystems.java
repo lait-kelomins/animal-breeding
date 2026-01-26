@@ -14,8 +14,7 @@ import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.npc.role.Role;
 import com.hypixel.hytale.server.npc.role.support.WorldSupport;
 import com.hypixel.hytale.server.npc.systems.RoleBuilderSystem;
-import com.tameableanimals.config.ConfigManager;
-import com.tameableanimals.TameableAnimalsPlugin;
+import com.laits.breeding.LaitsBreedingPlugin;
 import com.tameableanimals.utils.Debug;
 
 import javax.annotation.Nonnull;
@@ -38,7 +37,8 @@ public class TameSystems {
             this.tameComponentType = TameComponent.getComponentType();
             this.query = Query.and(npcComponentType, Query.not(NPCMountComponent.getComponentType()));
             this.dependencies = Set.of(new SystemDependency<>(Order.AFTER, RoleBuilderSystem.class));
-            this.validGroups = ConfigManager.getConfig().getTameableAnimalGroups();
+            // Use Laits ConfigManager for tameable animal groups
+            this.validGroups = LaitsBreedingPlugin.getInstance().getConfigManager().getTameableAnimalGroups();
         }
 
         @Nonnull
@@ -68,9 +68,9 @@ public class TameSystems {
             TameComponent tameComponent = holder.ensureAndGetComponent(this.tameComponentType);
             if (tameComponent.isTamed()) {
                 try {
-                    TameableAnimalsPlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);
+                    LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);
                 } catch (IllegalAccessException e) {
-                    TameableAnimalsPlugin.get().getLogger().atSevere().log("Failed to override attitude for NPC", e);
+                    LaitsBreedingPlugin.getInstance().getLogger().atSevere().log("Failed to override attitude for NPC", e);
                 }
 
                 // Remove from over population tracking

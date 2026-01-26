@@ -3,14 +3,17 @@ package com.laits.breeding.util;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.entity.Entity;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.modules.collision.CollisionResult;
 import com.hypixel.hytale.server.core.modules.entity.component.Interactable;
 import com.hypixel.hytale.server.core.modules.interaction.Interactions;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.npc.NPCPlugin;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -28,31 +31,15 @@ import java.util.UUID;
 public final class EcsReflectionUtil {
 
     // Cached ECS component types for performance
-    public static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE =
-            TransformComponent.getComponentType();
-    public static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE =
-            ModelComponent.getComponentType();
-    public static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE =
-            UUIDComponent.getComponentType();
+    public static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE = TransformComponent
+            .getComponentType();
+    public static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
+    public static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
 
-    // These are initialized at runtime since their getComponentType() may not be public
+    // These are initialized at runtime since their getComponentType() may not be
+    // public
     private static Object INTERACTIONS_COMP_TYPE = null;
     private static Object INTERACTABLE_COMP_TYPE = null;
-
-    // Cached reflection Field for ModelComponent.model (avoid per-call getDeclaredField)
-    private static Field cachedModelField = null;
-    private static boolean modelFieldInitialized = false;
-
-    // Static initializer for reflection cache
-    static {
-        try {
-            cachedModelField = ModelComponent.class.getDeclaredField("model");
-            cachedModelField.setAccessible(true);
-            modelFieldInitialized = true;
-        } catch (Exception e) {
-            modelFieldInitialized = false;
-        }
-    }
 
     // Private constructor - utility class
     private EcsReflectionUtil() {
@@ -68,7 +55,8 @@ public final class EcsReflectionUtil {
             try {
                 INTERACTIONS_COMP_TYPE = Interactions.class.getMethod("getComponentType").invoke(null);
             } catch (Exception e) {
-                System.out.println("[EcsReflectionUtil] ERROR: Failed to get Interactions component type: " + e.getMessage());
+                System.out.println(
+                        "[EcsReflectionUtil] ERROR: Failed to get Interactions component type: " + e.getMessage());
             }
         }
         return INTERACTIONS_COMP_TYPE;
@@ -83,25 +71,11 @@ public final class EcsReflectionUtil {
             try {
                 INTERACTABLE_COMP_TYPE = Interactable.class.getMethod("getComponentType").invoke(null);
             } catch (Exception e) {
-                System.out.println("[EcsReflectionUtil] ERROR: Failed to get Interactable component type: " + e.getMessage());
+                System.out.println(
+                        "[EcsReflectionUtil] ERROR: Failed to get Interactable component type: " + e.getMessage());
             }
         }
         return INTERACTABLE_COMP_TYPE;
-    }
-
-    /**
-     * Check if model field reflection is initialized and available.
-     */
-    public static boolean isModelFieldInitialized() {
-        return modelFieldInitialized;
-    }
-
-    /**
-     * Get the cached model field for ModelComponent.
-     * Returns null if reflection failed during initialization.
-     */
-    public static Field getCachedModelField() {
-        return cachedModelField;
     }
 
     /**
@@ -111,15 +85,13 @@ public final class EcsReflectionUtil {
      * @param entityRef The entity reference
      * @return Stable string key (UUID string or "idx:N"), or null if unavailable
      */
-    public static String getStableEntityKey(Object entityRef) {
+    public static String getStableEntityKey(Ref<EntityStore> entityRef) {
         if (!(entityRef instanceof Ref))
             return null;
         try {
-            @SuppressWarnings("unchecked")
-            Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
-            Store<EntityStore> store = ref.getStore();
+            Store<EntityStore> store = entityRef.getStore();
             if (store != null) {
-                UUIDComponent uuidComp = store.getComponent(ref, UUID_TYPE);
+                UUIDComponent uuidComp = store.getComponent(entityRef, UUID_TYPE);
                 if (uuidComp != null && uuidComp.getUuid() != null) {
                     return uuidComp.getUuid().toString();
                 }
@@ -129,9 +101,7 @@ public final class EcsReflectionUtil {
         }
         // Fallback to ref index if UUID not available
         try {
-            @SuppressWarnings("unchecked")
-            Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
-            Integer index = ref.getIndex();
+            Integer index = entityRef.getIndex();
             if (index != null) {
                 return "idx:" + index;
             }
@@ -145,7 +115,7 @@ public final class EcsReflectionUtil {
      * Get the model asset ID from an entity's ModelComponent.
      * Uses cached reflection for performance.
      *
-     * @param store The entity store
+     * @param store     The entity store
      * @param entityRef The entity reference
      * @return Model asset ID (e.g., "Cow", "Sheep"), or null if unavailable
      */
@@ -155,25 +125,11 @@ public final class EcsReflectionUtil {
             if (modelComp == null)
                 return null;
 
-            // Use cached Field for performance (avoid getDeclaredField per call)
-            if (!modelFieldInitialized || cachedModelField == null)
-                return null;
-
-            Object model = cachedModelField.get(modelComp);
+            Model model = modelComp.getModel();
             if (model == null)
                 return null;
 
-            // Extract modelAssetId from model.toString()
-            String modelStr = model.toString();
-            int start = modelStr.indexOf("modelAssetId='");
-            if (start < 0)
-                return null;
-            start += 14;
-            int end = modelStr.indexOf("'", start);
-            if (end <= start)
-                return null;
-            return modelStr.substring(start, end);
-
+            return model.getModelAssetId();
         } catch (Exception e) {
             return null;
         }
@@ -196,23 +152,10 @@ public final class EcsReflectionUtil {
                     Store<EntityStore> store = world.getEntityStore().getStore();
                     ModelComponent modelComp = store.getComponent((Ref<EntityStore>) entityRef, MODEL_TYPE);
                     if (modelComp != null) {
-                        // Use cached Field for performance (avoid getDeclaredField per call)
-                        if (!modelFieldInitialized || cachedModelField == null)
-                            return entity.toString();
-
-                        Object model = cachedModelField.get(modelComp);
+                        Model model = modelComp.getModel();
 
                         if (model != null) {
-                            // Parse modelAssetId from toString to avoid additional reflection
-                            String modelStr = model.toString();
-                            int start = modelStr.indexOf("modelAssetId='");
-                            if (start >= 0) {
-                                start += 14;
-                                int end = modelStr.indexOf("'", start);
-                                if (end > start) {
-                                    return modelStr.substring(start, end);
-                                }
-                            }
+                            return model.getModelAssetId();
                         }
                     }
                 }
@@ -232,17 +175,24 @@ public final class EcsReflectionUtil {
      * @param entity The entity
      * @return Entity reference object, or null if unavailable
      */
-    public static Object getEntityRef(Entity entity) {
+    public static Ref<EntityStore> getEntityRef(Entity entity) {
+        Ref<EntityStore> ref = entity.getReference();
+        
+        if (ref != null) {
+            return ref;
+        }
+         
+        // Not sure if it works but keeping as a fallback
         try {
             // Try Entity.getRef() method
             Method getRef = entity.getClass().getMethod("getRef");
-            return getRef.invoke(entity);
+            return (Ref<EntityStore>) getRef.invoke(entity);
         } catch (NoSuchMethodException e) {
             // Try alternative methods
             try {
                 // Some entities might have getEntityRef()
                 Method getEntityRefMethod = entity.getClass().getMethod("getEntityRef");
-                return getEntityRefMethod.invoke(entity);
+                return (Ref<EntityStore>) getEntityRefMethod.invoke(entity);
             } catch (Exception e2) {
                 // Silent - not all entities have ref access
             }

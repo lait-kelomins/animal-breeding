@@ -16,11 +16,13 @@ import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.NPCPlugin;
-
+import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.CustomAnimalConfig;
 import com.laits.breeding.util.AnimalFinder;
+
+import it.unimi.dsi.fastutil.Pair;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -32,14 +34,15 @@ import java.util.concurrent.TimeUnit;
 /**
  * /customanimal - Manage custom animals from other mods.
  * Usage:
- *   /customanimal add <modelAssetId> <food1> [food2] [food3] - Add a custom animal
- *   /customanimal remove <modelAssetId> - Remove a custom animal
- *   /customanimal list - List all custom animals
- *   /customanimal info <modelAssetId> - Show info about a custom animal
- *   /customanimal enable <modelAssetId> - Enable a custom animal
- *   /customanimal disable <modelAssetId> - Disable a custom animal
- *   /customanimal addfood <modelAssetId> <food> - Add a breeding food
- *   /customanimal removefood <modelAssetId> <food> - Remove a breeding food
+ * /customanimal add <modelAssetId> <food1> [food2] [food3] - Add a custom
+ * animal
+ * /customanimal remove <modelAssetId> - Remove a custom animal
+ * /customanimal list - List all custom animals
+ * /customanimal info <modelAssetId> - Show info about a custom animal
+ * /customanimal enable <modelAssetId> - Enable a custom animal
+ * /customanimal disable <modelAssetId> - Disable a custom animal
+ * /customanimal addfood <modelAssetId> <food> - Add a breeding food
+ * /customanimal removefood <modelAssetId> <food> - Remove a breeding food
  */
 public class CustomAnimalCommand extends AbstractCommand {
     public CustomAnimalCommand() {
@@ -172,7 +175,8 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
 
         /**
-         * Discover the model asset ID by spawning a temp entity and reading its ModelComponent.
+         * Discover the model asset ID by spawning a temp entity and reading its
+         * ModelComponent.
          */
         private String discoverModelFromRole(LaitsBreedingPlugin plugin, String roleName, int roleIndex) {
             try {
@@ -181,14 +185,16 @@ public class CustomAnimalCommand extends AbstractCommand {
                 // If getDefaultWorld fails, try to get the world from plugin's stored entities
                 if (world == null) {
                     if (LaitsBreedingPlugin.isVerboseLogging()) {
-                        plugin.getLogger().atInfo().log("[ModelDiscovery] getDefaultWorld returned null, trying alternative methods...");
+                        plugin.getLogger().atInfo()
+                                .log("[ModelDiscovery] getDefaultWorld returned null, trying alternative methods...");
                     }
 
                     // Try getting world via reflection on Universe
                     try {
                         java.lang.reflect.Method getWorlds = Universe.class.getMethod("getWorlds");
                         @SuppressWarnings("unchecked")
-                        java.util.Collection<World> worlds = (java.util.Collection<World>) getWorlds.invoke(Universe.get());
+                        java.util.Collection<World> worlds = (java.util.Collection<World>) getWorlds
+                                .invoke(Universe.get());
                         if (worlds != null && !worlds.isEmpty()) {
                             world = worlds.iterator().next();
                             if (LaitsBreedingPlugin.isVerboseLogging()) {
@@ -197,7 +203,8 @@ public class CustomAnimalCommand extends AbstractCommand {
                         }
                     } catch (Exception e) {
                         if (LaitsBreedingPlugin.isVerboseLogging()) {
-                            plugin.getLogger().atInfo().log("[ModelDiscovery] getWorlds() not available: %s", e.getMessage());
+                            plugin.getLogger().atInfo().log("[ModelDiscovery] getWorlds() not available: %s",
+                                    e.getMessage());
                         }
                     }
                 }
@@ -214,7 +221,8 @@ public class CustomAnimalCommand extends AbstractCommand {
                 CompletableFuture<String> future = new CompletableFuture<>();
 
                 if (LaitsBreedingPlugin.isVerboseLogging()) {
-                    plugin.getLogger().atInfo().log("[ModelDiscovery] Starting discovery for role: %s (index: %d)", roleName, roleIndex);
+                    plugin.getLogger().atInfo().log("[ModelDiscovery] Starting discovery for role: %s (index: %d)",
+                            roleName, roleIndex);
                 }
 
                 finalWorld.execute(() -> {
@@ -231,93 +239,43 @@ public class CustomAnimalCommand extends AbstractCommand {
                         }
 
                         // Use reflection for spawnEntity
-                        boolean foundMethod = false;
-                        for (java.lang.reflect.Method m : NPCPlugin.class.getMethods()) {
-                            if (m.getName().equals("spawnEntity") && m.getParameterCount() == 6) {
-                                foundMethod = true;
-                                Class<?> triConsumerClass = m.getParameterTypes()[5];
-                                Object noOpCallback = java.lang.reflect.Proxy.newProxyInstance(
-                                    triConsumerClass.getClassLoader(),
-                                    new Class<?>[] { triConsumerClass },
-                                    (proxy, method, args) -> null
-                                );
 
-                                Object result = m.invoke(npcPlugin, store, roleIndex, tempPos, rotation, null, noOpCallback);
+                        Pair<Ref<EntityStore>, NPCEntity> result = NPCPlugin.get().spawnEntity(store, roleIndex,
+                                tempPos, rotation, null, null);
 
-                                if (result != null) {
-                                    if (LaitsBreedingPlugin.isVerboseLogging()) {
-                                        plugin.getLogger().atInfo().log("[ModelDiscovery] Spawn succeeded, extracting model...");
-                                    }
-
-                                    // Result is Pair<Ref<EntityStore>, NPCEntity> - fastutil uses left()/right()
-                                    // Try multiple method names for compatibility
-                                    Object entityRef = null;
-                                    Object npcEntity = null;
-
-                                    // Try left()/right() first (fastutil ObjectObjectImmutablePair)
-                                    try {
-                                        java.lang.reflect.Method leftMethod = result.getClass().getMethod("left");
-                                        entityRef = leftMethod.invoke(result);
-                                        java.lang.reflect.Method rightMethod = result.getClass().getMethod("right");
-                                        npcEntity = rightMethod.invoke(result);
-                                    } catch (NoSuchMethodException e1) {
-                                        // Try first()/second()
-                                        try {
-                                            java.lang.reflect.Method firstMethod = result.getClass().getMethod("first");
-                                            entityRef = firstMethod.invoke(result);
-                                            java.lang.reflect.Method secondMethod = result.getClass().getMethod("second");
-                                            npcEntity = secondMethod.invoke(result);
-                                        } catch (NoSuchMethodException e2) {
-                                            // Try getFirst()/getSecond()
-                                            java.lang.reflect.Method getFirst = result.getClass().getMethod("getFirst");
-                                            entityRef = getFirst.invoke(result);
-                                            java.lang.reflect.Method getSecond = result.getClass().getMethod("getSecond");
-                                            npcEntity = getSecond.invoke(result);
-                                        }
-                                    }
-
-                                    if (entityRef != null) {
-                                        @SuppressWarnings("unchecked")
-                                        Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
-                                        String modelId = extractModelFromRef(plugin, store, ref);
-
-                                        if (LaitsBreedingPlugin.isVerboseLogging()) {
-                                            plugin.getLogger().atInfo().log("[ModelDiscovery] Extracted model: %s", modelId);
-                                        }
-
-                                        // Despawn the temp entity - try multiple method names
-                                        if (npcEntity != null) {
-                                            boolean despawned = false;
-                                            String[] despawnMethods = {"despawn", "remove", "kill", "delete", "destroy"};
-                                            for (String methodName : despawnMethods) {
-                                                try {
-                                                    java.lang.reflect.Method despawnMethod = npcEntity.getClass().getMethod(methodName);
-                                                    despawnMethod.invoke(npcEntity);
-                                                    despawned = true;
-                                                    break;
-                                                } catch (NoSuchMethodException ignored) {}
-                                            }
-                                            if (!despawned) {
-                                                // Entity at y=500 will likely despawn naturally
-                                                if (LaitsBreedingPlugin.isVerboseLogging()) {
-                                                    plugin.getLogger().atInfo().log("[ModelDiscovery] Note: temp entity at y=500 will timeout");
-                                                }
-                                            }
-                                        }
-
-                                        future.complete(modelId);
-                                        return;
-                                    } else {
-                                        plugin.getLogger().atWarning().log("[ModelDiscovery] entityRef is null");
-                                    }
-                                } else {
-                                    plugin.getLogger().atWarning().log("[ModelDiscovery] spawnEntity returned null");
-                                }
-                                break;
+                        if (result != null) {
+                            if (LaitsBreedingPlugin.isVerboseLogging()) {
+                                plugin.getLogger().atInfo()
+                                        .log("[ModelDiscovery] Spawn succeeded, extracting model...");
                             }
-                        }
-                        if (!foundMethod) {
-                            plugin.getLogger().atWarning().log("[ModelDiscovery] Could not find spawnEntity method");
+
+                            // Result is Pair<Ref<EntityStore>, NPCEntity> - fastutil uses left()/right()
+                            // Try multiple method names for compatibility
+                            Ref<EntityStore> entityRef = null;
+                            NPCEntity npcEntity = null;
+
+                            // Try left()/right() first (fastutil ObjectObjectImmutablePair)
+                            entityRef = result.left();
+                            npcEntity = result.right();
+
+                            if (entityRef != null) {
+                                String modelId = extractModelFromRef(plugin, store, entityRef);
+
+                                if (LaitsBreedingPlugin.isVerboseLogging()) {
+                                    plugin.getLogger().atInfo().log("[ModelDiscovery] Extracted model: %s",
+                                            modelId);
+                                }
+
+                                // Despawn the temp entity
+                                npcEntity.setDespawning(true);
+
+                                future.complete(modelId);
+                                return;
+                            } else {
+                                plugin.getLogger().atWarning().log("[ModelDiscovery] entityRef is null");
+                            }
+                        } else {
+                            plugin.getLogger().atWarning().log("[ModelDiscovery] spawnEntity returned null");
                         }
                         future.complete(null);
                     } catch (Exception e) {
@@ -375,8 +333,10 @@ public class CustomAnimalCommand extends AbstractCommand {
                 if (start >= 0) {
                     start += 13;
                     int end = modelStr.indexOf(",", start);
-                    if (end < 0) end = modelStr.indexOf(")", start);
-                    if (end < 0) end = modelStr.indexOf("}", start);
+                    if (end < 0)
+                        end = modelStr.indexOf(")", start);
+                    if (end < 0)
+                        end = modelStr.indexOf("}", start);
                     if (end > start) {
                         return modelStr.substring(start, end).trim();
                     }
@@ -481,7 +441,8 @@ public class CustomAnimalCommand extends AbstractCommand {
             ctx.sendMessage(Message.raw("Model ID: ").color("#AAAAAA")
                     .insert(Message.raw(custom.getModelAssetId()).color("#FFFFFF")));
             ctx.sendMessage(Message.raw("Enabled: ").color("#AAAAAA")
-                    .insert(Message.raw(custom.isEnabled() ? "Yes" : "No").color(custom.isEnabled() ? "#55FF55" : "#FF5555")));
+                    .insert(Message.raw(custom.isEnabled() ? "Yes" : "No")
+                            .color(custom.isEnabled() ? "#55FF55" : "#FF5555")));
             ctx.sendMessage(Message.raw("Mountable: ").color("#AAAAAA")
                     .insert(Message.raw(custom.isMountable() ? "Yes" : "No").color("#FFFFFF")));
             ctx.sendMessage(Message.raw("Growth Time: ").color("#AAAAAA")
@@ -664,7 +625,8 @@ public class CustomAnimalCommand extends AbstractCommand {
                     counts.merge(id, 1, Integer::sum);
                 }
 
-                ctx.sendMessage(Message.raw("=== Detected Creatures (" + counts.size() + " types) ===").color("#FF9900"));
+                ctx.sendMessage(
+                        Message.raw("=== Detected Creatures (" + counts.size() + " types) ===").color("#FF9900"));
 
                 // Show built-in animals first
                 ctx.sendMessage(Message.raw("Built-in animals:").color("#55FF55"));
@@ -729,7 +691,9 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
     }
 
-    /** /customanimal setrole <modelAssetId> <roleId> - Set the NPC role for spawning */
+    /**
+     * /customanimal setrole <modelAssetId> <roleId> - Set the NPC role for spawning
+     */
     public static class CustomAnimalSetRoleCommand extends AbstractCommand {
         private final RequiredArg<String> modelArg;
         private final RequiredArg<String> roleArg;
@@ -857,7 +821,10 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
     }
 
-    /** /customanimal setcooldown <modelAssetId> <minutes> - Set the breeding cooldown */
+    /**
+     * /customanimal setcooldown <modelAssetId> <minutes> - Set the breeding
+     * cooldown
+     */
     public static class CustomAnimalSetCooldownCommand extends AbstractCommand {
         private final RequiredArg<String> modelArg;
         private final RequiredArg<Double> timeArg;

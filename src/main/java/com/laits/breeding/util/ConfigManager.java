@@ -13,7 +13,15 @@ import com.google.gson.JsonParser;
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 /**
@@ -24,6 +32,10 @@ public class ConfigManager {
 
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
+    // Config version for migrations
+    private static final int CURRENT_CONFIG_VERSION = 2;
+    private int configVersion = 1;  // Will be upgraded on load if needed
+
     // Config data
     private final Map<AnimalType, AnimalConfig> animalConfigs = new EnumMap<>(AnimalType.class);
     private final Map<String, CustomAnimalConfig> customAnimals = new HashMap<>();  // key = modelAssetId
@@ -32,6 +44,11 @@ public class ConfigManager {
     private boolean debugMode = false;
     private boolean growthEnabled = true;  // Can be disabled to freeze baby growth
     private String activePreset = "default_extended";
+
+    // Tameable animal groups (from tameable-animals integration)
+    private Set<String> tameableAnimalGroups = new HashSet<>(Arrays.asList(
+        "PreyBig", "PreySmall", "Livestock", "Critters"
+    ));
 
     // File path for persistence
     private Path configFilePath;
@@ -123,10 +140,18 @@ public class ConfigManager {
 
     /**
      * Configuration for a single animal type.
+     *
+     * Food system (v2+):
+     * - baseFoods: Foods that can tame, breed, AND heal (default fallback)
+     * - tamingFoods: Override for taming only (defaults to baseFoods if not set)
+     * - breedingFoods: Override for breeding only (defaults to baseFoods if not set)
+     * - Healing always uses union of all configured foods
      */
     public static class AnimalConfig {
         public boolean enabled = true;
-        public List<String> breedingFoods = new ArrayList<>();
+        public List<String> baseFoods = new ArrayList<>();      // v2: tame + breed + heal
+        public List<String> tamingFoods = null;                 // v2: override for taming only
+        public List<String> breedingFoods = new ArrayList<>();  // v1 compat + v2 override
         public double growthTimeMinutes;
         public double breedCooldownMinutes;
 
@@ -135,6 +160,7 @@ public class ConfigManager {
         public AnimalConfig(boolean enabled, List<String> breedingFoods, double growthTimeMinutes, double breedCooldownMinutes) {
             this.enabled = enabled;
             this.breedingFoods = breedingFoods != null ? new ArrayList<>(breedingFoods) : new ArrayList<>();
+            this.baseFoods = new ArrayList<>(this.breedingFoods); // v2 migration: copy to baseFoods
             this.growthTimeMinutes = growthTimeMinutes;
             this.breedCooldownMinutes = breedCooldownMinutes;
         }
@@ -142,11 +168,47 @@ public class ConfigManager {
         public AnimalConfig(boolean enabled, String breedingFood, double growthTimeMinutes, double breedCooldownMinutes) {
             this.enabled = enabled;
             this.breedingFoods = new ArrayList<>();
+            this.baseFoods = new ArrayList<>();
             if (breedingFood != null) {
                 this.breedingFoods.add(breedingFood);
+                this.baseFoods.add(breedingFood);
             }
             this.growthTimeMinutes = growthTimeMinutes;
             this.breedCooldownMinutes = breedCooldownMinutes;
+        }
+
+        /**
+         * Get effective taming foods (tamingFoods ?? baseFoods).
+         */
+        public List<String> getEffectiveTamingFoods() {
+            if (tamingFoods != null && !tamingFoods.isEmpty()) {
+                return tamingFoods;
+            }
+            if (baseFoods != null && !baseFoods.isEmpty()) {
+                return baseFoods;
+            }
+            return breedingFoods; // v1 fallback
+        }
+
+        /**
+         * Get effective breeding foods (breedingFoods ?? baseFoods).
+         */
+        public List<String> getEffectiveBreedingFoods() {
+            if (breedingFoods != null && !breedingFoods.isEmpty()) {
+                return breedingFoods;
+            }
+            return baseFoods != null ? baseFoods : new ArrayList<>();
+        }
+
+        /**
+         * Get all healing foods (union of all configured foods).
+         */
+        public Set<String> getAllHealingFoods() {
+            Set<String> all = new HashSet<>();
+            if (baseFoods != null) all.addAll(baseFoods);
+            if (tamingFoods != null) all.addAll(tamingFoods);
+            if (breedingFoods != null) all.addAll(breedingFoods);
+            return all;
         }
     }
 
@@ -952,6 +1014,7 @@ public class ConfigManager {
                     break;
 
                 case HORSE:
+                    config.enabled = false;
                     config.breedingFoods.addAll(Arrays.asList(
                         "Plant_Crop_Carrot_Item",  // Original - horses love carrots
                         "Plant_Fruit_Apple",       // Apples
@@ -1821,8 +1884,9 @@ public class ConfigManager {
         if (itemId == null || type == null) return false;
 
         AnimalConfig config = animalConfigs.get(type);
-        if (config != null && !config.breedingFoods.isEmpty()) {
-            for (String food : config.breedingFoods) {
+        if (config != null) {
+            List<String> foods = config.getEffectiveBreedingFoods();
+            for (String food : foods) {
                 if (itemId.equalsIgnoreCase(food)) {
                     return true;
                 }
@@ -1831,6 +1895,92 @@ public class ConfigManager {
         }
         // Fall back to default
         return itemId.equalsIgnoreCase(type.getDefaultBreedingFood());
+    }
+
+    // ===========================================
+    // TAMING FOOD METHODS (v2+)
+    // ===========================================
+
+    /**
+     * Get taming foods for an animal type.
+     * Returns tamingFoods if set, otherwise baseFoods, otherwise breedingFoods.
+     */
+    public List<String> getTamingFoods(AnimalType type) {
+        AnimalConfig config = animalConfigs.get(type);
+        if (config != null) {
+            return config.getEffectiveTamingFoods();
+        }
+        return Collections.singletonList(type.getDefaultBreedingFood());
+    }
+
+    /**
+     * Check if the given item is valid taming food for the animal.
+     */
+    public boolean isTamingFood(AnimalType type, String itemId) {
+        if (itemId == null || type == null) return false;
+
+        AnimalConfig config = animalConfigs.get(type);
+        if (config != null) {
+            List<String> foods = config.getEffectiveTamingFoods();
+            for (String food : foods) {
+                if (itemId.equalsIgnoreCase(food)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        // Fall back to default
+        return itemId.equalsIgnoreCase(type.getDefaultBreedingFood());
+    }
+
+    /**
+     * Get all healing foods for an animal type (union of all food types).
+     */
+    public Set<String> getHealingFoods(AnimalType type) {
+        AnimalConfig config = animalConfigs.get(type);
+        if (config != null) {
+            return config.getAllHealingFoods();
+        }
+        Set<String> defaultFoods = new HashSet<>();
+        defaultFoods.add(type.getDefaultBreedingFood());
+        return defaultFoods;
+    }
+
+    /**
+     * Check if the given item is valid healing food for the animal.
+     * Any configured food can heal.
+     */
+    public boolean isHealingFood(AnimalType type, String itemId) {
+        if (itemId == null || type == null) return false;
+
+        Set<String> healingFoods = getHealingFoods(type);
+        for (String food : healingFoods) {
+            if (itemId.equalsIgnoreCase(food)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Get the set of tameable animal groups.
+     */
+    public Set<String> getTameableAnimalGroups() {
+        return Collections.unmodifiableSet(tameableAnimalGroups);
+    }
+
+    /**
+     * Check if an animal group is tameable.
+     */
+    public boolean isGroupTameable(String groupName) {
+        return groupName != null && tameableAnimalGroups.contains(groupName);
+    }
+
+    /**
+     * Get current config version.
+     */
+    public int getConfigVersion() {
+        return configVersion;
     }
 
     /**

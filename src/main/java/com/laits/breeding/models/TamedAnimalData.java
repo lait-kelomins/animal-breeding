@@ -1,6 +1,8 @@
 package com.laits.breeding.models;
 
 import java.util.UUID;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 /**
  * Data for a tamed animal that persists across sessions.
@@ -9,8 +11,10 @@ import java.util.UUID;
 public class TamedAnimalData {
 
     // Core identity
+    private UUID hytameId;             // Stable ID (never changes, even on respawn) - links ECS to JSON
     private UUID animalUuid;           // Current entity UUID (changes on respawn)
     private UUID ownerUuid;            // Player who tamed this animal
+    private String ownerName;          // Player name who tamed (for TameComponent restore)
     private String customName;         // Player-assigned name
     private AnimalType animalType;     // Type for respawning
 
@@ -35,7 +39,7 @@ public class TamedAnimalData {
     private boolean allowInteraction;  // Whether other players can interact
 
     // Transient (not saved) - runtime entity reference
-    private transient Object entityRef;
+    private transient Ref<EntityStore> entityRef;
 
     /**
      * Default constructor for Gson deserialization.
@@ -49,6 +53,23 @@ public class TamedAnimalData {
      * Create tamed animal data when an animal is first tamed.
      */
     public TamedAnimalData(UUID animalUuid, UUID ownerUuid, String customName, AnimalType animalType) {
+        this.hytameId = UUID.randomUUID();  // Generate stable ID on tame
+        this.animalUuid = animalUuid;
+        this.ownerUuid = ownerUuid;
+        this.customName = customName;
+        this.animalType = animalType;
+        this.tamedTime = System.currentTimeMillis();
+        this.isDespawned = false;
+        this.allowInteraction = true;
+        this.growthStage = GrowthStage.ADULT;
+        this.worldId = "default";
+    }
+
+    /**
+     * Create tamed animal data with explicit hytameId (for linking to existing ECS data).
+     */
+    public TamedAnimalData(UUID hytameId, UUID animalUuid, UUID ownerUuid, String customName, AnimalType animalType) {
+        this.hytameId = hytameId != null ? hytameId : UUID.randomUUID();
         this.animalUuid = animalUuid;
         this.ownerUuid = ownerUuid;
         this.customName = customName;
@@ -61,6 +82,23 @@ public class TamedAnimalData {
     }
 
     // === Core Identity ===
+
+    public UUID getHytameId() {
+        return hytameId;
+    }
+
+    public void setHytameId(UUID hytameId) {
+        this.hytameId = hytameId;
+    }
+
+    /**
+     * Ensure hytameId is set, generating one if missing (for migration).
+     */
+    public void ensureHytameId() {
+        if (this.hytameId == null) {
+            this.hytameId = UUID.randomUUID();
+        }
+    }
 
     public UUID getAnimalUuid() {
         return animalUuid;
@@ -76,6 +114,14 @@ public class TamedAnimalData {
 
     public void setOwnerUuid(UUID ownerUuid) {
         this.ownerUuid = ownerUuid;
+    }
+
+    public String getOwnerName() {
+        return ownerName;
+    }
+
+    public void setOwnerName(String ownerName) {
+        this.ownerName = ownerName;
     }
 
     public String getCustomName() {
@@ -206,11 +252,11 @@ public class TamedAnimalData {
 
     // === Entity Reference (Transient) ===
 
-    public Object getEntityRef() {
+    public Ref<EntityStore> getEntityRef() {
         return entityRef;
     }
 
-    public void setEntityRef(Object entityRef) {
+    public void setEntityRef(Ref<EntityStore> entityRef) {
         this.entityRef = entityRef;
     }
 
@@ -258,7 +304,8 @@ public class TamedAnimalData {
     @Override
     public String toString() {
         return "TamedAnimalData{" +
-                "name='" + customName + '\'' +
+                "hytameId=" + hytameId +
+                ", name='" + customName + '\'' +
                 ", type=" + animalType +
                 ", owner=" + ownerUuid +
                 ", despawned=" + isDespawned +

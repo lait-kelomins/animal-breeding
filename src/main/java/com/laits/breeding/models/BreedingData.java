@@ -1,6 +1,8 @@
 package com.laits.breeding.models;
 
 import java.util.UUID;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
 /**
  * Data class tracking breeding and growth state for an individual animal.
@@ -15,7 +17,7 @@ public class BreedingData {
     private long birthTime;
     private boolean inLove;
     private long loveStartTime;
-    private Object entityRef;  // Ref<EntityStore> for entity manipulation
+    private Ref<EntityStore> entityRef;  // Ref<EntityStore> for entity manipulation
 
     // Taming fields
     private boolean tamed;
@@ -192,14 +194,14 @@ public class BreedingData {
     /**
      * Get the entity reference for ECS manipulation.
      */
-    public Object getEntityRef() {
+    public Ref<EntityStore> getEntityRef() {
         return entityRef;
     }
 
     /**
      * Set the entity reference for ECS manipulation.
      */
-    public void setEntityRef(Object entityRef) {
+    public void setEntityRef(Ref<EntityStore> entityRef) {
         this.entityRef = entityRef;
     }
 

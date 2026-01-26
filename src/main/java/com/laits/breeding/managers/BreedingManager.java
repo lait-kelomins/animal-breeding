@@ -1,6 +1,7 @@
 package com.laits.breeding.managers;
 
 import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
@@ -25,10 +26,6 @@ public class BreedingManager {
     // Custom animal love mode tracking (separate from enum-based animals)
     private final Map<UUID, CustomAnimalLoveData> customAnimalsInLove = new ConcurrentHashMap<>();
 
-    // Cached reflection Method for Ref.getStore() (avoid getMethod() per cleanup call)
-    private static Method cachedGetStoreMethod = null;
-    private static boolean getStoreMethodInitialized = false;
-
     // Callbacks for game integration
     private Consumer<BirthEvent> onBirthCallback;
     private Consumer<CustomBirthEvent> onCustomBirthCallback;
@@ -36,24 +33,6 @@ public class BreedingManager {
 
     public BreedingManager(ConfigManager config) {
         this.config = config;
-        initializeReflectionCache();
-    }
-
-    /**
-     * Initialize cached reflection objects once.
-     */
-    private void initializeReflectionCache() {
-        if (!getStoreMethodInitialized) {
-            try {
-                // Cache the getStore method from Ref class
-                Class<?> refClass = Class.forName("com.hypixel.hytale.component.Ref");
-                cachedGetStoreMethod = refClass.getMethod("getStore");
-                getStoreMethodInitialized = true;
-            } catch (Exception e) {
-                // Will use per-call reflection as fallback
-                getStoreMethodInitialized = false;
-            }
-        }
     }
 
     /**
@@ -89,7 +68,7 @@ public class BreedingManager {
 
         for (BreedingData data : breedingDataMap.values()) {
             if (data.getGrowthStage() != GrowthStage.ADULT) {
-                Object storedRef = data.getEntityRef();
+                Ref<EntityStore> storedRef = data.getEntityRef();
                 if (storedRef != null && refsMatch(ref, storedRef)) {
                     debug("Found baby by ref match: " + data.getAnimalId());
                     return data;
@@ -104,7 +83,7 @@ public class BreedingManager {
      * Indices are more stable than full ref comparison since store addresses can change.
      */
     @SuppressWarnings("unchecked")
-    private boolean refsMatch(Ref<EntityStore> ref1, Object ref2) {
+    private boolean refsMatch(Ref<EntityStore> ref1, Ref<EntityStore> ref2) {
         if (!(ref2 instanceof Ref)) return false;
         try {
             Ref<EntityStore> typedRef2 = (Ref<EntityStore>) ref2;
@@ -165,16 +144,12 @@ public class BreedingManager {
         while (it.hasNext()) {
             Map.Entry<UUID, BreedingData> entry = it.next();
             BreedingData data = entry.getValue();
-            Object entityRef = data.getEntityRef();
+            Ref<EntityStore> entityRef = data.getEntityRef();
             if (entityRef != null) {
                 try {
                     // Use cached Method if available, fall back to per-call if not
-                    Object store;
-                    if (getStoreMethodInitialized && cachedGetStoreMethod != null) {
-                        store = cachedGetStoreMethod.invoke(entityRef);
-                    } else {
-                        store = entityRef.getClass().getMethod("getStore").invoke(entityRef);
-                    }
+                    Store<EntityStore> store = entityRef.getStore();
+
                     if (store == null) {
                         it.remove();
                         removed++;
@@ -205,16 +180,12 @@ public class BreedingManager {
         while (it.hasNext()) {
             Map.Entry<UUID, CustomAnimalLoveData> entry = it.next();
             CustomAnimalLoveData data = entry.getValue();
-            Object entityRef = data.getEntityRef();
+            Ref<EntityStore> entityRef = data.getEntityRef();
             if (entityRef != null) {
                 try {
                     // Use cached Method if available, fall back to per-call if not
-                    Object store;
-                    if (getStoreMethodInitialized && cachedGetStoreMethod != null) {
-                        store = cachedGetStoreMethod.invoke(entityRef);
-                    } else {
-                        store = entityRef.getClass().getMethod("getStore").invoke(entityRef);
-                    }
+                    Store<EntityStore> store = entityRef.getStore();
+
                     if (store == null) {
                         it.remove();
                         removed++;
@@ -237,7 +208,7 @@ public class BreedingManager {
      * @param entityRef The entity reference for later model swapping
      * @return The created BreedingData
      */
-    public BreedingData registerBaby(UUID babyId, AnimalType animalType, Object entityRef) {
+    public BreedingData registerBaby(UUID babyId, AnimalType animalType, Ref<EntityStore> entityRef) {
         BreedingData babyData = BreedingData.createBaby(babyId, animalType);
         babyData.setEntityRef(entityRef);
         breedingDataMap.put(babyId, babyData);
@@ -276,7 +247,7 @@ public class BreedingManager {
      * @param entityRef The entity reference (for heart particles while in love)
      * @return Result of the feeding attempt
      */
-    public FeedResult tryFeed(UUID animalId, AnimalType animalType, String foodItemId, Object entityRef) {
+    public FeedResult tryFeed(UUID animalId, AnimalType animalType, String foodItemId, Ref<EntityStore> entityRef) {
         // Check if this animal type is enabled for breeding
         if (!config.isAnimalEnabled(animalType)) {
             return FeedResult.DISABLED;
@@ -523,7 +494,7 @@ public class BreedingManager {
      * @param entityRef The entity reference (for heart particles)
      * @return Result of the feeding attempt
      */
-    public FeedResult tryFeedCustomAnimal(UUID animalId, String modelAssetId, Object entityRef) {
+    public FeedResult tryFeedCustomAnimal(UUID animalId, String modelAssetId, Ref<EntityStore> entityRef) {
         // Check if already in love
         CustomAnimalLoveData existing = customAnimalsInLove.get(animalId);
         if (existing != null && existing.isInLove()) {
@@ -637,12 +608,12 @@ public class BreedingManager {
     public static class CustomAnimalLoveData {
         private final UUID animalId;
         private final String modelAssetId;
-        private Object entityRef;
+        private Ref<EntityStore> entityRef;
         private boolean inLove;
         private long loveStartTime;
         private long lastBreedTime;
 
-        public CustomAnimalLoveData(UUID animalId, String modelAssetId, Object entityRef) {
+        public CustomAnimalLoveData(UUID animalId, String modelAssetId, Ref<EntityStore> entityRef) {
             this.animalId = animalId;
             this.modelAssetId = modelAssetId;
             this.entityRef = entityRef;
@@ -653,8 +624,8 @@ public class BreedingManager {
 
         public UUID getAnimalId() { return animalId; }
         public String getModelAssetId() { return modelAssetId; }
-        public Object getEntityRef() { return entityRef; }
-        public void setEntityRef(Object ref) { this.entityRef = ref; }
+        public Ref<EntityStore> getEntityRef() { return entityRef; }
+        public void setEntityRef(Ref<EntityStore> ref) { this.entityRef = ref; }
 
         public boolean isInLove() { return inLove; }
         public long getLoveStartTime() { return loveStartTime; }
@@ -684,9 +655,9 @@ public class BreedingManager {
         private final UUID parent2Id;
         private final UUID babyId;
         private final String modelAssetId;
-        private final Object parentEntityRef;
+        private final Ref<EntityStore> parentEntityRef;
 
-        public CustomBirthEvent(UUID parent1Id, UUID parent2Id, UUID babyId, String modelAssetId, Object parentEntityRef) {
+        public CustomBirthEvent(UUID parent1Id, UUID parent2Id, UUID babyId, String modelAssetId, Ref<EntityStore> parentEntityRef) {
             this.parent1Id = parent1Id;
             this.parent2Id = parent2Id;
             this.babyId = babyId;
@@ -698,7 +669,7 @@ public class BreedingManager {
         public UUID getParent2Id() { return parent2Id; }
         public UUID getBabyId() { return babyId; }
         public String getModelAssetId() { return modelAssetId; }
-        public Object getParentEntityRef() { return parentEntityRef; }
+        public Ref<EntityStore> getParentEntityRef() { return parentEntityRef; }
     }
 
     // ==================== BABY DETECTION FALLBACK ====================
@@ -746,17 +717,17 @@ public class BreedingManager {
      * Data class for untracked babies found during world scan.
      */
     public static class UntrackedBaby {
-        private final Object entityRef;
+        private final Ref<EntityStore> entityRef;
         private final String modelAssetId;
         private final AnimalType animalType;
 
-        public UntrackedBaby(Object entityRef, String modelAssetId, AnimalType animalType) {
+        public UntrackedBaby(Ref<EntityStore> entityRef, String modelAssetId, AnimalType animalType) {
             this.entityRef = entityRef;
             this.modelAssetId = modelAssetId;
             this.animalType = animalType;
         }
 
-        public Object getEntityRef() { return entityRef; }
+        public Ref<EntityStore> getEntityRef() { return entityRef; }
         public String getModelAssetId() { return modelAssetId; }
         public AnimalType getAnimalType() { return animalType; }
     }

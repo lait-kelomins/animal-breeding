@@ -8,12 +8,14 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
+import com.hypixel.hytale.server.core.modules.entity.component.NewSpawnComponent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.models.AnimalType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 
 import java.lang.reflect.Field;
@@ -37,12 +39,8 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
     private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
     private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
 
-    // Cached reflection Field for extracting modelAssetId (avoid per-tick reflection)
-    private static Field cachedModelField = null;
-    private static boolean modelFieldInitialized = false;
-
     // NewSpawnComponent type - obtained via reflection since it may not be public API
-    private static ComponentType<EntityStore, ?> newSpawnComponentType = null;
+    private static ComponentType<EntityStore, NewSpawnComponent> newSpawnComponentType = null;
 
     // Track processed entities with timestamps to avoid duplicate processing and enable TTL cleanup
     // Key: entity ref string, Value: timestamp when processed
@@ -70,31 +68,13 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
     /**
      * Initialize all reflection caches once at construction.
      */
-    @SuppressWarnings("unchecked")
     private void initializeReflectionCache() {
         // Initialize NewSpawnComponent type
         try {
-            Class<?> newSpawnClass = Class.forName(
-                "com.hypixel.hytale.server.core.modules.entity.component.NewSpawnComponent");
-            Object typeObj = newSpawnClass.getMethod("getComponentType").invoke(null);
-            newSpawnComponentType = (ComponentType<EntityStore, ?>) typeObj;
+            newSpawnComponentType = NewSpawnComponent.getComponentType();
             log("NewSpawnComponent type initialized successfully");
-        } catch (ClassNotFoundException e) {
-            log("NewSpawnComponent class not found - spawn detection will use fallback");
         } catch (Exception e) {
             log("Failed to initialize NewSpawnComponent: " + e.getMessage());
-        }
-
-        // Initialize Model field for extracting modelAssetId (only once)
-        if (!modelFieldInitialized) {
-            try {
-                cachedModelField = ModelComponent.class.getDeclaredField("model");
-                cachedModelField.setAccessible(true);
-                modelFieldInitialized = true;
-            } catch (Exception e) {
-                log("Failed to initialize model field cache: " + e.getMessage());
-                modelFieldInitialized = false;
-            }
         }
     }
 
@@ -123,7 +103,7 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
             if (newSpawnComponentType == null) return;
 
             // Check if entity has NewSpawnComponent
-            Object newSpawnComp = chunk.getComponent(entityIndex, newSpawnComponentType);
+            NewSpawnComponent newSpawnComp = chunk.getComponent(entityIndex, newSpawnComponentType);
             if (newSpawnComp == null) return;
 
             // Get entity reference
@@ -203,22 +183,10 @@ public class NewAnimalSpawnDetector extends EntityTickingSystem<EntityStore> {
      */
     private String extractModelAssetId(ModelComponent modelComp) {
         try {
-            // Use cached Field for performance (avoid getDeclaredField per-tick)
-            if (!modelFieldInitialized || cachedModelField == null) {
-                return null;
-            }
-
-            Object model = cachedModelField.get(modelComp);
+            Model model = modelComp.getModel();
             if (model == null) return null;
 
-            // Extract from toString: Model{modelAssetId='Cow', scale=1.0, ...}
-            String modelStr = model.toString();
-            int start = modelStr.indexOf("modelAssetId='");
-            if (start < 0) return null;
-            start += 14;
-            int end = modelStr.indexOf("'", start);
-            if (end <= start) return null;
-            return modelStr.substring(start, end);
+            return model.getModelAssetId();
         } catch (Exception e) {
             return null;
         }

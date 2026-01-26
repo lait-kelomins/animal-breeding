@@ -6,7 +6,7 @@ import com.hypixel.hytale.codec.builder.BuilderCodec;
 import com.hypixel.hytale.component.Component;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import com.tameableanimals.TameableAnimalsPlugin;
+import com.laits.breeding.LaitsBreedingPlugin;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -20,15 +20,18 @@ public class TameComponent implements Component<EntityStore> {
             .add()
             .append(new KeyedCodec<>("TamerName", Codec.STRING), (data, value) -> data.tamerName = value, data -> data.tamerName)
             .add()
+            .append(new KeyedCodec<>("HytameId", Codec.UUID_BINARY), (data, value) -> data.hytameId = value, data -> data.hytameId)
+            .add()
             .build();
 
     public static ComponentType<EntityStore, TameComponent> getComponentType() {
-        return TameableAnimalsPlugin.get().getTameComponentType();
+        return LaitsBreedingPlugin.getInstance().getTameComponentType();
     }
 
     private Boolean isTamed = false;
     private UUID tamerUUID = null;
     private String tamerName = null;
+    private UUID hytameId = null;  // Stable ID linking ECS to tamed_animals.json
 
     public boolean isTamed() {
         return Boolean.TRUE.equals(isTamed);
@@ -42,10 +45,22 @@ public class TameComponent implements Component<EntityStore> {
         return tamerName;
     }
 
+    public UUID getHytameId() {
+        return hytameId;
+    }
+
+    public void setHytameId(UUID hytameId) {
+        this.hytameId = hytameId;
+    }
+
     public void setTamed(@Nonnull UUID player, @Nonnull String playerName) {
         this.isTamed = true;
         this.tamerUUID = player;
         this.tamerName = playerName;
+        // Generate hytameId on first tame if not already set
+        if (this.hytameId == null) {
+            this.hytameId = UUID.randomUUID();
+        }
     }
 
     @Nullable
@@ -55,6 +70,7 @@ public class TameComponent implements Component<EntityStore> {
         component.isTamed = this.isTamed;
         component.tamerUUID = this.tamerUUID;
         component.tamerName = this.tamerName;
+        component.hytameId = this.hytameId;
         return component;
     }
 }

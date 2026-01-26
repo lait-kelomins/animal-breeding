@@ -36,15 +36,20 @@ This mod is actively being developed. For issues or suggestions, click on one of
 
 ***
 
-# Releasing 1.3.0 in early state with some bug and stability fixes. It contains **features in preview** that may not work or are incomplete such as **name tags**
-
 **Known mod incompatibility:**
 
 *   More mounts
 
 ***
 
-## What's New in v1.3.x (doesn't work in solo, enable alpha files for server)
+## What's New in v1.4.0 - Taming Integration
+
+- **Taming** - Merged with TheBrandolorian's "Tameable Animals" to add taming to the mod. Now animals need to be tamed before you can breed and name them.
+- **Animal Persistence** - All tamed animals are now persisted and should be restored if they are removed for some reason. Only dead animals won't respawn.
+- **Food-based Taming & Healing** - Feed taming food to wild animals to tame them. The configuration now defines base food which can be overridden by taming food, healing food and breeding food.
+- **Attitude Field** - Tamed animals now have REVERED attitude (won't attack owner)
+
+## What's New in v1.3.x
 
 *   Fixed a bug with animals disappearing on game restart after using name tags (data may be recoverable in next update but no)
 *   Fixed a bug that made the mod break in solo games

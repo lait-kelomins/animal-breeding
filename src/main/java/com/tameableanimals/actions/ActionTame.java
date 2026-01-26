@@ -12,7 +12,7 @@ import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.npc.role.Role;
 import com.hypixel.hytale.server.npc.role.support.WorldSupport;
 import com.hypixel.hytale.server.npc.sensorinfo.InfoProvider;
-import com.tameableanimals.TameableAnimalsPlugin;
+import com.laits.breeding.LaitsBreedingPlugin;
 import com.tameableanimals.tame.TameComponent;
 import com.tameableanimals.utils.Debug;
 
@@ -63,7 +63,7 @@ public class ActionTame extends ActionBase {
         tameComponent.setTamed(playerUUIDComponent.getUuid(), player.getDisplayName());
 
         try {
-            TameableAnimalsPlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);
+            LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);
         } catch (IllegalAccessException e) {
             Debug.msg(playerRef, "Failed to override attitude for NPC, tame failed", Level.SEVERE);
             Debug.log(e.getMessage(), Level.SEVERE);
