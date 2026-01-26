@@ -42,6 +42,7 @@ import com.laits.breeding.models.TamedAnimalData;
 import com.laits.breeding.util.EcsReflectionUtil;
 import com.laits.breeding.util.NameplateUtil;
 import com.laits.breeding.util.TameHelper;
+import com.laits.breeding.components.HyTameInteractionComponent;
 
 import it.unimi.dsi.fastutil.Pair;
 
@@ -380,10 +381,31 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     private void triggerFallbackInteraction(InteractionContext context, Ref<EntityStore> targetRef,
             AnimalType animalType) {
         try {
+            // First try memory cache (fast lookup)
             String originalInteractionId = LaitsBreedingPlugin.getOriginalInteractionId(targetRef, animalType);
             log("Looking up fallback for targetRef: " + targetRef + " (animalType: " + animalType + ")");
-            log("Original interaction ID: " + (originalInteractionId != null ? originalInteractionId : "NOT FOUND"));
+            log("Memory cache lookup: " + (originalInteractionId != null ? originalInteractionId : "NOT FOUND"));
 
+            // If cache miss, fall back to ECS component (persisted source of truth)
+            if (originalInteractionId == null) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin != null && plugin.getHyTameInteractionComponentType() != null && targetRef.isValid()) {
+                    try {
+                        Store<EntityStore> store = targetRef.getStore();
+                        HyTameInteractionComponent origComp = store.getComponent(targetRef,
+                                plugin.getHyTameInteractionComponentType());
+                        if (origComp != null && origComp.isCaptured()) {
+                            originalInteractionId = origComp.getOriginalInteractionId();
+                            log("ECS component lookup: " + (originalInteractionId != null ? originalInteractionId : "null (valid)"));
+                        }
+                    } catch (Exception e) {
+                        log("ECS lookup failed: " + e.getMessage());
+                    }
+                }
+            }
+
+            // null is a valid original state for some entities (e.g., horses have no Use interaction)
+            // We only return early if we genuinely don't have ANY stored state
             if (originalInteractionId == null || originalInteractionId.isEmpty()) {
                 log("No fallback interaction found for entity - interaction will just end");
                 return;
@@ -477,14 +499,11 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
     private void playFeedingSoundAtPosition(Ref<EntityStore> targetRef) {
         try {
-            log("playFeedingSoundAtPosition called");
-
             Vector3d pos = getEntityPosition(targetRef);
             if (pos == null) {
                 log("playFeedingSoundAtPosition: pos is null");
                 return;
             }
-            log("playFeedingSoundAtPosition: pos=" + pos.getX() + "," + pos.getY() + "," + pos.getZ());
 
             World world = Universe.get().getDefaultWorld();
             if (world == null) {
@@ -499,7 +518,6 @@ public class FeedAnimalInteraction extends SimpleInteraction {
             }
 
             int soundId = SoundEvent.getAssetMap().getIndex("SFX_Consume_Bread");
-            log("playFeedingSoundAtPosition: soundId=" + soundId);
             if (soundId < 0) {
                 log("playFeedingSoundAtPosition: soundId < 0, aborting");
                 return;
@@ -514,18 +532,13 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
     private void consumePlayerHeldItem(InteractionContext context) {
         try {
-            log("consumePlayerHeldItem called");
-
             ItemContainer container = context.getHeldItemContainer();
             if (container != null) {
-                log("consumePlayerHeldItem: got container, class=" + container.getClass().getName());
                 short slot = context.getHeldItemSlot();
-                log("consumePlayerHeldItem: slot=" + slot);
 
                 // Try removeItemStackFromSlot
                 try {
                     container.removeItemStackFromSlot(slot, 1);
-                    log("consumePlayerHeldItem: removed 1 item via removeItemStackFromSlot");
                     return;
                 } catch (Exception e) {
                     log("consumePlayerHeldItem: removeItemStackFromSlot failed: " + e.getMessage());
@@ -533,7 +546,6 @@ public class FeedAnimalInteraction extends SimpleInteraction {
             }
 
             log("consumePlayerHeldItem: could not consume item");
-
         } catch (Exception e) {
             log("consumePlayerHeldItem error: " + e.getMessage());
         }
