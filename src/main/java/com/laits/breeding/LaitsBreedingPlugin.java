@@ -1995,38 +1995,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         return lower.contains("nametag") || lower.contains("name_tag");
     }
 
-    // NOTE: tickLoveAnimals() and checkCustomAnimalBreeding() have been moved to
-    // BreedingTickManager
-    // NOTE: spawnCustomAnimalBaby(), getPositionFromBreedingData(),
-    // spawnBabyAnimal(),
-    // updateEntityScale(), transformBabyToAdult(), tryReacquireBabyRef()
+    // NOTE: tickLoveAnimals() and checkCustomAnimalBreeding() have been moved to BreedingTickManager
+    // NOTE: spawnCustomAnimalBaby(), getPositionFromBreedingData(), updateEntityScale(),
+    // transformBabyToAdult(), tryReacquireBabyRef(), performInstantBreeding()
     // have been moved to SpawningManager
-
-    /**
-     * Spawn a baby custom animal at the given position.
-     * 
-     * @see SpawningManager#spawnCustomAnimalBaby(String, CustomAnimalConfig,
-     *      Vector3d)
-     * @deprecated Use spawningManager.spawnCustomAnimalBaby() directly
-     */
-    @Deprecated
-    private void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position) {
-        spawningManager.spawnCustomAnimalBaby(modelAssetId, customConfig, position);
-    }
-
-    // NOTE: getPositionOnWorldThread() moved to EffectsManager.getPositionFromRef()
-    // NOTE: getPositionFromBreedingData() moved to SpawningManager
-
-    /**
-     * Perform instant breeding between two animals.
-     * 
-     * @see SpawningManager#performInstantBreeding(BreedingData, BreedingData,
-     *      AnimalType, Vector3d)
-     */
-    private void performInstantBreeding(BreedingData animal1, BreedingData animal2, AnimalType type,
-            Vector3d spawnPos) {
-        spawningManager.performInstantBreeding(animal1, animal2, type, spawnPos);
-    }
 
     /**
      * Spawn a baby animal with parent UUIDs for auto-taming (uses default world).
