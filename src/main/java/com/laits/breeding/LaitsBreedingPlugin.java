@@ -58,6 +58,7 @@ import com.laits.breeding.managers.BreedingTickManager;
 import com.laits.breeding.managers.GrowthManager;
 import com.laits.breeding.managers.RespawnManager;
 import com.laits.breeding.managers.SpawningManager;
+import com.laits.breeding.managers.InteractionSetupManager;
 import com.laits.breeding.managers.TamingManager;
 import com.laits.breeding.managers.PersistenceManager;
 import com.laits.breeding.models.TamedAnimalData;
@@ -151,6 +152,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private EffectsManager effectsManager;
     private SpawningManager spawningManager;
     private RespawnManager respawnManager;
+    private InteractionSetupManager interactionSetupManager;
 
     // HyTameComponent type for ECS integration
     private ComponentType<EntityStore, HyTameComponent> hyTameComponentType;
@@ -374,6 +376,16 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         respawnManager.setLogger(msg -> getLogger().atInfo().log(msg));
         respawnManager.setWarningLogger(msg -> getLogger().atWarning().log(msg));
 
+        // Initialize interaction setup manager
+        interactionSetupManager = new InteractionSetupManager(configManager, breedingManager);
+        interactionSetupManager.setHyTameInteractionTypeSupplier(() -> hyTameInteractionComponentType);
+        interactionSetupManager.setUseEntityBasedInteractions(USE_ENTITY_BASED_INTERACTIONS);
+        interactionSetupManager.setUseLegacyFeedInteraction(USE_LEGACY_FEED_INTERACTION);
+        interactionSetupManager.setShowAbility2HintsOnEntities(SHOW_ABILITY2_HINTS_ON_ENTITIES);
+        interactionSetupManager.setVerboseLogging(verboseLogging);
+        interactionSetupManager.setLogger(msg -> getLogger().atInfo().log(msg));
+        interactionSetupManager.setWarningLogger(msg -> getLogger().atWarning().log(msg));
+
         // Set up breeding callbacks
         breedingTickManager.setOnBreedingComplete((type, animals) -> {
             // Get positions for midpoint calculation
@@ -579,7 +591,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 breedingManager.tickPregnancies();
                 growthManager.tickGrowth();
                 breedingTickManager.tick(); // Handle love mode, heart particles, breeding
-                updateTrackedAnimalStates(); // Dynamic hint switching based on love/cooldown
+                interactionSetupManager.updateTrackedAnimalStates(); // Dynamic hint switching
             } catch (Exception e) {
                 // Log tick errors for debugging
                 logWarning("[Tick] Error: " + e.getMessage());
@@ -784,158 +796,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         }, 5, 5, TimeUnit.MINUTES));
     }
 
-    /**
-     * Set up interactions for a single entity if it's a breedable animal.
-     * Must be called from the world thread.
-     *
-     * @param world     The world containing the entity
-     * @param entityRef The entity reference
-     */
-    private void setupSingleEntity(World world, Ref<EntityStore> entityRef) {
-        try {
-            Store<EntityStore> store = world.getEntityStore().getStore();
-
-            // Get the model asset ID to identify the animal type
-            String modelAssetId = getEntityModelAssetId(store, entityRef);
-            if (modelAssetId == null)
-                return;
-
-            // Check if it's a farm animal
-            AnimalType animalType = AnimalType.fromModelAssetId(modelAssetId);
-            if (animalType == null)
-                return; // Not a recognized animal
-
-            logVerbose("Setting up animal: " + modelAssetId + " (" + animalType + ")");
-
-            // Skip if breeding is disabled for this animal type
-            if (!configManager.isAnimalEnabled(animalType))
-                return;
-
-            boolean isBaby = AnimalType.isBabyVariant(modelAssetId);
-
-            // Register babies for growth tracking
-            if (isBaby) {
-                UUID babyId = UUID.nameUUIDFromBytes(entityRef.toString().getBytes());
-                if (breedingManager.getData(babyId) == null) {
-                    breedingManager.registerBaby(babyId, animalType, entityRef);
-                    logVerbose("Registered baby for growth tracking: " + modelAssetId);
-                }
-            }
-
-            // Set up interactions for adults (babies can't breed)
-            if (!isBaby) {
-                setupEntityInteractions(store, entityRef, animalType);
-            }
-
-        } catch (IllegalStateException e) {
-            // Check for stale ref error
-            if (e.getMessage() != null && e.getMessage().contains("Invalid entity")) {
-                // Entity was despawned - ignore
-                return;
-            }
-            logVerbose("setupSingleEntity error: " + e.getMessage());
-        } catch (Exception e) {
-            logVerbose("setupSingleEntity error: " + e.getMessage());
-        }
-    }
+    // NOTE: setupSingleEntity() moved to InteractionSetupManager
 
     /**
      * Callback from NewAnimalSpawnDetector when a new animal is detected.
-     * This provides immediate detection instead of waiting for periodic scans.
-     *
-     * NOTE: This is called from within the ECS tick, so we must defer interaction
-     * setup to after the tick completes via world.execute().
-     *
-     * @param store        The entity store
-     * @param entityRef    The newly spawned entity reference
-     * @param modelAssetId The model asset ID (e.g., "Cow", "Sheep")
-     * @param animalType   The detected animal type
-     * @param world        The world the entity belongs to (for multi-world support)
+     * Delegates to InteractionSetupManager.
      */
     public void onNewAnimalDetected(Store<EntityStore> store, Ref<EntityStore> entityRef,
             String modelAssetId, AnimalType animalType, World world) {
-        try {
-            if (entityRef == null || !entityRef.isValid())
-                return;
-
-            logVerbose("NewAnimalSpawnDetector: Immediate detection of " + modelAssetId);
-
-            // Check if it's a custom animal (animalType will be null for custom)
-            CustomAnimalConfig customAnimal = null;
-            if (animalType == null) {
-                customAnimal = configManager.getCustomAnimal(modelAssetId);
-            }
-
-            // Skip if breeding is disabled for this animal type
-            if (animalType != null && !configManager.isAnimalEnabled(animalType)) {
-                logVerbose("Skipping disabled animal: " + animalType);
-                return;
-            }
-            if (customAnimal != null && !customAnimal.isEnabled()) {
-                logVerbose("Skipping disabled custom animal: " + modelAssetId);
-                return;
-            }
-
-            boolean isBaby = AnimalType.isBabyVariant(modelAssetId);
-
-            // Register babies for growth tracking (safe to do during tick)
-            if (isBaby && animalType != null) {
-                UUID babyId = UUID.nameUUIDFromBytes(entityRef.toString().getBytes());
-                if (breedingManager.getData(babyId) == null) {
-                    breedingManager.registerBaby(babyId, animalType, entityRef);
-                    logVerbose("Registered new baby for growth tracking: " + modelAssetId);
-                }
-            }
-
-            // Set up interactions for adults - must be deferred to after the tick
-            // Component modifications during ECS tick may not work correctly
-            if (!isBaby && world != null) {
-                final Ref<EntityStore> finalEntityRef = entityRef;
-                final AnimalType finalAnimalType = animalType;
-                final CustomAnimalConfig finalCustomAnimal = customAnimal;
-                final String finalModelAssetId = modelAssetId;
-
-                world.execute(() -> {
-                    try {
-                        if (!finalEntityRef.isValid())
-                            return;
-                        Store<EntityStore> worldStore = world.getEntityStore().getStore();
-
-                        if (USE_ENTITY_BASED_INTERACTIONS) {
-                            // Legacy: Set up entity-based interactions (Use key)
-                            if (finalAnimalType != null) {
-                                setupEntityInteractions(worldStore, finalEntityRef, finalAnimalType);
-                                logVerbose("Interactions set up for new animal: " + finalModelAssetId);
-                            } else if (finalCustomAnimal != null) {
-                                setupCustomAnimalInteractions(worldStore, finalEntityRef, finalCustomAnimal);
-                                if (verboseLogging)
-                                    getLogger().atInfo().log("[CustomAnimal] Interactions set up for: %s",
-                                            finalModelAssetId);
-                            }
-                        } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
-                            // Item-based with hints: Show Ability2 hint on animals
-                            String hintKey = (finalAnimalType != null && finalAnimalType.isMountable())
-                                    ? "animalbreeding.interactionHints.feed"
-                                    : "animalbreeding.interactionHints.feed";
-                            setupAbility2HintOnly(worldStore, finalEntityRef, hintKey);
-                            logVerbose("Ability2 hint set up for: " + finalModelAssetId);
-                        } else {
-                            logVerbose("New adult animal detected: " + finalModelAssetId + " (no hints)");
-                        }
-                    } catch (Exception e) {
-                        logVerbose("Deferred interaction setup error: " + e.getMessage());
-                    }
-                });
-            }
-
-        } catch (IllegalStateException e) {
-            if (e.getMessage() != null && e.getMessage().contains("Invalid entity")) {
-                return; // Entity already despawned
-            }
-            logVerbose("onNewAnimalDetected error: " + e.getMessage());
-        } catch (Exception e) {
-            logVerbose("onNewAnimalDetected error: " + e.getMessage());
-        }
+        interactionSetupManager.onNewAnimalDetected(store, entityRef, modelAssetId, animalType, world);
     }
 
     /**
@@ -945,455 +814,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         return EcsReflectionUtil.getEntityModelAssetId(store, entityRef);
     }
 
-    /**
-     * Set up breeding interactions on a single entity.
-     * Note: Interactions methods are not public, so we must use reflection.
-     *
-     * LEGACY: This method is disabled when USE_LEGACY_FEED_INTERACTION is false.
-     * The new ActionHyTameOrFeed system handles feeding/taming via NPC behavior
-     * tree.
-     */
-    private void setupEntityInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef, AnimalType animalType) {
-        // Skip if legacy feed interaction system is disabled
-        if (!USE_LEGACY_FEED_INTERACTION) {
-            return;
-        }
-
-        try {
-            // Skip players (even if they have animal models) - same check as
-            // FeedAnimalInteraction
-            if (EntityUtil.isPlayerEntity(entityRef)) {
-                logVerbose("[SetupInteraction] Skipping player entity with animal model");
-                return;
-            }
-
-            // Skip babies - they can't breed
-            String modelAssetId = getEntityModelAssetId(store, entityRef);
-            if (modelAssetId != null && AnimalType.isBabyVariant(modelAssetId)) {
-                logVerbose("[SetupInteraction] Skipping baby animal: " + modelAssetId);
-                return;
-            }
-
-            // Ensure entity has Interactable component (required for hints to display in
-            // solo mode)
-            try {
-                store.ensureAndGetComponent(entityRef, EcsReflectionUtil.INTERACTABLE_TYPE);
-            } catch (Exception e) {
-                // Silent - component may already exist
-            }
-
-            // Check if entity already has Interactions component (real NPCs have this)
-            // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
-            Interactions interactions = store.getComponent(entityRef, EcsReflectionUtil.INTERACTIONS_TYPE);
-            if (interactions == null) {
-                // Entity doesn't have Interactions component - not a real NPC, skip
-                logVerbose("[SetupInteraction] Skipping non-NPC entity (no Interactions component)");
-                return;
-            }
-
-            String feedInteractionId = "Root_FeedAnimal";
-
-            // Use reflection for non-public methods - use Class.forName to avoid
-            // classloader issues
-            InteractionType useType = null;
-            for (InteractionType enumConst : InteractionType.class.getEnumConstants()) {
-                if (enumConst.toString().equals("Use")) {
-                    useType = enumConst;
-                    break;
-                }
-            }
-
-            // Get current interaction ID (may be original or already-modified from previous
-            // session)
-            String currentUse = interactions.getInteractionId(useType);
-
-            // Get current hint BEFORE overwriting (for restoration later)
-            String currentHint = interactions.getInteractionHint();
-
-            // Check if we already have persisted original (survives restarts)
-            HyTameInteractionComponent origComp = hyTameInteractionComponentType != null
-                    ? store.getComponent(entityRef, hyTameInteractionComponentType)
-                    : null;
-
-            if (origComp == null || !origComp.isCaptured()) {
-                // First time encountering this entity - capture the true original
-                // Note: only capture if current interaction is NOT our feed interaction
-                // (otherwise we'd capture our own modified state on world re-scan)
-                if (currentUse == null || !currentUse.equals(feedInteractionId)) {
-                    if (hyTameInteractionComponentType != null) {
-                        origComp = store.ensureAndGetComponent(entityRef, hyTameInteractionComponentType);
-                        origComp.setOriginalInteractionId(currentUse);
-                        origComp.setOriginalHint(currentHint);
-                        origComp.setCaptured(true);
-                        if (verboseLogging)
-                            getLogger().atInfo().log("[BuiltIn] %s: persisted original interaction=%s, hint=%s",
-                                    animalType, currentUse, currentHint);
-                    }
-                    // Also store in memory cache for fast lookup
-                    InteractionStateCache.getInstance().storeOriginalState(entityRef, currentUse, currentHint, animalType);
-                }
-            } else {
-                // Already captured - sync from ECS to memory cache for fast lookup
-                InteractionStateCache.getInstance().storeOriginalState(entityRef, origComp.getOriginalInteractionId(),
-                        origComp.getOriginalHint(), animalType);
-                if (verboseLogging)
-                    getLogger().atInfo().log("[BuiltIn] %s: restored original from ECS: interaction=%s, hint=%s",
-                            animalType, origComp.getOriginalInteractionId(), origComp.getOriginalHint());
-            }
-
-            // Always ensure interaction is set to Root_FeedAnimal
-            if (currentUse == null || !currentUse.equals(feedInteractionId)) {
-                interactions.setInteractionId(useType, feedInteractionId);
-                if (verboseLogging)
-                    getLogger().atInfo().log("[BuiltIn] %s: set interaction to %s (was: %s)",
-                            animalType, feedInteractionId, currentUse);
-            }
-
-            // Use combined hint for mountable animals (Feed / Mount)
-            String hintKey = animalType.isMountable()
-                    ? "animalbreeding.interactionHints.legacyFeedOrMount"
-                    : "animalbreeding.interactionHints.legacyFeed";
-            // ALWAYS set the interaction hint (even if interaction was already set)
-            interactions.setInteractionHint(hintKey);
-            if (verboseLogging)
-                getLogger().atInfo().log("[SetupInteraction] SUCCESS for %s: interactionId=%s, hint=%s", animalType,
-                        feedInteractionId, hintKey);
-
-        } catch (Exception e) {
-            getLogger().atWarning().log("[SetupInteraction] ERROR for %s: %s", animalType, e.getMessage());
-        }
-    }
-
-    /**
-     * Set up breeding interactions on a custom animal entity (from config).
-     * IDENTICAL to setupEntityInteractions - copy-pasted to ensure same behavior.
-     *
-     * LEGACY: This method is disabled when USE_LEGACY_FEED_INTERACTION is false.
-     * The new ActionHyTameOrFeed system handles feeding/taming via NPC behavior
-     * tree.
-     */
-    private void setupCustomAnimalInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef,
-            CustomAnimalConfig customAnimal) {
-        // Skip if legacy feed interaction system is disabled
-        if (!USE_LEGACY_FEED_INTERACTION) {
-            return;
-        }
-
-        String animalName = customAnimal.getModelAssetId();
-        if (verboseLogging)
-            getLogger().atInfo().log("[CustomAnimal] setupCustomAnimalInteractions CALLED for: %s", animalName);
-        try {
-            // Skip players (even if they have animal models) - same check as
-            // FeedAnimalInteraction
-            if (EntityUtil.isPlayerEntity(entityRef)) {
-                logVerbose("[CustomAnimal] Skipping player entity with custom animal model: " + animalName);
-                return;
-            }
-
-            // Skip babies - they can't breed (check for known baby variant patterns)
-            String actualModelId = getEntityModelAssetId(store, entityRef);
-            if (actualModelId != null && AnimalType.isBabyVariant(actualModelId)) {
-                logVerbose("[CustomAnimal] Skipping baby animal: " + actualModelId);
-                return;
-            }
-
-            // Ensure entity has Interactable component (required for hints to display in
-            // solo mode)
-            try {
-                store.ensureAndGetComponent(entityRef, EcsReflectionUtil.INTERACTABLE_TYPE);
-            } catch (Exception e) {
-                // Silent - component may already exist
-            }
-
-            // Check if entity already has Interactions component (real NPCs have this)
-            // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
-            Interactions interactions = store.getComponent(entityRef, EcsReflectionUtil.INTERACTIONS_TYPE);
-            if (interactions == null) {
-                // Entity doesn't have Interactions component - not a real NPC, skip
-                logVerbose("[CustomAnimal] Skipping non-NPC entity (no Interactions component): " + animalName);
-                return;
-            }
-
-            String feedInteractionId = "Root_FeedAnimal";
-
-            InteractionType useType = null;
-            for (InteractionType enumConst : InteractionType.class.getEnumConstants()) {
-                if (enumConst.toString().equals("Use")) {
-                    useType = enumConst;
-                    break;
-                }
-            }
-
-            String currentUse = interactions.getInteractionId(useType);
-
-            // Get current hint BEFORE overwriting (for restoration later)
-            String currentHint = interactions.getInteractionHint();
-            if (verboseLogging)
-                getLogger().atInfo().log("[CustomAnimal] %s: currentUse='%s', currentHint='%s', feedInteractionId='%s'",
-                        animalName, currentUse, currentHint, feedInteractionId);
-
-            // Check if we already have persisted original (survives restarts)
-            HyTameInteractionComponent origComp = hyTameInteractionComponentType != null
-                    ? store.getComponent(entityRef, hyTameInteractionComponentType)
-                    : null;
-
-            if (origComp == null || !origComp.isCaptured()) {
-                // First time encountering this entity - capture the true original
-                // Note: only capture if current interaction is NOT our feed interaction
-                if (currentUse == null || !currentUse.equals(feedInteractionId)) {
-                    if (hyTameInteractionComponentType != null) {
-                        origComp = store.ensureAndGetComponent(entityRef, hyTameInteractionComponentType);
-                        origComp.setOriginalInteractionId(currentUse);
-                        origComp.setOriginalHint(currentHint);
-                        origComp.setCaptured(true);
-                        if (verboseLogging)
-                            getLogger().atInfo().log("[CustomAnimal] %s: persisted original interaction=%s, hint=%s",
-                                    animalName, currentUse, currentHint);
-                    }
-                    // Also store in memory cache for fast lookup
-                    InteractionStateCache.getInstance().storeOriginalState(entityRef, currentUse, currentHint, null);
-                }
-            } else {
-                // Already captured - sync from ECS to memory cache for fast lookup
-                InteractionStateCache.getInstance().storeOriginalState(entityRef, origComp.getOriginalInteractionId(),
-                        origComp.getOriginalHint(), null);
-                if (verboseLogging)
-                    getLogger().atInfo().log("[CustomAnimal] %s: restored original from ECS: interaction=%s, hint=%s",
-                            animalName, origComp.getOriginalInteractionId(), origComp.getOriginalHint());
-            }
-
-            // Always ensure interaction is set to Root_FeedAnimal
-            if (currentUse == null || !currentUse.equals(feedInteractionId)) {
-                // FIX: Clear the *UseNPC interaction first (set to null like built-in animals)
-                // Built-in animals have null as original interaction, custom NPCs have *UseNPC
-                // The NPC system may intercept *UseNPC before our override takes effect
-                if (currentUse != null && currentUse.startsWith("*")) {
-                    interactions.setInteractionId(useType, null);
-                    if (verboseLogging)
-                        getLogger().atInfo().log("[CustomAnimal] %s: cleared special interaction '%s' to null",
-                                animalName, currentUse);
-                }
-
-                // Now set our interaction
-                interactions.setInteractionId(useType, feedInteractionId);
-                if (verboseLogging)
-                    getLogger().atInfo().log("[CustomAnimal] %s: set interaction to %s",
-                            animalName, feedInteractionId);
-            }
-
-            // ALWAYS set hint - custom animals use standard feed hint (not mountable)
-            interactions.setInteractionHint("animalbreeding.interactionHints.legacyFeed");
-            if (verboseLogging)
-                getLogger().atInfo().log("[CustomAnimal] %s: setup complete", animalName);
-
-        } catch (Exception e) {
-            getLogger().atSevere().log("[CustomAnimal] %s: setup error: %s", animalName, e.getMessage());
-        }
-    }
-
-    /**
-     * Update an animal's interaction state based on whether feeding makes sense.
-     * Called periodically to switch between "feed mode" and "original mode".
-     *
-     * - FEED MODE: Animal can be fed (not in love, not on cooldown)
-     * Shows "Press F to Feed" or "Press F to Feed / Mount"
-     *
-     * - ORIGINAL MODE: Feeding doesn't make sense (in love or on cooldown)
-     * Shows original interaction (e.g., "Press F to Mount" for horses)
-     *
-     * @param entityRef  The entity reference
-     * @param animalType The animal type
-     * @param data       The breeding data for this animal
-     */
-    @SuppressWarnings("unchecked")
-    private void updateAnimalInteractionState(Ref<EntityStore> entityRef, AnimalType animalType, BreedingData data) {
-        if (!USE_ENTITY_BASED_INTERACTIONS) {
-            return; // Only applies to entity-based interactions
-        }
-
-        // Skip if entity ref is stale (entity despawned)
-        if (entityRef == null || !entityRef.isValid()) {
-            return;
-        }
-
-        try {
-            Store<EntityStore> store = entityRef.getStore();
-            if (store == null)
-                return;
-
-            // Determine if we should show feed interaction
-            boolean shouldShowFeed = true;
-            if (data != null) {
-                if (data.isInLove()) {
-                    shouldShowFeed = false;
-                }
-                // Check cooldown - if recently bred, don't show feed
-                long cooldown = configManager.getBreedingCooldown(animalType);
-                if (data.getCooldownRemaining(cooldown) > 0) {
-                    shouldShowFeed = false;
-                }
-            }
-
-            // Get interactions component
-            Interactions interactions = store.getComponent(entityRef, EcsReflectionUtil.INTERACTIONS_TYPE);
-            if (interactions == null)
-                return;
-
-            // Get InteractionType.Use enum value
-            InteractionType useType = null;
-            for (InteractionType enumConst : InteractionType.class.getEnumConstants()) {
-                if (enumConst.toString().equals("Use")) {
-                    useType = enumConst;
-                    break;
-                }
-            }
-
-            String entityKey = EcsReflectionUtil.getStableEntityKey(entityRef);
-
-            if (shouldShowFeed) {
-                // FEED MODE - show feed interaction
-                interactions.setInteractionId((InteractionType) useType, "Root_FeedAnimal");
-                String hintKey = animalType.isMountable()
-                        ? "animalbreeding.interactionHints.legacyFeedOrMount"
-                        : "animalbreeding.interactionHints.legacyFeed";
-                interactions.setInteractionHint(hintKey);
-            } else {
-                // ORIGINAL MODE - restore original interaction if we have it saved
-                OriginalInteractionState original = InteractionStateCache.getInstance().getOriginalState(entityRef);
-                if (original != null) {
-                    // Restore original interaction ID (even if null - that's the correct original
-                    // state)
-                    // For horses, original Use interaction is null which allows mounting to work
-                    interactions.setInteractionId(useType, original.getInteractionId());
-                    if (original.hasHint()) {
-                        interactions.setInteractionHint(original.getHint());
-                    } else {
-                        // Clear hint if original had none
-                        interactions.setInteractionHint((String) null);
-                    }
-                    // logVerbose(String.format("[StateUpdate] %s: restored original interaction=%s,
-                    // hint=%s",
-                    // animalType, original.getInteractionId(), original.getHint()));
-                }
-                // If we don't have saved state, keep showing feed interaction
-            }
-
-        } catch (Exception e) {
-            // Entity may have despawned - ignore silently
-        }
-    }
-
-    /**
-     * Update interaction states for all tracked animals.
-     * Called periodically from the tick loop.
-     * ECS operations must run on WorldThread, so we schedule them via
-     * world.execute().
-     */
-    private void updateTrackedAnimalStates() {
-        if (!USE_ENTITY_BASED_INTERACTIONS) {
-            return;
-        }
-
-        // ECS operations must run on WorldThread
-        World world = Universe.get() != null ? Universe.get().getDefaultWorld() : null;
-        if (world == null) {
-            return;
-        }
-
-        // Collect data to process (avoid concurrent modification)
-        List<BreedingData> dataToProcess = new ArrayList<>();
-        for (BreedingData data : breedingManager.getAllBreedingData()) {
-            dataToProcess.add(data);
-        }
-
-        world.execute(() -> {
-            for (BreedingData data : dataToProcess) {
-                Object refObj = data.getEntityRef();
-                AnimalType animalType = data.getAnimalType();
-
-                if (refObj == null || animalType == null)
-                    continue;
-
-                try {
-                    @SuppressWarnings("unchecked")
-                    Ref<EntityStore> entityRef = (Ref<EntityStore>) refObj;
-
-                    // Skip and clean up stale refs (entity despawned)
-                    if (!entityRef.isValid()) {
-                        data.setEntityRef(null);
-                        continue;
-                    }
-
-                    updateAnimalInteractionState(entityRef, animalType, data);
-                } catch (Exception e) {
-                    // Entity despawned or ref invalid - clean up and continue
-                    data.setEntityRef(null);
-                }
-            }
-        });
-    }
-
-    /**
-     * Set up Ability2 hint on an entity (for item-based feeding).
-     * This only sets up the hint display - the actual interaction is handled by the
-     * item's Ability2.
-     * Shows "Press [Ability2 key] to Feed" when player looks at the animal.
-     */
-    private void setupAbility2HintOnly(Store<EntityStore> store, Ref<EntityStore> entityRef, String hintKey) {
-        try {
-            // Ensure entity has Interactable component (enables hint display)
-            try {
-                store.ensureAndGetComponent(entityRef, EcsReflectionUtil.INTERACTABLE_TYPE);
-            } catch (Exception e) {
-                // Silent - may already have component
-            }
-
-            // Check if entity already has Interactions component (real NPCs have this)
-            // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
-            Interactions interactions = store.getComponent(entityRef, EcsReflectionUtil.INTERACTIONS_TYPE);
-            if (interactions == null) {
-                // Entity doesn't have Interactions component - not a real NPC, skip
-                logVerbose("[SetupInteraction] Skipping non-NPC entity (no Interactions component)");
-                return;
-            }
-
-            // Get Ability2 enum value
-            InteractionType ability2Type = null;
-            for (InteractionType enumConst : InteractionType.class.getEnumConstants()) {
-                if (enumConst.toString().equals("Ability2")) {
-                    ability2Type = enumConst;
-                    break;
-                }
-            }
-
-            if (ability2Type == null) {
-                logVerbose("Could not find Ability2 InteractionType");
-                return;
-            }
-
-            // Set interaction for Ability2 (don't touch Use - it breaks other interactions)
-            interactions.setInteractionId(ability2Type, "Root_FeedAnimal");
-
-            // Set the hint (API only supports simple string, no per-type hints)
-            interactions.setInteractionHint(hintKey);
-            logVerbose("Set up Ability2 hint: " + hintKey);
-
-        } catch (Exception e) {
-            logVerbose("setupAbility2HintOnly error: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Store the original interaction ID for a custom animal entity (for fallback).
-     */
-    private void storeOriginalInteractionIdForCustom(Ref<EntityStore> entityRef, String originalId,
-            CustomAnimalConfig customAnimal) {
-        // Use the same storage mechanism as regular animals
-        // Store whatever the original interaction was so we can fall back to it
-        if (originalId != null && !originalId.isEmpty()) {
-            InteractionStateCache.getInstance().storeOriginalState(entityRef, originalId, null, null);
-        }
-    }
+    // NOTE: setupEntityInteractions, setupCustomAnimalInteractions, updateAnimalInteractionState,
+    // updateTrackedAnimalStates, setupAbility2HintOnly, storeOriginalInteractionIdForCustom
+    // moved to InteractionSetupManager
 
     /**
      * Register listener to clean up breeding data when entities are removed (death,
@@ -1637,20 +1060,20 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         logVerbose("Setting up interactions for adult: " + animal.getModelAssetId()
                                 + " (type: "
                                 + animalType + ")");
-                        setupEntityInteractions(refStore, ref, animalType);
+                        interactionSetupManager.setupEntityInteractions(refStore, ref, animalType);
                     } else if (customAnimal != null) {
                         if (verboseLogging)
                             getLogger().atInfo().log(
                                     "[CustomAnimal] ABOUT TO CALL setupCustomAnimalInteractions for: %s",
                                     animal.getModelAssetId());
-                        setupCustomAnimalInteractions(refStore, ref, customAnimal);
+                        interactionSetupManager.setupCustomAnimalInteractions(refStore, ref, customAnimal);
                     }
                 } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
                     // Item-based with hints: Show Ability2 hint on animals
                     String hintKey = (animalType != null && animalType.isMountable())
                             ? "animalbreeding.interactionHints.feed"
                             : "animalbreeding.interactionHints.feed";
-                    setupAbility2HintOnly(refStore, ref, hintKey);
+                    interactionSetupManager.setupAbility2HintOnly(refStore, ref, hintKey);
                 }
             } else {
                 getLogger().atWarning().log("[CustomAnimal] refStore is NULL for: %s",
@@ -1717,7 +1140,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 World world = targetEntity.getWorld();
                 if (world != null) {
                     Store<EntityStore> store = world.getEntityStore().getStore();
-                    setupEntityInteractions(store, ref, animalType);
+                    interactionSetupManager.setupEntityInteractions(store, ref, animalType);
                 }
             }
         } catch (Exception e) {
@@ -1778,7 +1201,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 World world = targetEntity.getWorld();
                 if (world != null) {
                     Store<EntityStore> store = world.getEntityStore().getStore();
-                    setupEntityInteractions(store, ref, animalType);
+                    interactionSetupManager.setupEntityInteractions(store, ref, animalType);
                 }
             }
         } catch (Exception e) {
