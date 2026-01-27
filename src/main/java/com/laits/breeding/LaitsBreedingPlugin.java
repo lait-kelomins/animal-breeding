@@ -1946,78 +1946,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         return str.substring(0, 1).toUpperCase() + str.substring(1);
     }
 
-    /**
-     * Consume 1 item from the player's held item stack.
-     */
-    public void consumeHeldItem(Player player) {
-        try {
-            // Get player's inventory
-            Inventory inventory = ((LivingEntity) player).getInventory();
-            if (inventory == null)
-                return;
-
-            // Get the active hotbar slot
-            byte activeSlot = inventory.getActiveHotbarSlot();
-
-            // Remove 1 item from the active hotbar slot
-            inventory.getHotbar().removeItemStackFromSlot((short) activeSlot, 1);
-
-            // Mark inventory as changed and sync to client
-            inventory.markChanged();
-            player.sendInventory();
-        } catch (Exception e) {
-            // Silent
-        }
-    }
-
-    /**
-     * Play the feeding sound at the target entity's location.
-     * 
-     * @see EffectsManager#playFeedingSound(Entity)
-     */
-    public void playFeedingSound(Entity targetEntity) {
-        effectsManager.playFeedingSound(targetEntity);
-    }
-
-    // NOTE: spawnHeartParticlesAtEntity(), spawnHeartParticlesAtRef(),
-    // playFeedingSoundAtEntity()
-    // have been moved to EffectsManager
-    // NOTE: tryFindMate(), tryFindMateInstant() were dead code and have been removed
-    // NOTE: getPositionFromRef(), getPlayerUuidFromEntity() wrappers have been inlined to EntityUtil
-
-    /**
-     * Check if an item ID is a Name Tag item.
-     */
-    private boolean isNameTagItem(String itemId) {
-        if (itemId == null)
-            return false;
-        String lower = itemId.toLowerCase();
-        return lower.contains("nametag") || lower.contains("name_tag");
-    }
-
-    // NOTE: tickLoveAnimals() and checkCustomAnimalBreeding() have been moved to BreedingTickManager
-    // NOTE: spawnCustomAnimalBaby(), getPositionFromBreedingData(), updateEntityScale(),
-    // transformBabyToAdult(), tryReacquireBabyRef(), performInstantBreeding()
-    // have been moved to SpawningManager
-
-    /**
-     * Spawn a baby animal with parent UUIDs for auto-taming (uses default world).
-     *
-     * @see SpawningManager#spawnBabyAnimal(AnimalType, Vector3d, UUID, UUID)
-     */
-    public void spawnBabyAnimal(AnimalType animalType, Vector3d position, UUID parent1Id, UUID parent2Id) {
-        spawningManager.spawnBabyAnimal(animalType, position, parent1Id, parent2Id);
-    }
-
-    /**
-     * Spawn a baby animal with parent UUIDs for auto-taming in a specific world.
-     *
-     * @param worldName the name of the world to spawn in (null for default world)
-     * @see SpawningManager#spawnBabyAnimal(AnimalType, Vector3d, UUID, UUID, String)
-     */
-    public void spawnBabyAnimal(AnimalType animalType, Vector3d position, UUID parent1Id, UUID parent2Id, String worldName) {
-        spawningManager.spawnBabyAnimal(animalType, position, parent1Id, parent2Id, worldName);
-    }
+    // NOTE: consumeHeldItem(), playFeedingSound(), isNameTagItem(), spawnBabyAnimal() - removed as unused
+    // NOTE: Spawning moved to SpawningManager, breeding tick to BreedingTickManager
 
     /**
      * Scan the world for untracked baby animals and register them.
@@ -2157,6 +2087,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     public GrowthManager getGrowthManager() {
         return growthManager;
+    }
+
+    public SpawningManager getSpawningManager() {
+        return spawningManager;
     }
 
     /**

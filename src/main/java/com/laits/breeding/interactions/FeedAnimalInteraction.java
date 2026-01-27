@@ -675,12 +675,12 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                         (thisPos.getX() + otherPos.getX()) / 2.0,
                         (thisPos.getY() + otherPos.getY()) / 2.0,
                         (thisPos.getZ() + otherPos.getZ()) / 2.0);
-                // Use plugin's spawnBabyAnimal with parent UUIDs for auto-taming
+                // Use spawning manager for baby spawning with parent UUIDs for auto-taming
                 LaitsBreedingPlugin pluginInstance = LaitsBreedingPlugin.getInstance();
-                if (pluginInstance != null) {
+                if (pluginInstance != null && pluginInstance.getSpawningManager() != null) {
                     // Get world name from parent entity for multi-world support
                     String worldName = getWorldNameFromRef(targetRef);
-                    pluginInstance.spawnBabyAnimal(animalType, midpoint, animalId, otherId, worldName);
+                    pluginInstance.getSpawningManager().spawnBabyAnimal(animalType, midpoint, animalId, otherId, worldName);
                 }
                 return;
             }
