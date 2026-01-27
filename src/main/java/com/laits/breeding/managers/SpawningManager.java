@@ -380,7 +380,7 @@ public class SpawningManager {
                     if (!usingBabyRole && babyRef != null) {
                         float babyScale = 0.4f;
                         try {
-                            ModelComponent modelComp = store.getComponent(babyRef, ModelComponent.getComponentType());
+                            ModelComponent modelComp = store.getComponent(babyRef, EcsReflectionUtil.MODEL_TYPE);
                             if (modelComp != null) {
                                 java.lang.reflect.Method setScale = modelComp.getClass().getMethod("setScale",
                                         float.class);
@@ -487,7 +487,7 @@ public class SpawningManager {
                     Model newModel = Model.createScaledModel(modelAsset, targetScale);
                     ModelComponent newModelComp = new ModelComponent(newModel);
 
-                    store.replaceComponent(finalEntityRef, ModelComponent.getComponentType(), newModelComp);
+                    store.replaceComponent(finalEntityRef, EcsReflectionUtil.MODEL_TYPE, newModelComp);
 
                     logVerbose("Set model field to: " + newModel.toString());
                     logVerbose(capitalize(animalType.getId()) + " grew to scale " + String.format("%.1f", targetScale));
@@ -556,7 +556,7 @@ public class SpawningManager {
                     // Get baby position
                     TransformComponent transformComp = null;
                     try {
-                        transformComp = store.getComponent(finalEntityRef, TransformComponent.getComponentType());
+                        transformComp = store.getComponent(finalEntityRef, EcsReflectionUtil.TRANSFORM_TYPE);
                     } catch (Exception refEx) {
                         Throwable cause = refEx;
                         if (refEx instanceof java.lang.reflect.InvocationTargetException) {

@@ -286,7 +286,10 @@ public class BreedingManager {
 
         // Put in love mode
         data.setInLove(true);
-        debug("Animal " + animalId + " (" + animalType + ") is now in love!");
+        // ALWAYS log for debugging
+        if (debugLogger != null) {
+            debugLogger.accept("[Breeding] Animal " + animalId + " (" + animalType + ") is now in love! entityRef=" + (entityRef != null ? "present" : "NULL"));
+        }
         return FeedResult.SUCCESS;
     }
 

@@ -22,6 +22,7 @@ import com.hypixel.hytale.server.core.modules.entitystats.EntityStatsSystems.Sta
 import com.hypixel.hytale.server.core.modules.entitystats.asset.DefaultEntityStatTypes;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.laits.breeding.LaitsBreedingPlugin;
+import com.laits.breeding.util.EcsReflectionUtil;
 
 import java.util.Objects;
 import java.util.Set;
@@ -29,7 +30,7 @@ import javax.annotation.Nonnull;
 
 public class LaitDamageDisabler extends DeathSystems {
     @Nonnull
-    private static final Query QUERY = EntityStatMap.getComponentType();
+    private static final Query QUERY = EcsReflectionUtil.ENTITY_STAT_MAP_TYPE;
     @Nonnull
     private static final Set DEPENDENCIES;
     // $FF: synthetic field
@@ -46,13 +47,13 @@ public class LaitDamageDisabler extends DeathSystems {
 
     public void handle(int index, @Nonnull ArchetypeChunk archetypeChunk, @Nonnull Store store,
             @Nonnull CommandBuffer commandBuffer, @Nonnull Damage damage) {
-        EntityStatMap entityStatMapComponent = (EntityStatMap) archetypeChunk.getComponent(index, EntityStatMap.getComponentType());
+        EntityStatMap entityStatMapComponent = (EntityStatMap) archetypeChunk.getComponent(index, EcsReflectionUtil.ENTITY_STAT_MAP_TYPE);
         if (!$assertionsDisabled && entityStatMapComponent == null) {
             throw new AssertionError();
         } else {
-            
+
             Archetype archetype = archetypeChunk.getArchetype();
-            boolean dead = archetype.contains(DeathComponent.getComponentType());
+            boolean dead = archetype.contains(EcsReflectionUtil.DEATH_TYPE);
 
             if (dead) {
                 // Disable all damage by setting damage amount to zero

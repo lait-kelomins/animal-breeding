@@ -9,7 +9,6 @@ import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.entities.Player;
-import com.hypixel.hytale.server.core.modules.entity.DespawnComponent;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -223,9 +222,8 @@ public class RespawnManager {
                                 if (hyTameComp != null && hyTameComp.isTamed() && hyTameComp.getHytameId() != null) {
                                     Ref<EntityStore> ref = chunk.getReferenceTo(i);
                                     if (ref != null && ref.isValid()) {
-                                        NPCEntity npc = store.getComponent(ref, NPCEntity.getComponentType());
-                                        DespawnComponent despawn = store.getComponent(ref,
-                                                DespawnComponent.getComponentType());
+                                        NPCEntity npc = store.getComponent(ref, EcsReflectionUtil.NPC_TYPE);
+                                        var despawn = store.getComponent(ref, EcsReflectionUtil.DESPAWN_TYPE);
                                         if (npc != null && !npc.isDespawning() && despawn == null) {
                                             entitiesByHytameId.put(hyTameComp.getHytameId(), ref);
                                         }
@@ -251,12 +249,15 @@ public class RespawnManager {
 
                     // First check: stored entityRef
                     if (tamedRef != null && tamedRef.isValid()) {
-                        NPCEntity npcEntity = store.getComponent(tamedRef, NPCEntity.getComponentType());
-                        DespawnComponent despawnComp = store.getComponent(tamedRef,
-                                DespawnComponent.getComponentType());
+                        try {
+                            NPCEntity npcEntity = store.getComponent(tamedRef, EcsReflectionUtil.NPC_TYPE);
+                            var despawnComp = store.getComponent(tamedRef, EcsReflectionUtil.DESPAWN_TYPE);
 
-                        if (npcEntity != null && !npcEntity.isDespawning() && despawnComp == null) {
-                            entityExists = true;
+                            if (npcEntity != null && !npcEntity.isDespawning() && despawnComp == null) {
+                                entityExists = true;
+                            }
+                        } catch (ArrayIndexOutOfBoundsException e) {
+                            // Entity ref became stale between validity check and access - treat as not existing
                         }
                     }
 
@@ -264,16 +265,21 @@ public class RespawnManager {
                     if (!entityExists && hytameId != null) {
                         Ref<EntityStore> foundRef = entitiesByHytameId.get(hytameId);
                         if (foundRef != null && foundRef.isValid()) {
-                            tamedData.setEntityRef(foundRef);
-                            entityExists = true;
-                            logVerbose("[RespawnCheck] Found entity by HytameId: " + tamedData.getCustomName());
+                            try {
+                                tamedData.setEntityRef(foundRef);
+                                entityExists = true;
+                                logVerbose("[RespawnCheck] Found entity by HytameId: " + tamedData.getCustomName());
 
-                            UUIDComponent uuidComp = store.getComponent(foundRef, UUIDComponent.getComponentType());
-                            if (uuidComp != null) {
-                                UUID newUuid = uuidComp.getUuid();
-                                if (newUuid != null && !newUuid.equals(tamedData.getAnimalUuid())) {
-                                    tamingManager.markRespawned(tamedData.getAnimalUuid(), newUuid, foundRef);
+                                var uuidComp = store.getComponent(foundRef, EcsReflectionUtil.UUID_TYPE);
+                                if (uuidComp != null) {
+                                    UUID newUuid = uuidComp.getUuid();
+                                    if (newUuid != null && !newUuid.equals(tamedData.getAnimalUuid())) {
+                                        tamingManager.markRespawned(tamedData.getAnimalUuid(), newUuid, foundRef);
+                                    }
                                 }
+                            } catch (ArrayIndexOutOfBoundsException e) {
+                                // Entity ref became stale - treat as not existing
+                                entityExists = false;
                             }
                         }
                     }

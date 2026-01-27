@@ -30,6 +30,7 @@ import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.TamedAnimalData;
 import com.laits.breeding.ui.NametagUIPage;
+import com.laits.breeding.util.EcsReflectionUtil;
 import com.laits.breeding.util.TameHelper;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 
@@ -47,10 +48,10 @@ public class NameAnimalInteraction extends SimpleInteraction {
         BuilderCodec.builder(NameAnimalInteraction.class, NameAnimalInteraction::new, SimpleInteraction.CODEC)
             .build();
 
-    // Cached component types
-    private static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE = TransformComponent.getComponentType();
-    private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
-    private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
+    // Component types use centralized cache from EcsReflectionUtil
+    private static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE = EcsReflectionUtil.TRANSFORM_TYPE;
+    private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = EcsReflectionUtil.MODEL_TYPE;
+    private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = EcsReflectionUtil.UUID_TYPE;
 
     // Random names for animals without a pending name
     private static final String[] RANDOM_NAMES = {

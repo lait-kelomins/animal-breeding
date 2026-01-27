@@ -11,16 +11,15 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem;
 import com.hypixel.hytale.math.vector.Vector3d;
-import com.hypixel.hytale.server.core.entity.UUIDComponent;
-import com.hypixel.hytale.server.core.modules.entity.DespawnComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.managers.TamingManager;
+import com.laits.breeding.util.EcsReflectionUtil;
 
 public class DetectTamedDespawn extends EntityTickingSystem<EntityStore> {
-    private final Query<EntityStore> QUERY = Query.and(NPCEntity.getComponentType(), DespawnComponent.getComponentType());
+    private final Query<EntityStore> QUERY = Query.and(EcsReflectionUtil.NPC_TYPE, EcsReflectionUtil.DESPAWN_TYPE);
 
     @Override
     public Query<EntityStore> getQuery() {
@@ -36,15 +35,14 @@ public class DetectTamedDespawn extends EntityTickingSystem<EntityStore> {
          @Nonnull CommandBuffer<EntityStore> commandBuffer
       ) {
         try {
-            NPCEntity npcEntity = archetypeChunk.getComponent(index, NPCEntity.getComponentType());
+            NPCEntity npcEntity = archetypeChunk.getComponent(index, EcsReflectionUtil.NPC_TYPE);
 
             boolean entityExists = true;
             if (npcEntity == null || npcEntity.isDespawning()) {
                 entityExists = false;
             }
 
-            DespawnComponent despawnComp = archetypeChunk.getComponent(index, DespawnComponent.getComponentType());
-            if (despawnComp != null) {
+            if (archetypeChunk.getComponent(index, EcsReflectionUtil.DESPAWN_TYPE) != null) {
                 entityExists = false;
             }
 
@@ -53,7 +51,7 @@ public class DetectTamedDespawn extends EntityTickingSystem<EntityStore> {
                 return;
             }
 
-            TransformComponent transformComp = archetypeChunk.getComponent(index, TransformComponent.getComponentType());
+            TransformComponent transformComp = archetypeChunk.getComponent(index, EcsReflectionUtil.TRANSFORM_TYPE);
             Ref<EntityStore> ref = archetypeChunk.getReferenceTo(index);
 
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
@@ -68,7 +66,7 @@ public class DetectTamedDespawn extends EntityTickingSystem<EntityStore> {
                 return;
             }
 
-            UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
+            var uuidComp = store.getComponent(ref, EcsReflectionUtil.UUID_TYPE);
             if (uuidComp == null) {
                 log("UUIDComponent is null for despawned entity");
                 return;

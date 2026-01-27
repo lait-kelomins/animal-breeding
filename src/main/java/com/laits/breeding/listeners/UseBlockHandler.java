@@ -13,6 +13,7 @@ import com.hypixel.hytale.server.core.modules.entity.player.PlayerCreativeSettin
 import com.hypixel.hytale.server.core.modules.entity.player.PlayerSettings;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.laits.breeding.util.EcsReflectionUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -52,7 +53,7 @@ public class UseBlockHandler extends EntityEventSystem<EntityStore, UseBlockEven
         lastEventTime = System.currentTimeMillis();
 
         try {
-            PlayerRef playerRef = chunk.getComponent(entityIndex, PlayerRef.getComponentType());
+            PlayerRef playerRef = chunk.getComponent(entityIndex, EcsReflectionUtil.PLAYER_REF_TYPE);
             if (playerRef != null) {
                 lastPlayer = playerRef.getUsername();
             }
@@ -64,6 +65,6 @@ public class UseBlockHandler extends EntityEventSystem<EntityStore, UseBlockEven
     @Nullable
     @Override
     public Query<EntityStore> getQuery() {
-        return PlayerRef.getComponentType();
+        return EcsReflectionUtil.PLAYER_REF_TYPE;
     }
 }

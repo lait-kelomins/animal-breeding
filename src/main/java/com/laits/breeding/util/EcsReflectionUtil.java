@@ -6,16 +6,20 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.entity.Entity;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
+import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.hypixel.hytale.server.core.modules.entity.DespawnComponent;
+import com.hypixel.hytale.server.core.modules.entity.damage.DeathComponent;
+import com.hypixel.hytale.server.core.modules.entitystats.EntityStatMap;
+import com.hypixel.hytale.server.core.entity.nameplate.Nameplate;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
-import com.hypixel.hytale.server.core.modules.collision.CollisionResult;
 import com.hypixel.hytale.server.core.modules.entity.component.Interactable;
 import com.hypixel.hytale.server.core.modules.interaction.Interactions;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-import com.hypixel.hytale.server.npc.NPCPlugin;
+import com.hypixel.hytale.server.npc.entities.NPCEntity;
 
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.UUID;
 
@@ -30,52 +34,39 @@ import java.util.UUID;
  */
 public final class EcsReflectionUtil {
 
-    // Cached ECS component types for performance
+    // ========================================================================
+    // CACHED ECS COMPONENT TYPES - Performance optimization
+    // These are called frequently in hot loops (tick systems, queries)
+    // ========================================================================
+
+    // Core entity components (CRITICAL - used in loops)
+    public static final ComponentType<EntityStore, NPCEntity> NPC_TYPE = NPCEntity.getComponentType();
+    public static final ComponentType<EntityStore, DespawnComponent> DESPAWN_TYPE = DespawnComponent.getComponentType();
+
+    // Transform and model (HIGH frequency)
     public static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE = TransformComponent
             .getComponentType();
     public static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
     public static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
 
-    // These are initialized at runtime since their getComponentType() may not be
-    // public
-    private static Object INTERACTIONS_COMP_TYPE = null;
-    private static Object INTERACTABLE_COMP_TYPE = null;
+    // Player components (HIGH - per-action)
+    public static final ComponentType<EntityStore, Player> PLAYER_TYPE = Player.getComponentType();
+    public static final ComponentType<EntityStore, PlayerRef> PLAYER_REF_TYPE = PlayerRef.getComponentType();
+
+    // Interaction components (MEDIUM frequency)
+    public static final ComponentType<EntityStore, Interactions> INTERACTIONS_TYPE = Interactions.getComponentType();
+    public static final ComponentType<EntityStore, Interactable> INTERACTABLE_TYPE = Interactable.getComponentType();
+
+    // Entity state components (MEDIUM frequency)
+    public static final ComponentType<EntityStore, Nameplate> NAMEPLATE_TYPE = Nameplate.getComponentType();
+
+    // Death/stat components (LOW frequency but good to cache)
+    public static final ComponentType<EntityStore, DeathComponent> DEATH_TYPE = DeathComponent.getComponentType();
+    public static final ComponentType<EntityStore, EntityStatMap> ENTITY_STAT_MAP_TYPE = EntityStatMap.getComponentType();
 
     // Private constructor - utility class
     private EcsReflectionUtil() {
         throw new UnsupportedOperationException("Utility class cannot be instantiated");
-    }
-
-    /**
-     * Get the Interactions component type via reflection.
-     * Cached after first call.
-     */
-    public static Object getInteractionsComponentType() {
-        if (INTERACTIONS_COMP_TYPE == null) {
-            try {
-                INTERACTIONS_COMP_TYPE = Interactions.class.getMethod("getComponentType").invoke(null);
-            } catch (Exception e) {
-                System.out.println(
-                        "[EcsReflectionUtil] ERROR: Failed to get Interactions component type: " + e.getMessage());
-            }
-        }
-        return INTERACTIONS_COMP_TYPE;
-    }
-
-    /**
-     * Get the Interactable component type via reflection.
-     * Cached after first call.
-     */
-    public static Object getInteractableComponentType() {
-        if (INTERACTABLE_COMP_TYPE == null) {
-            try {
-                INTERACTABLE_COMP_TYPE = Interactable.class.getMethod("getComponentType").invoke(null);
-            } catch (Exception e) {
-                System.out.println(
-                        "[EcsReflectionUtil] ERROR: Failed to get Interactable component type: " + e.getMessage());
-            }
-        }
-        return INTERACTABLE_COMP_TYPE;
     }
 
     /**

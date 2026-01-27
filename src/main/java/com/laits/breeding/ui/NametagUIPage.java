@@ -128,7 +128,7 @@ public class NametagUIPage extends InteractiveCustomUIPage<NametagUIPage.Nametag
     public void handleDataEvent(Ref<EntityStore> ref, Store<EntityStore> store, NametagEventData data) {
         try {
             // Get player to send messages and close page
-            Player player = store.getComponent(ref, Player.getComponentType());
+            Player player = store.getComponent(ref, EcsReflectionUtil.PLAYER_TYPE);
 
             // Check if confirm was clicked (animalName will have a value)
             if (data.animalName != null && !data.animalName.trim().isEmpty() && !data.animalName.equalsIgnoreCase(NameplateUtil.UNDEFINED_NAME)) {

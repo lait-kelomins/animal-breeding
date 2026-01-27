@@ -13,6 +13,7 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.models.AnimalType;
+import com.laits.breeding.util.EcsReflectionUtil;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 
@@ -33,8 +34,9 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class NewAnimalSpawnDetector extends RefSystem<EntityStore> {
 
-    private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
-    private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
+    // Component types use centralized cache from EcsReflectionUtil
+    private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = EcsReflectionUtil.MODEL_TYPE;
+    private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = EcsReflectionUtil.UUID_TYPE;
 
     // Track processed entities to avoid duplicate processing
     // Key: UUID string, Value: timestamp when processed

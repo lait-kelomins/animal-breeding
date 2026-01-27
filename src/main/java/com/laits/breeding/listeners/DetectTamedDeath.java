@@ -76,7 +76,7 @@ public class DetectTamedDeath extends OnDeathSystem {
         try {
             // Use deterministic UUID from ref - this matches how TamingManager tracks animals
             // TamingManager uses UUID.nameUUIDFromBytes(entityRef.toString().getBytes())
-            UUIDComponent uuidComp = store.getComponent(ref, UUIDComponent.getComponentType());
+            UUIDComponent uuidComp = store.getComponent(ref, EcsReflectionUtil.UUID_TYPE);
 
             if (uuidComp == null) {
                 log("UUIDComponent is null for entity with DeathComponent");

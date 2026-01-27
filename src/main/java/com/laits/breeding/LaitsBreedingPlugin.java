@@ -191,12 +191,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     // ECS component types are now in EcsReflectionUtil
 
-    // Event counters for diagnostics
-    private static int playerReadyCount = 0;
-    private static int mouseClickCount = 0;
-    private static int useBlockPreCount = 0;
-    private static int useBlockPostCount = 0;
-
     // Track last detected despawn UUIDs for debugging (max 10)
     private static final java.util.List<UUID> lastDetectedDespawns = java.util.Collections
             .synchronizedList(new java.util.ArrayList<>());
@@ -228,25 +222,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
         }
     }
-
-    public static int getPlayerReadyCount() {
-        return playerReadyCount;
-    }
-
-    public static int getMouseClickCount() {
-        return mouseClickCount;
-    }
-
-    public static int getUseBlockPreCount() {
-        return useBlockPreCount;
-    }
-
-    public static int getUseBlockPostCount() {
-        return useBlockPostCount;
-    }
-
-    // Interaction cache is now typed via static final fields above
-    private boolean interactionCacheInitialized = true; // Always true with direct imports
 
     // Verbose logging toggle (controlled by /breedlogs command)
     private static boolean verboseLogging = false;
@@ -296,117 +271,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // When false: No hints on animals (player must know to use Ability2)
     // Only applies when USE_ENTITY_BASED_INTERACTIONS is false
     private static final boolean SHOW_ABILITY2_HINTS_ON_ENTITIES = true;
-
-    // ========================================================================
-    // ENTITY UTILITIES - Delegating to EntityUtil
-    // ========================================================================
-
-    /**
-     * Check if an entity ref corresponds to a player.
-     * 
-     * @see EntityUtil#isPlayerEntity(Ref)
-     */
-    private boolean isPlayerEntity(Ref<EntityStore> ref) {
-        return EntityUtil.isPlayerEntity(ref);
-    }
-
-    /**
-     * Get UUID from an entity ref.
-     * 
-     * @see EntityUtil#getUuidFromRef(Ref)
-     */
-    private UUID getUuidFromRef(Ref<EntityStore> ref) {
-        return EntityUtil.getUuidFromRef(ref);
-    }
-
-    /**
-     * Get UUID from a Player entity.
-     * 
-     * @see EntityUtil#getPlayerUuidFromPlayer(Player)
-     */
-    private UUID getPlayerUuidFromPlayer(Player player) {
-        return EntityUtil.getPlayerUuidFromPlayer(player);
-    }
-
-    // ========================================================================
-    // INTERACTION STATE CACHE - Delegating to InteractionStateCache
-    // ========================================================================
-
-    /**
-     * Get the original interaction ID for an entity.
-     * 
-     * @see InteractionStateCache#getOriginalInteractionId(Ref)
-     */
-    public static String getOriginalInteractionId(Ref<EntityStore> entityRef) {
-        return InteractionStateCache.getInstance().getOriginalInteractionId(entityRef);
-    }
-
-    /**
-     * Get the original interaction ID for an entity.
-     * 
-     * @see InteractionStateCache#getOriginalInteractionId(Ref, AnimalType)
-     */
-    public static String getOriginalInteractionId(Ref<EntityStore> entityRef, AnimalType animalType) {
-        return InteractionStateCache.getInstance().getOriginalInteractionId(entityRef, animalType);
-    }
-
-    /**
-     * Get the full original interaction state for an entity.
-     * 
-     * @see InteractionStateCache#getOriginalState(Ref)
-     */
-    public static OriginalInteractionState getOriginalState(Ref<EntityStore> entityRef) {
-        return InteractionStateCache.getInstance().getOriginalState(entityRef);
-    }
-
-    /**
-     * Store the original interaction state for an entity.
-     * 
-     * @see InteractionStateCache#storeOriginalState(Ref, String, String,
-     *      AnimalType)
-     */
-    private static void storeOriginalState(Ref<EntityStore> entityRef, String interactionId, String hint,
-            AnimalType animalType) {
-        InteractionStateCache.getInstance().storeOriginalState(entityRef, interactionId, hint, animalType);
-    }
-
-    /**
-     * Store the original interaction ID for an entity.
-     * 
-     * @see InteractionStateCache#storeOriginalInteractionId(Ref, String,
-     *      AnimalType)
-     */
-    private static void storeOriginalInteractionId(Ref<EntityStore> entityRef, String interactionId,
-            AnimalType animalType) {
-        InteractionStateCache.getInstance().storeOriginalInteractionId(entityRef, interactionId, animalType);
-    }
-
-    /**
-     * Store the original interaction ID for an entity.
-     * 
-     * @see InteractionStateCache#storeOriginalInteractionId(Ref, String)
-     */
-    private static void storeOriginalInteractionId(Ref<EntityStore> entityRef, String interactionId) {
-        InteractionStateCache.getInstance().storeOriginalInteractionId(entityRef, interactionId);
-    }
-
-    /**
-     * Clean up stale entries in the interaction state cache.
-     * 
-     * @see InteractionStateCache#cleanupStaleEntries()
-     */
-    private int cleanupStaleOriginalInteractions() {
-        return InteractionStateCache.getInstance().cleanupStaleEntries();
-    }
-
-    /**
-     * Get the current size of the interaction state cache.
-     * 
-     * @see InteractionStateCache#getCacheSize()
-     */
-    public static int getOriginalInteractionsCacheSize() {
-        return InteractionStateCache.getInstance().getCacheSize();
-    }
 
     /** Broadcast a message to all online players in chat */
     private void broadcastToChat(String message) {
@@ -471,12 +335,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             final String devMessage = "[DEV] " + message;
 
             // Use forEachChunk to find all players
-            store.forEachChunk(PlayerRef.getComponentType(),
+            store.forEachChunk(EcsReflectionUtil.PLAYER_REF_TYPE,
                     (BiConsumer<ArchetypeChunk<EntityStore>, CommandBuffer<EntityStore>>) (chunk, commandBuffer) -> {
                         int size = chunk.size();
                         for (int i = 0; i < size; i++) {
                             Ref<EntityStore> ref = chunk.getReferenceTo(i);
-                            PlayerRef playerRef = store.getComponent(ref, PlayerRef.getComponentType());
+                            PlayerRef playerRef = store.getComponent(ref, EcsReflectionUtil.PLAYER_REF_TYPE);
                             if (ref != null) {
                                 // Check if this is a player by trying to call sendMessage
                                 try {
@@ -613,6 +477,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     }
                 });
             }
+        });
+
+        // Position-based heart particle spawner (more reliable - doesn't depend on stale refs)
+        breedingTickManager.setHeartParticlePositionSpawner((position, store) -> {
+            effectsManager.spawnHeartParticlesAtPosition(position, store);
         });
 
         // Set up growth callback - handle growth stage changes
@@ -805,7 +674,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         World world = Universe.get().getDefaultWorld();
                         if (world != null) {
                             for (Player p : world.getPlayers()) {
-                                UUID pUuid = getEntityUUID(p);
+                                UUID pUuid = EntityUtil.getEntityUUID(p);
                                 if (pUuid != null) {
                                     currentPlayerUuids.add(pUuid);
                                 }
@@ -837,7 +706,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // EntityRemoveEvents)
             scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
                 try {
-                    int removed = cleanupStaleOriginalInteractions();
+                    int removed = InteractionStateCache.getInstance().cleanupStaleEntries();
                     if (removed > 0) {
                         logVerbose("Cleaned " + removed + " stale interaction entries");
                     }
@@ -1129,7 +998,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         try {
             // Skip players (even if they have animal models) - same check as
             // FeedAnimalInteraction
-            if (isPlayerEntity(entityRef)) {
+            if (EntityUtil.isPlayerEntity(entityRef)) {
                 logVerbose("[SetupInteraction] Skipping player entity with animal model");
                 return;
             }
@@ -1144,14 +1013,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Ensure entity has Interactable component (required for hints to display in
             // solo mode)
             try {
-                store.ensureAndGetComponent(entityRef, Interactable.getComponentType());
+                store.ensureAndGetComponent(entityRef, EcsReflectionUtil.INTERACTABLE_TYPE);
             } catch (Exception e) {
                 // Silent - component may already exist
             }
 
             // Check if entity already has Interactions component (real NPCs have this)
             // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
-            Interactions interactions = store.getComponent(entityRef, Interactions.getComponentType());
+            Interactions interactions = store.getComponent(entityRef, EcsReflectionUtil.INTERACTIONS_TYPE);
             if (interactions == null) {
                 // Entity doesn't have Interactions component - not a real NPC, skip
                 logVerbose("[SetupInteraction] Skipping non-NPC entity (no Interactions component)");
@@ -1197,11 +1066,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                     animalType, currentUse, currentHint);
                     }
                     // Also store in memory cache for fast lookup
-                    storeOriginalState(entityRef, currentUse, currentHint, animalType);
+                    InteractionStateCache.getInstance().storeOriginalState(entityRef, currentUse, currentHint, animalType);
                 }
             } else {
                 // Already captured - sync from ECS to memory cache for fast lookup
-                storeOriginalState(entityRef, origComp.getOriginalInteractionId(),
+                InteractionStateCache.getInstance().storeOriginalState(entityRef, origComp.getOriginalInteractionId(),
                         origComp.getOriginalHint(), animalType);
                 if (verboseLogging)
                     getLogger().atInfo().log("[BuiltIn] %s: restored original from ECS: interaction=%s, hint=%s",
@@ -1252,7 +1121,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         try {
             // Skip players (even if they have animal models) - same check as
             // FeedAnimalInteraction
-            if (isPlayerEntity(entityRef)) {
+            if (EntityUtil.isPlayerEntity(entityRef)) {
                 logVerbose("[CustomAnimal] Skipping player entity with custom animal model: " + animalName);
                 return;
             }
@@ -1267,14 +1136,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Ensure entity has Interactable component (required for hints to display in
             // solo mode)
             try {
-                store.ensureAndGetComponent(entityRef, Interactable.getComponentType());
+                store.ensureAndGetComponent(entityRef, EcsReflectionUtil.INTERACTABLE_TYPE);
             } catch (Exception e) {
                 // Silent - component may already exist
             }
 
             // Check if entity already has Interactions component (real NPCs have this)
             // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
-            Interactions interactions = store.getComponent(entityRef, Interactions.getComponentType());
+            Interactions interactions = store.getComponent(entityRef, EcsReflectionUtil.INTERACTIONS_TYPE);
             if (interactions == null) {
                 // Entity doesn't have Interactions component - not a real NPC, skip
                 logVerbose("[CustomAnimal] Skipping non-NPC entity (no Interactions component): " + animalName);
@@ -1318,11 +1187,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                                     animalName, currentUse, currentHint);
                     }
                     // Also store in memory cache for fast lookup
-                    storeOriginalState(entityRef, currentUse, currentHint, null);
+                    InteractionStateCache.getInstance().storeOriginalState(entityRef, currentUse, currentHint, null);
                 }
             } else {
                 // Already captured - sync from ECS to memory cache for fast lookup
-                storeOriginalState(entityRef, origComp.getOriginalInteractionId(),
+                InteractionStateCache.getInstance().storeOriginalState(entityRef, origComp.getOriginalInteractionId(),
                         origComp.getOriginalHint(), null);
                 if (verboseLogging)
                     getLogger().atInfo().log("[CustomAnimal] %s: restored original from ECS: interaction=%s, hint=%s",
@@ -1402,7 +1271,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
 
             // Get interactions component
-            Interactions interactions = store.getComponent(entityRef, Interactions.getComponentType());
+            Interactions interactions = store.getComponent(entityRef, EcsReflectionUtil.INTERACTIONS_TYPE);
             if (interactions == null)
                 return;
 
@@ -1426,7 +1295,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 interactions.setInteractionHint(hintKey);
             } else {
                 // ORIGINAL MODE - restore original interaction if we have it saved
-                OriginalInteractionState original = getOriginalState(entityRef);
+                OriginalInteractionState original = InteractionStateCache.getInstance().getOriginalState(entityRef);
                 if (original != null) {
                     // Restore original interaction ID (even if null - that's the correct original
                     // state)
@@ -1510,14 +1379,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         try {
             // Ensure entity has Interactable component (enables hint display)
             try {
-                store.ensureAndGetComponent(entityRef, Interactable.getComponentType());
+                store.ensureAndGetComponent(entityRef, EcsReflectionUtil.INTERACTABLE_TYPE);
             } catch (Exception e) {
                 // Silent - may already have component
             }
 
             // Check if entity already has Interactions component (real NPCs have this)
             // Use getComponent instead of ensureAndGetComponent to avoid adding to non-NPCs
-            Interactions interactions = store.getComponent(entityRef, Interactions.getComponentType());
+            Interactions interactions = store.getComponent(entityRef, EcsReflectionUtil.INTERACTIONS_TYPE);
             if (interactions == null) {
                 // Entity doesn't have Interactions component - not a real NPC, skip
                 logVerbose("[SetupInteraction] Skipping non-NPC entity (no Interactions component)");
@@ -1574,7 +1443,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     if (entity == null)
                         return;
 
-                    UUID entityId = getEntityUUID(entity);
+                    UUID entityId = EntityUtil.getEntityUUID(entity);
 
                     // Check if this is a tamed animal - don't delete, mark for respawn
                     if (tamingManager != null && tamingManager.isTamed(entityId)) {
@@ -1646,7 +1515,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Collect player UUIDs to exclude from animal detection
             final Set<UUID> playerUuids = new HashSet<>();
             for (Player p : world.getPlayers()) {
-                UUID pUuid = getEntityUUID(p);
+                UUID pUuid = EntityUtil.getEntityUUID(p);
                 if (pUuid != null) {
                     playerUuids.add(pUuid);
                 }
@@ -1829,19 +1698,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      */
     private void registerInteractionHandler() {
         try {
-            getEventRegistry().registerGlobal(PlayerReadyEvent.class, this::onPlayerReady);
-        } catch (Exception e) {
-        }
-        try {
             getEventRegistry().register(PlayerMouseButtonEvent.class, this::onMouseButton);
-        } catch (Exception e) {
-        }
-        try {
-            getEventRegistry().register(UseBlockEvent.Pre.class, this::onUseBlockPre);
-        } catch (Exception e) {
-        }
-        try {
-            getEventRegistry().register(UseBlockEvent.Post.class, this::onUseBlockPost);
         } catch (Exception e) {
         }
         try {
@@ -1850,20 +1707,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         }
     }
 
-    private void onUseBlockPre(UseBlockEvent.Pre event) {
-        useBlockPreCount++;
-    }
-
-    private void onUseBlockPost(UseBlockEvent.Post event) {
-        useBlockPostCount++;
-    }
-
-    private void onPlayerReady(PlayerReadyEvent event) {
-        playerReadyCount++;
-    }
-
     private void onMouseButton(PlayerMouseButtonEvent event) {
-        mouseClickCount++;
         try {
             handleMouseClick(event);
         } catch (Exception e) {
@@ -1884,7 +1728,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 return;
             }
 
-            String entityName = getEntityModelId(targetEntity);
+            String entityName = EntityUtil.getEntityModelId(targetEntity);
             AnimalType animalType = AnimalType.fromEntityTypeId(entityName);
             if (animalType == null)
                 return;
@@ -1894,7 +1738,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 return;
 
             // Set up interaction for this animal
-            Object entityRef = getEntityRef(targetEntity);
+            Object entityRef = EntityUtil.getEntityRef(targetEntity);
             if (entityRef != null && entityRef instanceof Ref) {
                 @SuppressWarnings("unchecked")
                 Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
@@ -1944,7 +1788,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         // item)
 
         // Get entity model ID to determine type (via ECS ModelComponent)
-        String entityName = getEntityModelId(targetEntity);
+        String entityName = EntityUtil.getEntityModelId(targetEntity);
 
         // Try to identify animal type from entity name
         AnimalType animalType = AnimalType.fromEntityTypeId(entityName);
@@ -1955,7 +1799,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         // Ensure interaction is set up for this animal (in case periodic scan hasn't
         // run yet)
         try {
-            Object entityRef = getEntityRef(targetEntity);
+            Object entityRef = EntityUtil.getEntityRef(targetEntity);
             if (entityRef != null && entityRef instanceof Ref) {
                 @SuppressWarnings("unchecked")
                 Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
@@ -1975,7 +1819,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         }
 
         // Get UUID for this entity (via ECS UUIDComponent)
-        UUID entityId = getEntityUUID(targetEntity);
+        UUID entityId = EntityUtil.getEntityUUID(targetEntity);
 
         // Try to feed the animal
         BreedingManager.FeedResult result = breedingManager.tryFeed(entityId, animalType, itemId);
@@ -1983,7 +1827,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         // Store the entity ref for position tracking (needed for distance-based
         // breeding)
         if (result == BreedingManager.FeedResult.SUCCESS || result == BreedingManager.FeedResult.ALREADY_IN_LOVE) {
-            Ref<EntityStore> entityRef = getEntityRef(targetEntity);
+            Ref<EntityStore> entityRef = EntityUtil.getEntityRef(targetEntity);
             if (entityRef != null) {
                 BreedingData data = breedingManager.getData(entityId);
                 if (data != null && data.getEntityRef() == null) {
@@ -2144,7 +1988,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             data.completeBreeding();
 
             // Get spawn position from the target entity
-            Vector3d spawnPos = getEntityPosition(targetEntity);
+            Vector3d spawnPos = EntityUtil.getEntityPosition(targetEntity);
             if (spawnPos == null) {
                 spawnPos = new Vector3d(0, 65, 0);
             }
@@ -2165,22 +2009,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // playFeedingSoundAtEntity()
     // have been moved to EffectsManager
 
-    // ========================================================================
-    // MORE ENTITY UTILITIES - Delegating to EntityUtil
-    // ========================================================================
-
-    /**
-     * Get entity position from Entity object.
-     * 
-     * @see EntityUtil#getEntityPosition(Entity)
-     */
-    private Vector3d getEntityPosition(Entity entity) {
-        return EntityUtil.getEntityPosition(entity);
-    }
-
     /**
      * Get position from an entity reference.
-     * 
+     *
      * @see EntityUtil#getPositionFromRef(Ref)
      */
     public Vector3d getPositionFromRef(Ref<EntityStore> entityRef) {
@@ -2188,26 +2019,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Get the Ref<EntityStore> from an Entity object.
-     * 
-     * @see EntityUtil#getEntityRef(Entity)
-     */
-    private Ref<EntityStore> getEntityRef(Entity entity) {
-        return EntityUtil.getEntityRef(entity);
-    }
-
-    /**
-     * Get UUID for an entity using ECS UUIDComponent.
-     * 
-     * @see EntityUtil#getEntityUUID(Entity)
-     */
-    private UUID getEntityUUID(Entity entity) {
-        return EntityUtil.getEntityUUID(entity);
-    }
-
-    /**
      * Get UUID for a player entity.
-     * 
+     *
      * @see EntityUtil#getPlayerUuidFromEntity(Player)
      */
     public UUID getPlayerUuidFromEntity(Player player) {
@@ -2222,15 +2035,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             return false;
         String lower = itemId.toLowerCase();
         return lower.contains("nametag") || lower.contains("name_tag");
-    }
-
-    /**
-     * Get model asset ID for an entity.
-     * 
-     * @see EntityUtil#getEntityModelId(Entity)
-     */
-    private String getEntityModelId(Entity entity) {
-        return EntityUtil.getEntityModelId(entity);
     }
 
     // NOTE: tickLoveAnimals() and checkCustomAnimalBreeding() have been moved to
@@ -2254,16 +2058,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     // NOTE: getPositionOnWorldThread() moved to EffectsManager.getPositionFromRef()
     // NOTE: getPositionFromBreedingData() moved to SpawningManager
-
-    /**
-     * Calculate distance between two positions.
-     */
-    private double calculateDistance(Vector3d pos1, Vector3d pos2) {
-        double dx = pos2.getX() - pos1.getX();
-        double dy = pos2.getY() - pos1.getY();
-        double dz = pos2.getZ() - pos1.getZ();
-        return Math.sqrt(dx * dx + dy * dy + dz * dz);
-    }
 
     /**
      * Perform instant breeding between two animals.

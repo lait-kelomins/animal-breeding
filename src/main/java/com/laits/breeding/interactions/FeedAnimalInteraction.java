@@ -39,6 +39,7 @@ import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.npc.role.support.WorldSupport;
 import com.laits.breeding.LaitsBreedingPlugin;
+import com.laits.breeding.interactions.InteractionStateCache;
 import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.TamingManager;
 import com.laits.breeding.models.AnimalType;
@@ -81,11 +82,12 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     // Breeding distance - animals must be within this range to breed
     private static final double BREEDING_DISTANCE = 5.0;
 
-    // Cached component types for performance
-    private static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE = TransformComponent
-            .getComponentType();
-    private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
-    private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
+    // Component types use centralized cache from EcsReflectionUtil for performance
+    // These aliases provide convenient local access while using shared cached
+    // instances
+    private static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE = EcsReflectionUtil.TRANSFORM_TYPE;
+    private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = EcsReflectionUtil.MODEL_TYPE;
+    private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = EcsReflectionUtil.UUID_TYPE;
 
     // Cached reflection Field for model extraction (avoid per-call reflection)
     private static Field cachedModelField = null;
@@ -392,7 +394,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
             AnimalType animalType) {
         try {
             // First try memory cache (fast lookup)
-            String originalInteractionId = LaitsBreedingPlugin.getOriginalInteractionId(targetRef, animalType);
+            String originalInteractionId = InteractionStateCache.getInstance().getOriginalInteractionId(targetRef,
+                    animalType);
             log("Looking up fallback for targetRef: " + targetRef + " (animalType: " + animalType + ")");
             log("Memory cache lookup: " + (originalInteractionId != null ? originalInteractionId : "NOT FOUND"));
 
@@ -1054,7 +1057,7 @@ public class FeedAnimalInteraction extends SimpleInteraction {
             if (store == null)
                 return;
 
-            PlayerRef playerRef = store.getComponent(entityRef, PlayerRef.getComponentType());
+            PlayerRef playerRef = store.getComponent(entityRef, EcsReflectionUtil.PLAYER_REF_TYPE);
 
             if (playerRef == null)
                 return;

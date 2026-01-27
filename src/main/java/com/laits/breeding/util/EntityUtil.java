@@ -149,7 +149,7 @@ public final class EntityUtil {
             if (store == null)
                 return null;
 
-            TransformComponent transform = store.getComponent(entityRef, TransformComponent.getComponentType());
+            TransformComponent transform = store.getComponent(entityRef, EcsReflectionUtil.TRANSFORM_TYPE);
             if (transform != null) {
                 return transform.getPosition();
             }
