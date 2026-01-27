@@ -731,4 +731,64 @@ public class BreedingManager {
         public String getModelAssetId() { return modelAssetId; }
         public AnimalType getAnimalType() { return animalType; }
     }
+
+    // ==================== BABY DETECTION FALLBACK ====================
+
+    /**
+     * Get all UUIDs of currently tracked babies (non-adult growth stage).
+     * Used by the fallback detection system to identify untracked babies.
+     */
+    public Set<UUID> getTrackedBabyUuids() {
+        Set<UUID> babyUuids = new java.util.HashSet<>();
+        for (Map.Entry<UUID, BreedingData> entry : breedingDataMap.entrySet()) {
+            if (entry.getValue().getGrowthStage() != GrowthStage.ADULT) {
+                babyUuids.add(entry.getKey());
+            }
+        }
+        return babyUuids;
+    }
+
+    /**
+     * Check if a baby with the given ref is already tracked.
+     * Uses both UUID matching and ref index comparison.
+     *
+     * @param ref The entity reference to check
+     * @param refUuid The UUID generated from the ref (for direct lookup)
+     * @return true if this baby is already tracked
+     */
+    public boolean isBabyTracked(Object ref, UUID refUuid) {
+        // Check by UUID first (fast path)
+        BreedingData data = breedingDataMap.get(refUuid);
+        if (data != null && data.getGrowthStage() != GrowthStage.ADULT) {
+            return true;
+        }
+
+        // Check by ref comparison (handles UUID instability)
+        if (ref instanceof com.hypixel.hytale.component.Ref) {
+            @SuppressWarnings("unchecked")
+            com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore> typedRef =
+                (com.hypixel.hytale.component.Ref<com.hypixel.hytale.server.core.universe.world.storage.EntityStore>) ref;
+            return findBabyByRef(typedRef) != null;
+        }
+        return false;
+    }
+
+    /**
+     * Data class for untracked babies found during world scan.
+     */
+    public static class UntrackedBaby {
+        private final Object entityRef;
+        private final String modelAssetId;
+        private final AnimalType animalType;
+
+        public UntrackedBaby(Object entityRef, String modelAssetId, AnimalType animalType) {
+            this.entityRef = entityRef;
+            this.modelAssetId = modelAssetId;
+            this.animalType = animalType;
+        }
+
+        public Object getEntityRef() { return entityRef; }
+        public String getModelAssetId() { return modelAssetId; }
+        public AnimalType getAnimalType() { return animalType; }
+    }
 }
