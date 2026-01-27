@@ -236,6 +236,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // buildEntityBased (true)
     private static final boolean USE_ENTITY_BASED_INTERACTIONS = BuildConfig.USE_ENTITY_BASED_INTERACTIONS;
 
+    // Legacy FeedAnimalInteraction system toggle
+    // When false: Disables the old interaction-based feeding system entirely
+    // The new ActionHyTameOrFeed handles all feeding/taming via NPC behavior tree
+    // Keep the code as legacy but don't activate it
+    private static final boolean USE_LEGACY_FEED_INTERACTION = false;
+
     // Show interaction hints on animals even when using item-based Ability2
     // When true: Animals show "Press [Ability2] to Feed" hint (but actual feeding
     // is via item)
@@ -832,8 +838,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * Note: Event-based detection (PrefabPlaceEntityEvent, LoadedNPCEvent) was
      * tested
      * but these events don't fire for natural animal spawns in Hytale.
+     *
+     * LEGACY: This method is disabled when USE_LEGACY_FEED_INTERACTION is false.
+     * The new ActionHyTameOrFeed system handles feeding/taming via NPC behavior tree.
      */
     public void attachInteractionsToAnimals() {
+        // Skip if legacy feed interaction system is disabled
+        if (!USE_LEGACY_FEED_INTERACTION) {
+            logVerbose("Legacy FeedAnimalInteraction disabled - skipping interaction attachment");
+            return;
+        }
+
         // Scan when a player connects (entities spawn when chunks load around players)
         // Multiple scans to catch animals as they load
         getEventRegistry().register(PlayerConnectEvent.class, event -> {
@@ -1039,8 +1054,16 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     /**
      * Set up breeding interactions on a single entity.
      * Note: Interactions methods are not public, so we must use reflection.
+     *
+     * LEGACY: This method is disabled when USE_LEGACY_FEED_INTERACTION is false.
+     * The new ActionHyTameOrFeed system handles feeding/taming via NPC behavior tree.
      */
     private void setupEntityInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef, AnimalType animalType) {
+        // Skip if legacy feed interaction system is disabled
+        if (!USE_LEGACY_FEED_INTERACTION) {
+            return;
+        }
+
         try {
             // Skip players (even if they have animal models) - same check as
             // FeedAnimalInteraction
@@ -1118,9 +1141,17 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     /**
      * Set up breeding interactions on a custom animal entity (from config).
      * IDENTICAL to setupEntityInteractions - copy-pasted to ensure same behavior.
+     *
+     * LEGACY: This method is disabled when USE_LEGACY_FEED_INTERACTION is false.
+     * The new ActionHyTameOrFeed system handles feeding/taming via NPC behavior tree.
      */
     private void setupCustomAnimalInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef,
             CustomAnimalConfig customAnimal) {
+        // Skip if legacy feed interaction system is disabled
+        if (!USE_LEGACY_FEED_INTERACTION) {
+            return;
+        }
+
         String animalName = customAnimal.getModelAssetId();
         if (verboseLogging)
             getLogger().atInfo().log("[CustomAnimal] setupCustomAnimalInteractions CALLED for: %s", animalName);

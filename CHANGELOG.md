@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.4.2 - Multi-World & Performance
+
+### Fixed
+- Fixed multi-world support (thread-safe component access via `world.execute()`)
+
+### Improved
+- Improved animal detection
+- Improved save data performance
+
+---
+
 ## v1.3.2 - Solo Mode Hint Fix & Stability
 
 ### Fixed
