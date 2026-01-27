@@ -43,7 +43,7 @@ public class NametagUIPage extends InteractiveCustomUIPage<NametagUIPage.Nametag
     private final UUID playerUuid;
     private final String animalType;
     private final String existingName;
-
+    
     /**
      * Event data received when user submits the nametag form.
      */
@@ -81,7 +81,7 @@ public class NametagUIPage extends InteractiveCustomUIPage<NametagUIPage.Nametag
         cmd.set("#animalTypeLabel.Text", title);
 
         // Determine initial value for the text input
-        if (existingName != null && !existingName.isEmpty()) {
+        if (existingName != null && !existingName.isEmpty() && !existingName.equalsIgnoreCase(NameplateUtil.UNDEFINED_NAME)) {
             // Renaming - show existing name
             cmd.set("#subtitleLabel.Text", "Current name: " + existingName);
             cmd.set("#nameInput.Value", existingName);
@@ -131,7 +131,7 @@ public class NametagUIPage extends InteractiveCustomUIPage<NametagUIPage.Nametag
             Player player = store.getComponent(ref, Player.getComponentType());
 
             // Check if confirm was clicked (animalName will have a value)
-            if (data.animalName != null && !data.animalName.trim().isEmpty()) {
+            if (data.animalName != null && !data.animalName.trim().isEmpty() && !data.animalName.equalsIgnoreCase(NameplateUtil.UNDEFINED_NAME)) {
                 // Validate and sanitize the name
                 String name = AnimalNameGenerator.validateName(data.animalName);
 

@@ -369,6 +369,7 @@ public enum AnimalType {
             case HORSE:
             case CAMEL:
             case RAM:
+                return true;
             // Likely mountable / mod-supported
             case TETRABIRD:
             case ANTELOPE:
@@ -377,7 +378,7 @@ public enum AnimalType {
             case DEER_STAG:
             case MOOSE_BULL:
             case MOOSE_COW:
-                return true;
+                return false;
             default:
                 return false;
         }

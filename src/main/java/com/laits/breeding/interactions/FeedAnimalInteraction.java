@@ -1,31 +1,43 @@
 package com.laits.breeding.interactions;
 
+import com.hypixel.hytale.builtin.adventure.reputation.ReputationGroupComponent;
+import com.hypixel.hytale.builtin.adventure.reputation.ReputationPlugin;
+import com.hypixel.hytale.builtin.adventure.reputation.assets.ReputationGroup;
 import com.hypixel.hytale.codec.builder.BuilderCodec;
+import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.protocol.InteractionType;
 import com.hypixel.hytale.protocol.SoundCategory;
+import com.hypixel.hytale.server.core.Message;
+import com.hypixel.hytale.server.core.asset.type.attitude.Attitude;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
 import com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent;
 import com.hypixel.hytale.server.core.entity.InteractionContext;
+import com.hypixel.hytale.server.core.entity.InteractionManager;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
+import com.hypixel.hytale.server.core.inventory.container.ItemContainer;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
+import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.CooldownHandler;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.RootInteraction;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.SimpleInteraction;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.ParticleUtil;
 import com.hypixel.hytale.server.core.universe.world.SoundUtil;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.NPCPlugin;
-
+import com.hypixel.hytale.server.npc.entities.NPCEntity;
+import com.hypixel.hytale.server.npc.role.support.WorldSupport;
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.TamingManager;
@@ -35,10 +47,17 @@ import com.laits.breeding.models.CustomAnimalConfig;
 import com.laits.breeding.models.GrowthStage;
 import com.laits.breeding.models.TamedAnimalData;
 import com.laits.breeding.util.EcsReflectionUtil;
+import com.laits.breeding.util.NameplateUtil;
+import com.laits.breeding.util.TameHelper;
+import com.tameableanimals.utils.Debug;
+import com.laits.breeding.components.HyTameInteractionComponent;
+
+import it.unimi.dsi.fastutil.Pair;
 
 import java.lang.reflect.Field;
 import java.util.UUID;
 import java.util.function.Predicate;
+import java.util.logging.Level;
 
 /**
  * Custom interaction that fires when player feeds an animal.
@@ -46,20 +65,25 @@ import java.util.function.Predicate;
  */
 public class FeedAnimalInteraction extends SimpleInteraction {
 
-    public static final BuilderCodec<FeedAnimalInteraction> CODEC =
-        BuilderCodec.builder(FeedAnimalInteraction.class, FeedAnimalInteraction::new, SimpleInteraction.CODEC)
+    public static final BuilderCodec<FeedAnimalInteraction> CODEC = BuilderCodec
+            .builder(FeedAnimalInteraction.class, FeedAnimalInteraction::new, SimpleInteraction.CODEC)
             .build();
 
-    // Heart particle system ID
+    // Heart particle system ID for breeding (red hearts)
     // Custom particle with shorter duration (extends vanilla Hearts)
     // Asset location: Server/Particles/BreedingHearts.particlesystem
     private static final String HEARTS_PARTICLE = "BreedingHearts";
+
+    // Taming particle system ID (blue hearts)
+    // Asset location: Server/Particles/TamingStars.particlesystem
+    private static final String TAMING_PARTICLE = "TameHearts";
 
     // Breeding distance - animals must be within this range to breed
     private static final double BREEDING_DISTANCE = 5.0;
 
     // Cached component types for performance
-    private static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE = TransformComponent.getComponentType();
+    private static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE = TransformComponent
+            .getComponentType();
     private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
     private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
 
@@ -88,12 +112,12 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
     @Override
     protected void tick0(
-        boolean firstRun,
-        float time,
-        InteractionType type,
-        InteractionContext context,
-        CooldownHandler cooldownHandler
-    ) {
+            boolean firstRun,
+            float time,
+            InteractionType type,
+            InteractionContext context,
+            CooldownHandler cooldownHandler) {
+        log("FeedAnimalInteraction tick0 called");
         // Log when interaction is triggered (only in verbose mode)
         if (firstRun && LaitsBreedingPlugin.isVerboseLogging()) {
             LaitsBreedingPlugin p = LaitsBreedingPlugin.getInstance();
@@ -126,8 +150,10 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     return;
                 }
 
-                // Safety check: Skip if target is a player (prevents treating players with animal models as animals)
-                // Option B: Just return without triggering fallback - let native Hytale behavior (mounting, etc.) work
+                // Safety check: Skip if target is a player (prevents treating players with
+                // animal models as animals)
+                // Option B: Just return without triggering fallback - let native Hytale
+                // behavior (mounting, etc.) work
                 if (isPlayerEntity(targetRef)) {
                     log("Target is a player entity, skipping FeedAnimal interaction");
                     shouldFail = true;
@@ -136,7 +162,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
                 ItemStack heldItem = context.getHeldItem();
                 String itemId = heldItem != null ? heldItem.getItemId() : null;
-                log("Held item: " + (heldItem != null ? heldItem.getClass().getSimpleName() : "null") + ", itemId: " + itemId);
+                log("Held item: " + (heldItem != null ? heldItem.getClass().getSimpleName() : "null") + ", itemId: "
+                        + itemId);
 
                 // Get model asset ID and check for both enum animals and custom animals
                 String modelAssetId = getModelAssetIdFromEntity(targetRef);
@@ -163,6 +190,7 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                 }
 
                 // Skip babies - they can't breed
+                // TODO: make sure it works for animals without baby variant model
                 if (modelAssetId != null && AnimalType.isBabyVariant(modelAssetId)) {
                     log("Target is a baby animal, skipping feed interaction");
                     shouldFail = true;
@@ -178,10 +206,80 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     UUID animalUuid = getUuidFromRef(targetRef);
                     if (!tamingManager.canPlayerInteract(animalUuid, playerUuid)) {
                         TamedAnimalData tamedData = tamingManager.getTamedData(animalUuid);
-                        String ownerName = tamedData != null ? tamedData.getOwnerUuid().toString().substring(0, 8) + "..." : "someone";
+                        String ownerName = tamedData != null
+                                ? tamedData.getOwnerUuid().toString().substring(0, 8) + "..."
+                                : "someone";
                         sendPlayerMessage(context, "This animal belongs to " + ownerName + "!", "#FF5555");
                         shouldFail = true;
                         return;
+                    }
+                }
+
+                // === TAMING CHECK (before breeding) ===
+                // If animal is not tamed and food is taming food, tame it
+                if (animalType != null && itemId != null && plugin.getConfigManager() != null) {
+                    boolean isTamingFood = plugin.getConfigManager().isTamingFood(animalType, itemId);
+                    boolean isAlreadyTamed = TameHelper.isTamed(targetRef);
+
+                    if (isTamingFood && !isAlreadyTamed) {
+                        // Tame the animal - use existing helper methods for context
+                        UUID tamerUuid = getPlayerUuid(context);
+                        String tamerName = getPlayerName(context);
+                        if (tamerName == null)
+                            tamerName = "Unknown";
+
+                        if (tamerUuid != null) {
+                            log("Taming animal with food: " + itemId);
+
+                            // Get world for deferred operations
+                            World world = Universe.get().getDefaultWorld();
+
+                            // Capture variables for callback
+                            final UUID finalTamerUuid = tamerUuid;
+                            final String finalTamerName = tamerName;
+                            final AnimalType finalAnimalType = animalType;
+                            final Ref<EntityStore> finalTargetRef = targetRef;
+
+                            // Use deferred taming (handles component creation if needed)
+                            TameHelper.tameAnimalDeferred(targetRef, tamerUuid, tamerName, world, (hyTameComp) -> {
+                                if (hyTameComp != null) {
+                                    log("Animal tamed successfully via HyTameComponent");
+                                    // Also register with TamingManager for persistence
+                                    UUID entityUuid = getUuidFromRef(finalTargetRef);
+                                    String animalName = NameplateUtil.UNDEFINED_NAME;
+                                    Vector3d pos = getPositionFromRef(finalTargetRef);
+                                    double posX = pos != null ? pos.getX() : 0;
+                                    double posY = pos != null ? pos.getY() : 0;
+                                    double posZ = pos != null ? pos.getZ() : 0;
+
+                                    TamedAnimalData tamedData = tamingManager.tameAnimal(
+                                            hyTameComp.getHytameId(),
+                                            entityUuid,
+                                            finalTamerUuid,
+                                            animalName,
+                                            finalAnimalType,
+                                            finalTargetRef,
+                                            posX, posY, posZ,
+                                            GrowthStage.ADULT);
+
+                                    // Store owner name for respawn
+                                    if (tamedData != null) {
+                                        tamedData.setOwnerName(finalTamerName);
+                                    }
+
+                                    log("Successfully tamed " + finalAnimalType + " for player " + finalTamerName);
+                                } else {
+                                    log("Failed to tame animal - HyTameComponent is null");
+                                }
+                            });
+
+                            // Success feedback (show immediately regardless of deferred)
+                            spawnTamingParticles(targetRef);
+                            playSoundAndConsumeItem(plugin, context, targetRef);
+                            // sendPlayerMessage(context, "You tamed this " + animalType.name() + "!",
+                            // "#FFFF55");
+                            return; // Don't continue to breeding
+                        }
                     }
                 }
 
@@ -191,15 +289,18 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     // Regular animal type
                     if (plugin.getConfigManager() != null) {
                         isCorrectFood = itemId != null && plugin.getConfigManager().isBreedingFood(animalType, itemId);
-                        log("Valid foods: " + plugin.getConfigManager().getBreedingFoods(animalType) + ", isCorrectFood: " + isCorrectFood);
+                        log("Valid foods: " + plugin.getConfigManager().getBreedingFoods(animalType)
+                                + ", isCorrectFood: " + isCorrectFood);
                     } else {
                         isCorrectFood = itemId != null && animalType.isBreedingFood(itemId);
-                        log("Expected food (fallback): " + animalType.getBreedingFood() + ", isCorrectFood: " + isCorrectFood);
+                        log("Expected food (fallback): " + animalType.getBreedingFood() + ", isCorrectFood: "
+                                + isCorrectFood);
                     }
                 } else if (customAnimal != null) {
                     // Custom animal from config
                     isCorrectFood = itemId != null && customAnimal.isBreedingFood(itemId);
-                    log("Custom animal valid foods: " + customAnimal.getBreedingFoods() + ", isCorrectFood: " + isCorrectFood);
+                    log("Custom animal valid foods: " + customAnimal.getBreedingFoods() + ", isCorrectFood: "
+                            + isCorrectFood);
                 }
 
                 if (!isCorrectFood) {
@@ -226,17 +327,9 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                             playSoundAndConsumeItem(plugin, context, targetRef);
                             break;
 
-                        case ALREADY_IN_LOVE:
-                            spawnHeartParticles(targetRef);
-                            playSoundAndConsumeItem(plugin, context, targetRef);
-                            break;
-
-                        case ON_COOLDOWN:
                         case NOT_ADULT:
-                            shouldFail = true;
-                            failedTargetRef = targetRef;
-                            return;
-
+                        case ON_COOLDOWN:
+                        case ALREADY_IN_LOVE:
                         case WRONG_FOOD:
                             shouldFail = true;
                             failedTargetRef = targetRef;
@@ -283,22 +376,48 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     }
 
     /**
-     * Trigger the original/fallback interaction for an entity (e.g., horse mounting).
+     * Trigger the original/fallback interaction for an entity (e.g., horse
+     * mounting).
      */
     private void triggerFallbackInteraction(InteractionContext context, Ref<EntityStore> targetRef) {
         triggerFallbackInteraction(context, targetRef, null);
     }
 
     /**
-     * Trigger the original/fallback interaction for an entity (e.g., horse mounting).
+     * Trigger the original/fallback interaction for an entity (e.g., horse
+     * mounting).
      * Accepts animal type for robust fallback when cache lookup fails.
      */
-    private void triggerFallbackInteraction(InteractionContext context, Ref<EntityStore> targetRef, AnimalType animalType) {
+    private void triggerFallbackInteraction(InteractionContext context, Ref<EntityStore> targetRef,
+            AnimalType animalType) {
         try {
+            // First try memory cache (fast lookup)
             String originalInteractionId = LaitsBreedingPlugin.getOriginalInteractionId(targetRef, animalType);
             log("Looking up fallback for targetRef: " + targetRef + " (animalType: " + animalType + ")");
-            log("Original interaction ID: " + (originalInteractionId != null ? originalInteractionId : "NOT FOUND"));
+            log("Memory cache lookup: " + (originalInteractionId != null ? originalInteractionId : "NOT FOUND"));
 
+            // If cache miss, fall back to ECS component (persisted source of truth)
+            if (originalInteractionId == null) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin != null && plugin.getHyTameInteractionComponentType() != null && targetRef.isValid()) {
+                    try {
+                        Store<EntityStore> store = targetRef.getStore();
+                        HyTameInteractionComponent origComp = store.getComponent(targetRef,
+                                plugin.getHyTameInteractionComponentType());
+                        if (origComp != null && origComp.isCaptured()) {
+                            originalInteractionId = origComp.getOriginalInteractionId();
+                            log("ECS component lookup: "
+                                    + (originalInteractionId != null ? originalInteractionId : "null (valid)"));
+                        }
+                    } catch (Exception e) {
+                        log("ECS lookup failed: " + e.getMessage());
+                    }
+                }
+            }
+
+            // null is a valid original state for some entities (e.g., horses have no Use
+            // interaction)
+            // We only return early if we genuinely don't have ANY stored state
             if (originalInteractionId == null || originalInteractionId.isEmpty()) {
                 log("No fallback interaction found for entity - interaction will just end");
                 return;
@@ -312,7 +431,7 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                 return;
             }
 
-            Object interactionManager = context.getInteractionManager();
+            InteractionManager interactionManager = context.getInteractionManager();
             if (interactionManager == null) {
                 log("InteractionManager is null");
                 return;
@@ -331,45 +450,45 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                 return;
             }
 
-            // Try startChain via reflection (method signature varies)
-            for (java.lang.reflect.Method m : interactionManager.getClass().getMethods()) {
-                if (m.getName().equals("startChain") && m.getParameterCount() == 5) {
-                    try {
-                        Ref<EntityStore> entityRef = context.getEntity();
-                        Object commandBuffer = context.getCommandBuffer();
+            // startChain
+            try {
+                Ref<EntityStore> entityRef = context.getEntity();
 
-                        World world = Universe.get().getDefaultWorld();
-                        if (world != null) {
-                            final java.lang.reflect.Method startChainMethod = m;
-                            final Object finalInteractionManager = interactionManager;
-                            final Object finalCommandBuffer = commandBuffer;
-
-                            world.execute(() -> {
-                                try {
-                                    startChainMethod.invoke(finalInteractionManager, entityRef, finalCommandBuffer,
-                                        InteractionType.Use, context, rootInteraction);
-                                    log("Successfully triggered fallback via startChain!");
-                                } catch (Exception ex) {
-                                    log("Scheduled startChain failed: " + ex.getMessage());
-                                }
-                            });
-                            log("Scheduled fallback interaction for next tick");
-                            return;
-                        }
-                    } catch (Exception e) {
-                        log("startChain failed: " + e.getMessage());
-                    }
+                if (entityRef == null) {
+                    log("EntityRef is null in context");
+                    return;
                 }
+
+                CommandBuffer<EntityStore> commandBuffer = context.getCommandBuffer();
+
+                World world = Universe.get().getDefaultWorld();
+                if (world != null) {
+                    final InteractionManager finalInteractionManager = interactionManager;
+                    final CommandBuffer<EntityStore> finalCommandBuffer = commandBuffer;
+
+                    world.execute(() -> {
+                        try {
+                            finalInteractionManager.startChain(entityRef, finalCommandBuffer, InteractionType.Use,
+                                    context, rootInteraction);
+
+                            log("Successfully triggered fallback via startChain!");
+                        } catch (Exception ex) {
+                            log("Scheduled startChain failed: " + ex.getMessage());
+                        }
+                    });
+                    log("Scheduled fallback interaction for next tick");
+                    return;
+                }
+            } catch (Exception e) {
+                log("startChain failed: " + e.getMessage());
             }
-
-            log("Could not find working method to trigger fallback interaction");
-
         } catch (Exception e) {
             log("triggerFallbackInteraction error: " + e.getMessage());
         }
     }
 
-    private void playSoundAndConsumeItem(LaitsBreedingPlugin plugin, InteractionContext context, Ref<EntityStore> targetRef) {
+    private void playSoundAndConsumeItem(LaitsBreedingPlugin plugin, InteractionContext context,
+            Ref<EntityStore> targetRef) {
         try {
             log("playSoundAndConsumeItem called");
             playFeedingSoundAtPosition(targetRef);
@@ -381,7 +500,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
     private void log(String msg) {
         // Only log if verbose logging is enabled
-        if (!LaitsBreedingPlugin.isVerboseLogging()) return;
+        if (!LaitsBreedingPlugin.isVerboseLogging())
+            return;
 
         LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
         if (plugin != null) {
@@ -391,14 +511,11 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
     private void playFeedingSoundAtPosition(Ref<EntityStore> targetRef) {
         try {
-            log("playFeedingSoundAtPosition called");
-
             Vector3d pos = getEntityPosition(targetRef);
             if (pos == null) {
                 log("playFeedingSoundAtPosition: pos is null");
                 return;
             }
-            log("playFeedingSoundAtPosition: pos=" + pos.getX() + "," + pos.getY() + "," + pos.getZ());
 
             World world = Universe.get().getDefaultWorld();
             if (world == null) {
@@ -413,29 +530,13 @@ public class FeedAnimalInteraction extends SimpleInteraction {
             }
 
             int soundId = SoundEvent.getAssetMap().getIndex("SFX_Consume_Bread");
-            log("playFeedingSoundAtPosition: soundId=" + soundId);
             if (soundId < 0) {
                 log("playFeedingSoundAtPosition: soundId < 0, aborting");
                 return;
             }
 
-            // Play 3D sound - use reflection for the exact method signature
-            try {
-                for (java.lang.reflect.Method m : SoundUtil.class.getMethods()) {
-                    if (m.getName().equals("playSoundEvent3d") && m.getParameterCount() == 6) {
-                        Class<?>[] paramTypes = m.getParameterTypes();
-                        if (paramTypes[0] == int.class && paramTypes[1] == double.class) {
-                            Predicate<Object> allPlayers = p -> true;
-                            m.invoke(null, soundId, pos.getX(), pos.getY(), pos.getZ(), allPlayers, store);
-                            log("playFeedingSoundAtPosition: sound played successfully");
-                            return;
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                log("playFeedingSoundAtPosition: playSoundEvent3d failed: " + e.getMessage());
-            }
-
+            SoundUtil.playSoundEvent3d(soundId, pos.getX(), pos.getY(), pos.getZ(),
+                    p -> true, store);
         } catch (Exception e) {
             log("playFeedingSoundAtPosition error: " + e.getMessage());
         }
@@ -443,85 +544,47 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
     private void consumePlayerHeldItem(InteractionContext context) {
         try {
-            log("consumePlayerHeldItem called");
-
-            Object container = context.getHeldItemContainer();
+            ItemContainer container = context.getHeldItemContainer();
             if (container != null) {
-                log("consumePlayerHeldItem: got container, class=" + container.getClass().getName());
                 short slot = context.getHeldItemSlot();
-                log("consumePlayerHeldItem: slot=" + slot);
 
                 // Try removeItemStackFromSlot
                 try {
-                    java.lang.reflect.Method removeItem = container.getClass().getMethod(
-                        "removeItemStackFromSlot", short.class, int.class);
-                    removeItem.invoke(container, slot, 1);
-                    log("consumePlayerHeldItem: removed 1 item via removeItemStackFromSlot");
+                    container.removeItemStackFromSlot(slot, 1);
                     return;
-                } catch (NoSuchMethodException ex) {
-                    log("consumePlayerHeldItem: removeItemStackFromSlot not found");
+                } catch (Exception e) {
+                    log("consumePlayerHeldItem: removeItemStackFromSlot failed: " + e.getMessage());
                 }
-
-                // Try other methods...
-                try {
-                    java.lang.reflect.Method removeItem = container.getClass().getMethod(
-                        "removeItem", short.class, int.class);
-                    removeItem.invoke(container, slot, 1);
-                    log("consumePlayerHeldItem: removed 1 item via removeItem");
-                    return;
-                } catch (NoSuchMethodException ignored) {}
-            }
-
-            // Fallback to ItemStack modification
-            ItemStack heldItem = context.getHeldItem();
-            if (heldItem != null) {
-                log("consumePlayerHeldItem: trying direct ItemStack modification");
-                int currentQty = heldItem.getQuantity();
-
-                try {
-                    java.lang.reflect.Method m = heldItem.getClass().getMethod("adjustQuantity", int.class);
-                    m.invoke(heldItem, -1);
-                    log("consumePlayerHeldItem: called adjustQuantity(-1)");
-                    return;
-                } catch (NoSuchMethodException ignored) {}
-
-                try {
-                    java.lang.reflect.Method m = heldItem.getClass().getMethod("setQuantity", int.class);
-                    m.invoke(heldItem, currentQty - 1);
-                    log("consumePlayerHeldItem: called setQuantity(" + (currentQty - 1) + ")");
-                    return;
-                } catch (NoSuchMethodException ignored) {}
             }
 
             log("consumePlayerHeldItem: could not consume item");
-
         } catch (Exception e) {
             log("consumePlayerHeldItem error: " + e.getMessage());
         }
     }
 
     private void spawnHeartParticles(Ref<EntityStore> targetRef) {
+        spawnParticles(targetRef, HEARTS_PARTICLE);
+    }
+
+    private void spawnTamingParticles(Ref<EntityStore> targetRef) {
+        spawnParticles(targetRef, TAMING_PARTICLE);
+    }
+
+    private void spawnParticles(Ref<EntityStore> targetRef, String particleId) {
         try {
             Vector3d position = getEntityPosition(targetRef);
-            if (position == null) return;
+            if (position == null)
+                return;
 
             double x = position.getX();
             double y = position.getY() + 1.5;
             double z = position.getZ();
 
             Store<EntityStore> store = targetRef.getStore();
-            Vector3d heartsPos = new Vector3d(x, y, z);
+            Vector3d particlePos = new Vector3d(x, y, z);
 
-            // Use reflection to find the right overload
-            for (java.lang.reflect.Method method : ParticleUtil.class.getMethods()) {
-                if (method.getName().equals("spawnParticleEffect") && method.getParameterCount() == 3) {
-                    Class<?>[] params = method.getParameterTypes();
-                    if (params[0] == String.class && params[1] == Vector3d.class) {
-                        method.invoke(null, HEARTS_PARTICLE, heartsPos, store);
-                        return;
-                    }
-                }
-            }
+            ParticleUtil.spawnParticleEffect(particleId, particlePos, store);
         } catch (Exception e) {
             // Silent
         }
@@ -530,7 +593,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     private Vector3d getEntityPosition(Ref<EntityStore> ref) {
         try {
             Store<EntityStore> store = ref.getStore();
-            if (store == null) return null;
+            if (store == null)
+                return null;
 
             TransformComponent transform = store.getComponent(ref, TRANSFORM_TYPE);
             if (transform != null) {
@@ -543,13 +607,13 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     }
 
     private void checkForMateAndBreedInstantly(
-        BreedingManager breeding,
-        UUID animalId,
-        AnimalType animalType,
-        Ref<EntityStore> targetRef
-    ) {
+            BreedingManager breeding,
+            UUID animalId,
+            AnimalType animalType,
+            Ref<EntityStore> targetRef) {
         Vector3d thisPos = getEntityPosition(targetRef);
-        if (thisPos == null) return;
+        if (thisPos == null)
+            return;
 
         BreedingData currentData = breeding.getData(animalId);
         if (currentData != null && currentData.getEntityRef() == null) {
@@ -559,17 +623,19 @@ public class FeedAnimalInteraction extends SimpleInteraction {
         java.util.List<UUID> toRemove = new java.util.ArrayList<>();
 
         for (UUID otherId : breeding.getTrackedAnimalIds()) {
-            if (otherId.equals(animalId)) continue;
+            if (otherId.equals(animalId))
+                continue;
 
             BreedingData otherData = breeding.getData(otherId);
             if (otherData != null &&
-                otherData.getAnimalType() == animalType &&
-                otherData.isInLove() &&
-                !otherData.isPregnant()) {
+                    otherData.getAnimalType() == animalType &&
+                    otherData.isInLove() &&
+                    !otherData.isPregnant()) {
 
                 @SuppressWarnings("unchecked")
                 Ref<EntityStore> otherRef = (Ref<EntityStore>) otherData.getEntityRef();
-                if (otherRef == null) continue;
+                if (otherRef == null)
+                    continue;
 
                 Vector3d otherPos = getEntityPosition(otherRef);
                 if (otherPos == null) {
@@ -578,7 +644,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                 }
 
                 double distance = calculateDistance(thisPos, otherPos);
-                if (distance > BREEDING_DISTANCE) continue;
+                if (distance > BREEDING_DISTANCE)
+                    continue;
 
                 BreedingData animalData = breeding.getData(animalId);
                 if (animalData != null) {
@@ -588,10 +655,9 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
                 // Spawn baby at midpoint between the two parents
                 Vector3d midpoint = new Vector3d(
-                    (thisPos.getX() + otherPos.getX()) / 2.0,
-                    (thisPos.getY() + otherPos.getY()) / 2.0,
-                    (thisPos.getZ() + otherPos.getZ()) / 2.0
-                );
+                        (thisPos.getX() + otherPos.getX()) / 2.0,
+                        (thisPos.getY() + otherPos.getY()) / 2.0,
+                        (thisPos.getZ() + otherPos.getZ()) / 2.0);
                 // Use plugin's spawnBabyAnimal with parent UUIDs for auto-taming
                 LaitsBreedingPlugin pluginInstance = LaitsBreedingPlugin.getInstance();
                 if (pluginInstance != null) {
@@ -610,13 +676,13 @@ public class FeedAnimalInteraction extends SimpleInteraction {
      * Check for nearby custom animals of the same type in love mode and breed them.
      */
     private void checkForCustomAnimalMateAndBreed(
-        BreedingManager breeding,
-        UUID animalId,
-        String modelAssetId,
-        Ref<EntityStore> targetRef
-    ) {
+            BreedingManager breeding,
+            UUID animalId,
+            String modelAssetId,
+            Ref<EntityStore> targetRef) {
         Vector3d thisPos = getEntityPosition(targetRef);
-        if (thisPos == null) return;
+        if (thisPos == null)
+            return;
 
         // Update entity ref in love data
         BreedingManager.CustomAnimalLoveData currentData = breeding.getCustomAnimalLoveData(animalId);
@@ -626,38 +692,44 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
         // Find another custom animal of the same type in love mode
         for (BreedingManager.CustomAnimalLoveData otherData : breeding.getCustomAnimalsInLove()) {
-            if (otherData.getAnimalId().equals(animalId)) continue;
-            if (!otherData.getModelAssetId().equals(modelAssetId)) continue;
-            if (!otherData.isInLove()) continue;
+            if (otherData.getAnimalId().equals(animalId))
+                continue;
+            if (!otherData.getModelAssetId().equals(modelAssetId))
+                continue;
+            if (!otherData.isInLove())
+                continue;
 
             @SuppressWarnings("unchecked")
             Ref<EntityStore> otherRef = (Ref<EntityStore>) otherData.getEntityRef();
-            if (otherRef == null) continue;
+            if (otherRef == null)
+                continue;
 
             Vector3d otherPos = getEntityPosition(otherRef);
-            if (otherPos == null) continue;
+            if (otherPos == null)
+                continue;
 
             double distance = calculateDistance(thisPos, otherPos);
-            if (distance > BREEDING_DISTANCE) continue;
+            if (distance > BREEDING_DISTANCE)
+                continue;
 
             // Found a mate! Breed them
             log("Custom animals breeding: " + modelAssetId + " at distance " + distance);
 
             // Complete breeding for both
-            if (currentData != null) currentData.completeBreeding();
+            if (currentData != null)
+                currentData.completeBreeding();
             otherData.completeBreeding();
 
             // Spawn baby at midpoint between the two parents
             Vector3d midpoint = new Vector3d(
-                (thisPos.getX() + otherPos.getX()) / 2.0,
-                (thisPos.getY() + otherPos.getY()) / 2.0,
-                (thisPos.getZ() + otherPos.getZ()) / 2.0
-            );
+                    (thisPos.getX() + otherPos.getX()) / 2.0,
+                    (thisPos.getY() + otherPos.getY()) / 2.0,
+                    (thisPos.getZ() + otherPos.getZ()) / 2.0);
 
             // Get the custom animal config for spawning
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-            CustomAnimalConfig customConfig = plugin != null ?
-                plugin.getConfigManager().getCustomAnimal(modelAssetId) : null;
+            CustomAnimalConfig customConfig = plugin != null ? plugin.getConfigManager().getCustomAnimal(modelAssetId)
+                    : null;
             spawnCustomAnimalBaby(modelAssetId, customConfig, midpoint);
             return;
         }
@@ -671,7 +743,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     private void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position) {
         try {
             World world = Universe.get().getDefaultWorld();
-            if (world == null) return;
+            if (world == null)
+                return;
 
             final String finalModelAssetId = modelAssetId;
             final CustomAnimalConfig finalConfig = customConfig;
@@ -694,7 +767,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                             usingBabyRole = true;
                             log("Using dedicated baby NPC role: " + usedRoleName);
                         } else {
-                            log("Configured babyNpcRoleId not found: " + finalConfig.getBabyNpcRoleId() + ", falling back to scaling");
+                            log("Configured babyNpcRoleId not found: " + finalConfig.getBabyNpcRoleId()
+                                    + ", falling back to scaling");
                         }
                     }
 
@@ -729,7 +803,7 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     // If using baby role, spawn at full scale. Otherwise use scaling fallback (40%)
                     Model scaledModel = null;
                     if (!usingBabyRole) {
-                        float babyScale = 0.4f;  // Scaling fallback: 40% size
+                        float babyScale = 0.4f; // Scaling fallback: 40% size
                         try {
                             ModelAsset modelAsset = ModelAsset.getAssetMap().getAsset(finalModelAssetId);
                             if (modelAsset != null) {
@@ -741,34 +815,22 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                         }
                     }
 
-                    // Use reflection for spawnEntity due to complex signature
-                    for (java.lang.reflect.Method m : NPCPlugin.class.getMethods()) {
-                        if (m.getName().equals("spawnEntity") && m.getParameterCount() == 6) {
-                            Class<?> triConsumerClass = m.getParameterTypes()[5];
-                            Object noOpCallback = java.lang.reflect.Proxy.newProxyInstance(
-                                triConsumerClass.getClassLoader(),
-                                new Class<?>[] { triConsumerClass },
-                                (proxy, method, args) -> null
-                            );
+                    Pair<Ref<EntityStore>, NPCEntity> result = NPCPlugin.get().spawnEntity(store, roleIndex, position,
+                            rotation, scaledModel, null);
 
-                            Object result = m.invoke(npcPlugin, store, roleIndex, position, rotation, scaledModel, noOpCallback);
+                    if (result != null) {
+                        if (usingBabyRole) {
+                            log("Spawned custom baby (dedicated role): " + usedRoleName + " at " + position);
+                        } else {
+                            log("Spawned custom baby (scaled adult): " + usedRoleName + " at " + position);
+                        }
 
-                            if (result != null) {
-                                if (usingBabyRole) {
-                                    log("Spawned custom baby (dedicated role): " + usedRoleName + " at " + position);
-                                } else {
-                                    log("Spawned custom baby (scaled adult): " + usedRoleName + " at " + position);
-                                }
-
-                                // Register baby for growth tracking
-                                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-                                if (plugin != null) {
-                                    UUID babyId = UUID.randomUUID();
-                                    // Custom babies need custom tracking - for now just log
-                                    log("Custom baby registered: " + babyId);
-                                }
-                            }
-                            break;
+                        // Register baby for growth tracking
+                        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                        if (plugin != null) {
+                            UUID babyId = UUID.randomUUID();
+                            // Custom babies need custom tracking - for now just log
+                            log("Custom baby registered: " + babyId);
                         }
                     }
                 } catch (Exception e) {
@@ -794,15 +856,35 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     }
 
     /**
-     * Check if an entity ref corresponds to a player (prevents treating players with animal models as animals).
+     * Get position from an entity ref via TransformComponent.
+     */
+    private Vector3d getPositionFromRef(Ref<EntityStore> ref) {
+        if (ref == null)
+            return null;
+        try {
+            Store<EntityStore> store = ref.getStore();
+            if (store == null)
+                return null;
+            TransformComponent transform = store.getComponent(ref, TRANSFORM_TYPE);
+            return transform != null ? transform.getPosition() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
+     * Check if an entity ref corresponds to a player (prevents treating players
+     * with animal models as animals).
      */
     private boolean isPlayerEntity(Ref<EntityStore> ref) {
         try {
             UUID entityUuid = getUuidFromRef(ref);
-            if (entityUuid == null) return false;
+            if (entityUuid == null)
+                return false;
 
             World world = Universe.get().getDefaultWorld();
-            if (world == null) return false;
+            if (world == null)
+                return false;
 
             for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
                 UUID playerUuid = getPlayerUuidFromPlayer(player);
@@ -817,16 +899,19 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     }
 
     /**
-     * Extract the model asset ID from an entity (e.g., "Cow", "Sheep", "CustomCreature").
+     * Extract the model asset ID from an entity (e.g., "Cow", "Sheep",
+     * "CustomCreature").
      * Returns null if unable to determine.
      */
     private String getModelAssetIdFromEntity(Ref<EntityStore> targetRef) {
         try {
             Store<EntityStore> store = targetRef.getStore();
-            if (store == null) return null;
+            if (store == null)
+                return null;
 
             ModelComponent modelComp = store.getComponent(targetRef, MODEL_TYPE);
-            if (modelComp == null) return null;
+            if (modelComp == null)
+                return null;
 
             // Use cached Field for performance (avoid getDeclaredField per call)
             if (!modelFieldInitialized || cachedModelField == null) {
@@ -834,14 +919,17 @@ public class FeedAnimalInteraction extends SimpleInteraction {
             }
 
             Object model = cachedModelField.get(modelComp);
-            if (model == null) return null;
+            if (model == null)
+                return null;
 
             String modelStr = model.toString();
             int start = modelStr.indexOf("modelAssetId='");
-            if (start < 0) return null;
+            if (start < 0)
+                return null;
             start += 14;
             int end = modelStr.indexOf("'", start);
-            if (end <= start) return null;
+            if (end <= start)
+                return null;
             return modelStr.substring(start, end);
 
         } catch (Exception e) {
@@ -864,10 +952,12 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     private UUID getPlayerUuid(InteractionContext context) {
         try {
             Ref<EntityStore> entityRef = context.getEntity();
-            if (entityRef == null) return null;
+            if (entityRef == null)
+                return null;
 
             Store<EntityStore> store = entityRef.getStore();
-            if (store == null) return null;
+            if (store == null)
+                return null;
 
             UUIDComponent uuidComp = store.getComponent(entityRef, UUID_TYPE);
             if (uuidComp != null && uuidComp.getUuid() != null) {
@@ -941,12 +1031,13 @@ public class FeedAnimalInteraction extends SimpleInteraction {
      * Check if the item ID is a Name Tag item.
      */
     private boolean isHoldingNameTag(String itemId) {
-        if (itemId == null) return false;
+        if (itemId == null)
+            return false;
         // Check for various possible Name Tag item IDs
         return itemId.equalsIgnoreCase("NameTag") ||
-               itemId.equalsIgnoreCase("Name_Tag") ||
-               itemId.equalsIgnoreCase("Misc_NameTag") ||
-               itemId.toLowerCase().contains("nametag");
+                itemId.equalsIgnoreCase("Name_Tag") ||
+                itemId.equalsIgnoreCase("Misc_NameTag") ||
+                itemId.toLowerCase().contains("nametag");
     }
 
     /**
@@ -955,17 +1046,20 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     private void sendPlayerMessage(InteractionContext context, String message, String color) {
         try {
             Ref<EntityStore> entityRef = context.getEntity();
-            if (entityRef == null) return;
+            if (entityRef == null)
+                return;
 
-            // Try to send message via reflection
-            for (java.lang.reflect.Method m : entityRef.getClass().getMethods()) {
-                if (m.getName().equals("sendMessage") && m.getParameterCount() == 1) {
-                    com.hypixel.hytale.server.core.Message msg =
-                        com.hypixel.hytale.server.core.Message.raw(message).color(color);
-                    m.invoke(entityRef, msg);
-                    return;
-                }
-            }
+            Store<EntityStore> store = entityRef.getStore();
+
+            if (store == null)
+                return;
+
+            PlayerRef playerRef = store.getComponent(entityRef, PlayerRef.getComponentType());
+
+            if (playerRef == null)
+                return;
+
+            playerRef.sendMessage(Message.raw(message));
         } catch (Exception e) {
             log("sendPlayerMessage error: " + e.getMessage());
         }
@@ -977,29 +1071,23 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     private void playTamingSound(Ref<EntityStore> targetRef) {
         try {
             Vector3d pos = getEntityPosition(targetRef);
-            if (pos == null) return;
+            if (pos == null)
+                return;
 
             Store<EntityStore> store = targetRef.getStore();
-            if (store == null) return;
+            if (store == null)
+                return;
 
             // Try "SFX_LevelUp" or similar success sound
             int soundId = SoundEvent.getAssetMap().getIndex("SFX_LevelUp");
             if (soundId < 0) {
                 soundId = SoundEvent.getAssetMap().getIndex("SFX_Consume_Bread");
             }
-            if (soundId < 0) return;
+            if (soundId < 0)
+                return;
 
             // Play 3D sound
-            for (java.lang.reflect.Method m : SoundUtil.class.getMethods()) {
-                if (m.getName().equals("playSoundEvent3d") && m.getParameterCount() == 6) {
-                    Class<?>[] paramTypes = m.getParameterTypes();
-                    if (paramTypes[0] == int.class && paramTypes[1] == double.class) {
-                        Predicate<Object> allPlayers = p -> true;
-                        m.invoke(null, soundId, pos.getX(), pos.getY(), pos.getZ(), allPlayers, store);
-                        return;
-                    }
-                }
-            }
+            SoundUtil.playSoundEvent3d(soundId, pos.getX(), pos.getY(), pos.getZ(), p -> true, store);
         } catch (Exception e) {
             log("playTamingSound error: " + e.getMessage());
         }

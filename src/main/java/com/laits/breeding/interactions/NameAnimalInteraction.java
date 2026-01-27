@@ -7,6 +7,7 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.protocol.InteractionType;
 import com.hypixel.hytale.protocol.SoundCategory;
+import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent;
 import com.hypixel.hytale.server.core.entity.InteractionContext;
 import com.hypixel.hytale.server.core.inventory.ItemStack;
@@ -29,6 +30,7 @@ import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.TamedAnimalData;
 import com.laits.breeding.ui.NametagUIPage;
+import com.laits.breeding.util.TameHelper;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 
 import java.lang.reflect.Field;
@@ -50,10 +52,6 @@ public class NameAnimalInteraction extends SimpleInteraction {
     private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
     private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
 
-    // Cached reflection field
-    private static Field cachedModelField = null;
-    private static boolean modelFieldInitialized = false;
-
     // Random names for animals without a pending name
     private static final String[] RANDOM_NAMES = {
         "Fluffy", "Spot", "Buddy", "Max", "Bella", "Charlie", "Luna", "Milo",
@@ -63,16 +61,6 @@ public class NameAnimalInteraction extends SimpleInteraction {
     };
 
     private static final Random random = new Random();
-
-    static {
-        try {
-            cachedModelField = ModelComponent.class.getDeclaredField("model");
-            cachedModelField.setAccessible(true);
-            modelFieldInitialized = true;
-        } catch (Exception e) {
-            modelFieldInitialized = false;
-        }
-    }
 
     public NameAnimalInteraction() {
         super();
@@ -108,6 +96,15 @@ public class NameAnimalInteraction extends SimpleInteraction {
                 Ref<EntityStore> targetRef = context.getTargetEntity();
                 if (targetRef == null) {
                     log("No target entity");
+                    shouldFail = true;
+                    return;
+                }
+
+                // Get animal UUID
+                UUID animalUuid = getUuidFromRef(targetRef);
+                if (!tamingManager.isTamed(animalUuid))
+                {
+                    log("Animal is not tamed");
                     shouldFail = true;
                     return;
                 }
@@ -149,14 +146,15 @@ public class NameAnimalInteraction extends SimpleInteraction {
                     shouldFail = true;
                     return;
                 }
-
-                // Get animal UUID
-                UUID animalUuid = getUuidFromRef(targetRef);
                 if (animalUuid == null) {
                     log("Could not get animal UUID");
                     shouldFail = true;
                     return;
                 }
+
+                // Check ECS TameComponent state
+                boolean isEcsTamed = TameHelper.isTamed(targetRef);
+                UUID ecsOwner = TameHelper.getOwnerUuid(targetRef);
 
                 // Check if already tamed by someone else
                 TamedAnimalData existingTamed = tamingManager.getTamedData(animalUuid);
@@ -164,6 +162,35 @@ public class NameAnimalInteraction extends SimpleInteraction {
                     sendPlayerMessage(context, "This animal belongs to someone else!", "#FF5555");
                     shouldFail = true;
                     return;
+                }
+
+                // Also check ECS tame state (may differ from TamingManager)
+                if (isEcsTamed && ecsOwner != null && !ecsOwner.equals(playerUuid)) {
+                    sendPlayerMessage(context, "This animal belongs to someone else!", "#FF5555");
+                    shouldFail = true;
+                    return;
+                }
+
+                // If animal is tamed via ECS but not in TamingManager, sync them
+                if (isEcsTamed && existingTamed == null && ecsOwner != null && ecsOwner.equals(playerUuid)) {
+                    // Sync: create TamingManager entry from ECS state
+                    UUID hytameId = TameHelper.getHytameId(targetRef);
+                    String tamerName = TameHelper.getHyTameComponent(targetRef) != null ?
+                        TameHelper.getHyTameComponent(targetRef).getTamerName() : playerName;
+                    String defaultName = (animalType != null ? animalType.name() : modelAssetId) + "_" + animalUuid.toString().substring(0, 4);
+
+                    tamingManager.tameAnimal(
+                        hytameId,
+                        animalUuid,
+                        playerUuid,
+                        defaultName,
+                        animalType,
+                        targetRef,
+                        0, 0, 0, // Position will be updated later
+                        com.laits.breeding.models.GrowthStage.ADULT
+                    );
+                    log("Synced ECS tame state to TamingManager for " + animalUuid);
+                    existingTamed = tamingManager.getTamedData(animalUuid);
                 }
 
                 // Open the nametag UI for the player to enter a name
@@ -283,10 +310,9 @@ public class NameAnimalInteraction extends SimpleInteraction {
         return UUID.nameUUIDFromBytes(ref.toString().getBytes());
     }
 
-    @SuppressWarnings("unchecked")
     private UUID getPlayerUuidFromPlayer(com.hypixel.hytale.server.core.entity.entities.Player player) {
         try {
-            Object entityRef = player.getReference();
+            Ref<EntityStore> entityRef = player.getReference();
             if (entityRef instanceof Ref) {
                 Store<EntityStore> store = ((Ref<EntityStore>) entityRef).getStore();
                 if (store != null) {
@@ -310,19 +336,10 @@ public class NameAnimalInteraction extends SimpleInteraction {
             ModelComponent modelComp = store.getComponent(targetRef, MODEL_TYPE);
             if (modelComp == null) return null;
 
-            if (!modelFieldInitialized || cachedModelField == null) return null;
-
-            Object model = cachedModelField.get(modelComp);
+            Model model = modelComp.getModel();
             if (model == null) return null;
-
-            String modelStr = model.toString();
-            int start = modelStr.indexOf("modelAssetId='");
-            if (start < 0) return null;
-            start += 14;
-            int end = modelStr.indexOf("'", start);
-            if (end <= start) return null;
-            return modelStr.substring(start, end);
-
+            
+            return model.getModelAssetId();
         } catch (Exception e) {
             return null;
         }
@@ -477,17 +494,8 @@ public class NameAnimalInteraction extends SimpleInteraction {
             if (store == null) return;
 
             Vector3d heartsPos = new Vector3d(x, y, z);
-
-            // Use reflection to find the right overload
-            for (java.lang.reflect.Method method : ParticleUtil.class.getMethods()) {
-                if (method.getName().equals("spawnParticleEffect") && method.getParameterCount() == 3) {
-                    Class<?>[] params = method.getParameterTypes();
-                    if (params[0] == String.class && params[1] == Vector3d.class) {
-                        method.invoke(null, "BreedingHearts", heartsPos, store);
-                        return;
-                    }
-                }
-            }
+            
+            ParticleUtil.spawnParticleEffect("BreedingHearts", heartsPos, store);
         } catch (Exception e) {
             // Silent
         }

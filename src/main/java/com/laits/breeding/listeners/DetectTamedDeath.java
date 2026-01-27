@@ -73,7 +73,6 @@ public class DetectTamedDeath extends OnDeathSystem {
     @Override
     public void onComponentAdded(@Nonnull Ref<EntityStore> ref, @Nonnull DeathComponent deathComponent,
                                   @Nonnull Store<EntityStore> store, @Nonnull CommandBuffer<EntityStore> commandBuffer) {
-        log("onComponentAdded called - DeathComponent detected on an entity");
         try {
             // Use deterministic UUID from ref - this matches how TamingManager tracks animals
             // TamingManager uses UUID.nameUUIDFromBytes(entityRef.toString().getBytes())
@@ -85,7 +84,6 @@ public class DetectTamedDeath extends OnDeathSystem {
             }
 
             UUID entityId = uuidComp.getUuid();
-            log("Dying entity deterministic UUID: " + entityId);
 
             // Track all death UUIDs for debugging
             trackDetectedDeath(entityId);
@@ -104,17 +102,13 @@ public class DetectTamedDeath extends OnDeathSystem {
             }
 
             boolean isTamed = tamingManager.isTamed(entityId);
-            log("Is entity tamed? " + isTamed);
 
             if (!isTamed) {
                 return;
             }
 
             // Mark as dead - won't respawn
-            log("Marking tamed animal as dead: " + entityId);
             tamingManager.onTamedAnimalDeath(entityId);
-            log("Successfully marked tamed animal as dead: " + entityId);
-
         } catch (Exception e) {
             log("Exception in onComponentAdded: " + e.getMessage());
             e.printStackTrace();

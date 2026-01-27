@@ -7,7 +7,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.google.gson.stream.JsonWriter;
 
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,15 +17,22 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
 /**
  * Manages persistence of tamed animal data to JSON files.
  * Handles loading on startup, saving on shutdown, and periodic auto-saves.
+ *
+ * Optimized for large datasets:
+ * - Async saving: serialization and I/O run in background thread
+ * - Streaming JSON: writes directly to file without building full JSON in memory
+ * - Snapshot isolation: copies collection before async processing
  */
 public class PersistenceManager {
 
@@ -34,18 +43,25 @@ public class PersistenceManager {
     private static final int MAX_BACKUPS = 10;
     private static final int DEFAULT_KEEP_COUNT = 5;
 
+    // GSON for reading (still uses tree model for compatibility)
     private static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting()
             .create();
+
+    // GSON for streaming writes (no pretty printing needed, we handle formatting)
+    private static final Gson GSON_STREAM = new GsonBuilder().create();
 
     private Path saveFilePath;
     private final Object saveLock = new Object();
     private boolean dirty = false;
     private Consumer<String> logger;
 
+    // Track if async save is in progress to prevent overlapping saves
+    private final AtomicBoolean saveInProgress = new AtomicBoolean(false);
+
     // Auto-save
     private ScheduledFuture<?> autoSaveTask;
-    private long lastSaveTime;
+    private volatile long lastSaveTime;
 
     public PersistenceManager() {
     }
@@ -148,8 +164,10 @@ public class PersistenceManager {
     }
 
     /**
-     * Save tamed animal data to disk.
-     * Uses atomic write (temp file + move) to prevent corruption.
+     * Save tamed animal data to disk asynchronously.
+     * Takes a snapshot of the collection and processes in background thread.
+     * Uses streaming JSON writer for memory efficiency.
+     *
      * @param tamedAnimals Collection of tamed animal data to save
      */
     public void saveData(Collection<TamedAnimalData> tamedAnimals) {
@@ -158,46 +176,156 @@ public class PersistenceManager {
             return;
         }
 
+        // Skip if save already in progress
+        if (!saveInProgress.compareAndSet(false, true)) {
+            log("Save already in progress, skipping");
+            return;
+        }
+
+        // Take immediate snapshot (fast - just copies references)
+        final List<TamedAnimalData> snapshot = new ArrayList<>(tamedAnimals);
+        final int snapshotSize = snapshot.size();
+
+        // Mark as not dirty immediately (optimistic)
+        dirty = false;
+
+        // Run serialization and I/O in background thread
+        CompletableFuture.runAsync(() -> {
+            synchronized (saveLock) {
+                try {
+                    Path tempFile = saveFilePath.resolveSibling(SAVE_FILE_NAME + ".tmp");
+                    Files.createDirectories(saveFilePath.getParent());
+
+                    // Use streaming JSON writer for memory efficiency
+                    try (BufferedWriter fileWriter = Files.newBufferedWriter(tempFile);
+                         JsonWriter writer = new JsonWriter(fileWriter)) {
+
+                        writer.setIndent("  "); // Pretty print with 2 spaces
+
+                        writer.beginObject();
+
+                        // Version
+                        writer.name("version").value(CURRENT_VERSION);
+
+                        // Timestamp
+                        long saveTime = System.currentTimeMillis();
+                        writer.name("lastSaved").value(saveTime);
+
+                        // Metadata
+                        writer.name("metadata");
+                        writer.beginObject();
+                        writer.name("pluginVersion").value("1.4.0");
+                        writer.name("totalTamed").value(snapshotSize);
+                        writer.endObject();
+
+                        // Tamed animals array - streamed one at a time
+                        writer.name("tamedAnimals");
+                        writer.beginArray();
+                        for (TamedAnimalData data : snapshot) {
+                            if (data != null && data.getAnimalUuid() != null) {
+                                // Stream each animal directly to file
+                                GSON_STREAM.toJson(data, TamedAnimalData.class, writer);
+                            }
+                        }
+                        writer.endArray();
+
+                        writer.endObject();
+                    }
+
+                    // Atomic move to replace existing file
+                    Files.move(tempFile, saveFilePath,
+                            StandardCopyOption.REPLACE_EXISTING,
+                            StandardCopyOption.ATOMIC_MOVE);
+
+                    lastSaveTime = System.currentTimeMillis();
+                    log("Saved " + snapshotSize + " tamed animals to disk (async)");
+
+                } catch (IOException e) {
+                    logError("Failed to save tamed animals: " + e.getMessage());
+                    // Mark dirty again for retry on next auto-save
+                    dirty = true;
+                } finally {
+                    saveInProgress.set(false);
+                }
+            }
+        }).exceptionally(e -> {
+            logError("Async save failed: " + e.getMessage());
+            dirty = true;
+            saveInProgress.set(false);
+            return null;
+        });
+    }
+
+    /**
+     * Save tamed animal data to disk synchronously.
+     * Used for shutdown saves where we must wait for completion.
+     * Uses streaming JSON writer for memory efficiency.
+     *
+     * @param tamedAnimals Collection of tamed animal data to save
+     */
+    public void saveDataSync(Collection<TamedAnimalData> tamedAnimals) {
+        if (saveFilePath == null) {
+            logWarning("Save file path not initialized, cannot save");
+            return;
+        }
+
+        // Wait for any async save to complete
+        while (saveInProgress.get()) {
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+
         synchronized (saveLock) {
             try {
-                // Build save object
-                JsonObject root = new JsonObject();
-                root.addProperty("version", CURRENT_VERSION);
-                root.addProperty("lastSaved", System.currentTimeMillis());
+                // Take snapshot
+                final List<TamedAnimalData> snapshot = new ArrayList<>(tamedAnimals);
+                final int snapshotSize = snapshot.size();
 
-                // Metadata
-                JsonObject metadata = new JsonObject();
-                metadata.addProperty("pluginVersion", "1.3.0");
-                metadata.addProperty("totalTamed", tamedAnimals.size());
-                root.add("metadata", metadata);
-
-                // Tamed animals array
-                JsonArray animalsArray = new JsonArray();
-                for (TamedAnimalData data : tamedAnimals) {
-                    if (data != null && data.getAnimalUuid() != null) {
-                        JsonElement elem = GSON.toJsonTree(data);
-                        animalsArray.add(elem);
-                    }
-                }
-                root.add("tamedAnimals", animalsArray);
-
-                // Write to temp file first
                 Path tempFile = saveFilePath.resolveSibling(SAVE_FILE_NAME + ".tmp");
                 Files.createDirectories(saveFilePath.getParent());
-                Files.writeString(tempFile, GSON.toJson(root));
 
-                // Atomic move to replace existing file
+                // Use streaming JSON writer for memory efficiency
+                try (BufferedWriter fileWriter = Files.newBufferedWriter(tempFile);
+                     JsonWriter writer = new JsonWriter(fileWriter)) {
+
+                    writer.setIndent("  ");
+
+                    writer.beginObject();
+                    writer.name("version").value(CURRENT_VERSION);
+                    writer.name("lastSaved").value(System.currentTimeMillis());
+
+                    writer.name("metadata");
+                    writer.beginObject();
+                    writer.name("pluginVersion").value("1.4.0");
+                    writer.name("totalTamed").value(snapshotSize);
+                    writer.endObject();
+
+                    writer.name("tamedAnimals");
+                    writer.beginArray();
+                    for (TamedAnimalData data : snapshot) {
+                        if (data != null && data.getAnimalUuid() != null) {
+                            GSON_STREAM.toJson(data, TamedAnimalData.class, writer);
+                        }
+                    }
+                    writer.endArray();
+
+                    writer.endObject();
+                }
+
                 Files.move(tempFile, saveFilePath,
                         StandardCopyOption.REPLACE_EXISTING,
                         StandardCopyOption.ATOMIC_MOVE);
 
                 dirty = false;
                 lastSaveTime = System.currentTimeMillis();
-                log("Saved " + tamedAnimals.size() + " tamed animals to disk");
+                log("Saved " + snapshotSize + " tamed animals to disk (sync)");
 
             } catch (IOException e) {
-                logError("Failed to save tamed animals: " + e.getMessage());
-                // Keep dirty flag set for retry on next auto-save
+                logError("Failed to save tamed animals (sync): " + e.getMessage());
             }
         }
     }
@@ -214,6 +342,13 @@ public class PersistenceManager {
      */
     public boolean isDirty() {
         return dirty;
+    }
+
+    /**
+     * Check if a save is currently in progress.
+     */
+    public boolean isSaveInProgress() {
+        return saveInProgress.get();
     }
 
     /**
@@ -238,7 +373,7 @@ public class PersistenceManager {
 
         autoSaveTask = scheduler.scheduleAtFixedRate(() -> {
             try {
-                if (dirty) {
+                if (dirty && !saveInProgress.get()) {
                     log("Auto-saving tamed animals...");
                     saveData(dataSupplier.get());
                 }
@@ -263,11 +398,22 @@ public class PersistenceManager {
 
     /**
      * Force an immediate save regardless of dirty state.
+     * Uses async save by default.
      * @param tamedAnimals Collection of tamed animal data to save
      */
     public void forceSave(Collection<TamedAnimalData> tamedAnimals) {
         dirty = true;
         saveData(tamedAnimals);
+    }
+
+    /**
+     * Force an immediate synchronous save.
+     * Blocks until save is complete. Use for shutdown.
+     * @param tamedAnimals Collection of tamed animal data to save
+     */
+    public void forceSaveSync(Collection<TamedAnimalData> tamedAnimals) {
+        dirty = true;
+        saveDataSync(tamedAnimals);
     }
 
     /**

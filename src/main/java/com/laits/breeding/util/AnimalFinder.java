@@ -5,6 +5,7 @@ import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -26,28 +27,6 @@ public class AnimalFinder {
 
     // Cache the ModelComponent type for performance
     private static final ComponentType<EntityStore, ModelComponent> MODEL_COMPONENT_TYPE = ModelComponent.getComponentType();
-
-    // Cached reflection Field for extracting modelAssetId (avoid per-call reflection)
-    private static Field cachedModelField = null;
-    private static boolean reflectionInitialized = false;
-
-    static {
-        initializeReflectionCache();
-    }
-
-    /**
-     * Initialize cached reflection objects once at class load.
-     */
-    private static void initializeReflectionCache() {
-        try {
-            cachedModelField = ModelComponent.class.getDeclaredField("model");
-            cachedModelField.setAccessible(true);
-            reflectionInitialized = true;
-        } catch (Exception e) {
-            // Will fall back to per-call reflection if this fails
-            reflectionInitialized = false;
-        }
-    }
 
     /**
      * Result of finding an animal in the world.
@@ -177,22 +156,10 @@ public class AnimalFinder {
      */
     private static String extractModelAssetId(ModelComponent modelComp) {
         try {
-            // Use cached Field for performance (avoid getDeclaredField every call)
-            if (!reflectionInitialized || cachedModelField == null) {
-                return null;
-            }
-
-            Object model = cachedModelField.get(modelComp);
+            Model model = modelComp.getModel();
             if (model == null) return null;
 
-            // Extract from toString: Model{modelAssetId='Duck', scale=1.0, ...}
-            String modelStr = model.toString();
-            int start = modelStr.indexOf("modelAssetId='");
-            if (start < 0) return null;
-            start += 14;
-            int end = modelStr.indexOf("'", start);
-            if (end <= start) return null;
-            return modelStr.substring(start, end);
+            return model.getModelAssetId();
         } catch (Exception e) {
             return null;
         }

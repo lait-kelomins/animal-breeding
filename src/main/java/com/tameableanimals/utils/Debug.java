@@ -3,13 +3,12 @@ package com.tameableanimals.utils;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
-import com.tameableanimals.TameableAnimalsPlugin;
-import com.tameableanimals.config.ConfigManager;
+import com.laits.breeding.LaitsBreedingPlugin;
 
 import java.util.logging.Level;
 
 public final class Debug {
-    public static HytaleLogger LOGGER = TameableAnimalsPlugin.get().getLogger();
+    public static HytaleLogger LOGGER = LaitsBreedingPlugin.getInstance().getLogger();
 
     private Debug() {}
 
@@ -35,7 +34,8 @@ public final class Debug {
     public static void msg(PlayerRef player, String message, Level level) {
         log(message, level);
 
-        if (!ConfigManager.getConfig().getDebugChatMessages()) return;
+        // TODO: Add debugChatMessages config option to ConfigManager
+        // For now, always send debug messages to player
         if (player == null) return;
 
         Message msg = switch (level.getName()) {

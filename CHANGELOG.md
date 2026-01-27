@@ -1,13 +1,11 @@
 # Changelog
 
-## v1.4.2 - Multi-World & Performance
+## v1.4.0 - Taming Integration
 
-### Fixed
-- Fixed multi-world support (thread-safe component access via `world.execute()`)
-
-### Improved
-- Improved animal detection
-- Improved save data performance
+### Added
+- **Taming** - Merged with TheBrandolorian's "Tameable Animals" to add taming to the mod. Now animals need to be tamed before you can breed and name them.
+- **Animal Persistence** - All tamed animals are now persisted and should be restored if they are removed for some reason. Only deceased animals won't respawn.
+- **Food-based Taming** - Feed taming food to wild animals to tame them. The configuration now defines base food which can be overridden by taming food, healing food (WIP) and breeding food.
 
 ---
 

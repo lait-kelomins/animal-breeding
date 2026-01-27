@@ -1,5 +1,7 @@
 package com.laits.breeding;
 
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.BreedingManager.BirthEvent;
 import com.laits.breeding.managers.BreedingManager.CustomAnimalLoveData;
@@ -285,7 +287,7 @@ class BreedingManagerTest {
         @DisplayName("should store entity ref for baby")
         void shouldStoreEntityRef() {
             UUID babyId = UUID.randomUUID();
-            Object mockEntityRef = new Object();
+            Ref<EntityStore> mockEntityRef = new Ref<EntityStore>(null);
 
             BreedingData data = manager.registerBaby(babyId, AnimalType.PIG, mockEntityRef);
 
