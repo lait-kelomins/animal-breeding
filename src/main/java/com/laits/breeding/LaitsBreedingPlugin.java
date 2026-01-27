@@ -644,9 +644,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Register NPC core components for behavior tree support (only when not using
             // legacy interactions)
             // "HyTameOrFeed" routes feeding to taming (wild) or breeding (tamed)
+            NPCPlugin.get().registerCoreComponentType("Tamed", BuilderSensorTamed::new);
             if (!USE_LEGACY_FEED_INTERACTION) {
                 NPCPlugin.get().registerCoreComponentType("HyTameOrFeed", BuilderActionHyTameOrFeed::new);
-                NPCPlugin.get().registerCoreComponentType("Tamed", BuilderSensorTamed::new);
                 NPCPlugin.get().registerCoreComponentType("RemovePlayerHeldItems",
                         BuilderActionRemovePlayerHeldItems::new);
                 logVerbose("NPC taming components registered (HyTameOrFeed, Tamed, RemovePlayerHeldItems)");
