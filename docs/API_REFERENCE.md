@@ -12,6 +12,9 @@ Detailed API patterns discovered through reverse-engineering HytaleServer.jar.
 - [Messages & Colors](#messages--colors)
 - [Events](#events)
 - [ECS (Entity Component System)](#ecs-entity-component-system)
+- [NPC Behavior Trees](#npc-behavior-trees)
+- [NPC Attitude System](#npc-attitude-system)
+- [NPC Spawn Tracking](#npc-spawn-tracking)
 - [Entity Interactions](#entity-interactions)
 - [ContextualUseNPC System](#contextualusenpc-system)
 - [Localization & Hints](#localization--hints)
@@ -241,6 +244,361 @@ world.execute(() -> {
     Store<EntityStore> store = world.getEntityStore().getStore();
     // Safe to modify entity components here
 });
+```
+
+### Custom ECS Components
+
+Create persistent components that save/load with the world:
+
+```java
+import com.hypixel.hytale.codec.Codec;
+import com.hypixel.hytale.codec.KeyedCodec;
+import com.hypixel.hytale.codec.builder.BuilderCodec;
+import com.hypixel.hytale.component.Component;
+import com.hypixel.hytale.component.ComponentType;
+
+public class TameComponent implements Component<EntityStore> {
+    // Define codec for persistence (keys are saved to world data)
+    public static final BuilderCodec<TameComponent> CODEC = BuilderCodec.builder(TameComponent.class, TameComponent::new)
+        .append(new KeyedCodec<>("IsTamed", Codec.BOOLEAN), (data, val) -> data.isTamed = val, data -> data.isTamed)
+        .add()
+        .append(new KeyedCodec<>("TamerUUID", Codec.UUID_BINARY), (data, val) -> data.tamerUUID = val, data -> data.tamerUUID)
+        .add()
+        .append(new KeyedCodec<>("TamerName", Codec.STRING), (data, val) -> data.tamerName = val, data -> data.tamerName)
+        .add()
+        .build();
+
+    private Boolean isTamed = false;  // Use boxed Boolean for null safety
+    private UUID tamerUUID = null;
+    private String tamerName = null;
+
+    // Getters/setters...
+
+    @Override
+    public Component<EntityStore> clone() {
+        TameComponent copy = new TameComponent();
+        copy.isTamed = this.isTamed;
+        copy.tamerUUID = this.tamerUUID;
+        copy.tamerName = this.tamerName;
+        return copy;
+    }
+}
+```
+
+**Register in plugin setup():**
+```java
+private ComponentType<EntityStore, TameComponent> tameComponentType;
+
+@Override
+protected void setup() {
+    tameComponentType = this.getEntityStoreRegistry().registerComponent(
+        TameComponent.class, "Tame", TameComponent.CODEC);
+}
+```
+
+**Usage:**
+```java
+// Get component (returns null if missing)
+TameComponent comp = store.getComponent(entityRef, tameComponentType);
+
+// Get or create component
+TameComponent comp = store.ensureAndGetComponent(entityRef, tameComponentType);
+
+// From Holder (in systems)
+TameComponent comp = holder.getComponent(tameComponentType);
+TameComponent comp = holder.ensureAndGetComponent(tameComponentType);
+```
+
+### ECS Systems (HolderSystem)
+
+Create systems that run on entity lifecycle events:
+
+```java
+import com.hypixel.hytale.component.*;
+import com.hypixel.hytale.component.dependency.*;
+import com.hypixel.hytale.component.query.Query;
+import com.hypixel.hytale.component.system.HolderSystem;
+import com.hypixel.hytale.server.npc.systems.RoleBuilderSystem;
+
+public class TameActivateSystem extends HolderSystem<EntityStore> {
+    private final ComponentType<EntityStore, NPCEntity> npcType;
+    private final ComponentType<EntityStore, TameComponent> tameType;
+    private final Query<EntityStore> query;
+    private final Set<Dependency<EntityStore>> dependencies;
+
+    public TameActivateSystem() {
+        this.npcType = NPCEntity.getComponentType();
+        this.tameType = TameComponent.getComponentType();
+
+        // Query: match entities with NPCEntity but NOT NPCMountComponent
+        this.query = Query.and(npcType, Query.not(NPCMountComponent.getComponentType()));
+
+        // Run AFTER RoleBuilderSystem
+        this.dependencies = Set.of(new SystemDependency<>(Order.AFTER, RoleBuilderSystem.class));
+    }
+
+    @Override
+    public Query<EntityStore> getQuery() { return this.query; }
+
+    @Override
+    public Set<Dependency<EntityStore>> getDependencies() { return this.dependencies; }
+
+    @Override
+    public void onEntityAdd(Holder<EntityStore> holder, AddReason reason, Store<EntityStore> store) {
+        NPCEntity npc = holder.getComponent(npcType);
+        TameComponent tame = holder.ensureAndGetComponent(tameType);
+
+        if (tame.isTamed()) {
+            // Entity was loaded from world in tamed state
+            // Apply runtime effects...
+        }
+    }
+
+    @Override
+    public void onEntityRemoved(Holder<EntityStore> holder, RemoveReason reason, Store<EntityStore> store) {
+        // Cleanup if needed
+    }
+}
+```
+
+**Register in plugin start():**
+```java
+@Override
+protected void start() {
+    this.getEntityStoreRegistry().registerSystem(new TameActivateSystem());
+}
+```
+
+---
+
+## NPC Behavior Trees
+
+### Core Components (Actions & Sensors)
+
+Register custom actions/sensors for NPC behavior trees:
+
+```java
+@Override
+protected void start() {
+    NPCPlugin.get().registerCoreComponentType("Tame", BuilderActionTame::new);
+    NPCPlugin.get().registerCoreComponentType("Tamed", BuilderSensorTamed::new);
+    NPCPlugin.get().registerCoreComponentType("RemovePlayerHeldItems", BuilderActionRemovePlayerHeldItems::new);
+}
+```
+
+### Custom Action
+
+```java
+import com.hypixel.hytale.server.npc.corecomponents.ActionBase;
+import com.hypixel.hytale.server.npc.role.Role;
+import com.hypixel.hytale.server.npc.sensorinfo.InfoProvider;
+
+public class ActionTame extends ActionBase {
+    public ActionTame(BuilderActionTame builder, BuilderSupport support) {
+        super(builder);
+    }
+
+    @Override
+    public boolean execute(Ref<EntityStore> ref, Role role, InfoProvider sensorInfo,
+                          double dt, Store<EntityStore> store) {
+        super.execute(ref, role, sensorInfo, dt, store);
+
+        // Get player who triggered interaction
+        Ref<EntityStore> playerRef = role.getStateSupport().getInteractionIterationTarget();
+        Player player = store.getComponent(playerRef, Player.getComponentType());
+        UUIDComponent playerUUID = store.getComponent(playerRef, UUIDComponent.getComponentType());
+
+        // Do action logic...
+        return true;  // true = success
+    }
+}
+```
+
+### Custom Action Builder
+
+```java
+import com.hypixel.hytale.server.npc.corecomponents.builders.BuilderActionBase;
+import com.hypixel.hytale.server.npc.asset.builder.holder.StringArrayHolder;
+
+public class BuilderActionTame extends BuilderActionBase {
+    protected StringArrayHolder lovedFoodHolder = new StringArrayHolder();
+
+    @Override
+    public String getShortDescription() { return "Tame the entity"; }
+
+    @Override
+    public String getLongDescription() { return getShortDescription(); }
+
+    @Override
+    public BuilderDescriptorState getBuilderDescriptorState() { return BuilderDescriptorState.Stable; }
+
+    @Override
+    public ActionTame build(BuilderSupport support) {
+        return new ActionTame(this, support);
+    }
+
+    @Override
+    public Builder<Action> readConfig(JsonElement data) {
+        this.requireStringArray(data, "Food", lovedFoodHolder, 1, Integer.MAX_VALUE, null,
+            BuilderDescriptorState.Stable, "Foods for taming", "Description");
+        return super.readConfig(data);
+    }
+
+    public String[] getLovedFood(BuilderSupport support) {
+        return lovedFoodHolder.get(support.getExecutionContext());
+    }
+}
+```
+
+### Custom Sensor
+
+```java
+import com.hypixel.hytale.server.npc.corecomponents.SensorBase;
+
+public class SensorTamed extends SensorBase {
+    protected final boolean expectedValue;
+
+    public SensorTamed(BuilderSensorTamed builder, BuilderSupport support) {
+        super(builder);
+        this.expectedValue = builder.getValue(support);
+    }
+
+    @Override
+    public boolean matches(Ref<EntityStore> ref, Role role, double dt, Store<EntityStore> store) {
+        TameComponent tame = store.getComponent(ref, TameComponent.getComponentType());
+        if (tame == null) return false;
+
+        return super.matches(ref, role, dt, store) && tame.isTamed() == expectedValue;
+    }
+
+    @Override
+    public InfoProvider getSensorInfo() { return null; }
+}
+```
+
+### Custom Sensor Builder
+
+```java
+import com.hypixel.hytale.server.npc.corecomponents.builders.BuilderSensorBase;
+import com.hypixel.hytale.server.npc.asset.builder.holder.BooleanHolder;
+
+public class BuilderSensorTamed extends BuilderSensorBase {
+    protected final BooleanHolder value = new BooleanHolder();
+
+    @Override
+    public Sensor build(BuilderSupport support) {
+        return new SensorTamed(this, support);
+    }
+
+    @Override
+    public Builder<Sensor> readConfig(JsonElement data) {
+        this.getBoolean(data, "Set", value, true, BuilderDescriptorState.Stable,
+            "Whether entity is tamed", null);
+        return this;
+    }
+
+    public boolean getValue(BuilderSupport support) {
+        return value.get(support.getExecutionContext());
+    }
+}
+```
+
+### NPC Role JSON Usage
+
+Reference in NPC role files (`Server/NPC/Roles/Cow.json`):
+```json
+{
+  "Sensors": {
+    "Tamed": { "Set": true }
+  },
+  "Actions": {
+    "Tame": { "Food": ["Wheat", "Carrot"] },
+    "RemovePlayerHeldItems": { "Count": 1 }
+  }
+}
+```
+
+---
+
+## NPC Attitude System
+
+### Imports
+```java
+import com.hypixel.hytale.server.core.asset.type.attitude.Attitude;
+import com.hypixel.hytale.server.npc.role.support.WorldSupport;
+import com.hypixel.hytale.server.npc.config.AttitudeGroup;
+```
+
+### Attitude Values
+```java
+Attitude.REVERED    // Friendly, won't attack
+Attitude.NEUTRAL    // Default for most animals
+Attitude.HOSTILE    // Will attack player
+```
+
+### Getting Current Attitude
+```java
+NPCEntity npcEntity = store.getComponent(ref, NPCEntity.getComponentType());
+Role role = npcEntity.getRole();
+WorldSupport worldSupport = role.getWorldSupport();
+
+// Get default attitude (from NPC role config)
+Attitude defaultAttitude = worldSupport.getDefaultPlayerAttitude();
+
+// Get current attitude toward specific player
+Attitude currentAttitude = worldSupport.getAttitude(entityRef, playerRef, store);
+```
+
+### Setting Attitude (Requires Reflection)
+
+The `defaultPlayerAttitude` field is private. Use reflection:
+
+```java
+// Cache field once (in static initializer or setup)
+private static final Field ATTITUDE_FIELD;
+static {
+    try {
+        ATTITUDE_FIELD = WorldSupport.class.getDeclaredField("defaultPlayerAttitude");
+        ATTITUDE_FIELD.setAccessible(true);
+    } catch (NoSuchFieldException e) {
+        throw new RuntimeException("Failed to access defaultPlayerAttitude", e);
+    }
+}
+
+// Set attitude to friendly
+try {
+    ATTITUDE_FIELD.set(worldSupport, Attitude.REVERED);
+} catch (IllegalAccessException e) {
+    logger.atSevere().log("Failed to set attitude", e);
+}
+```
+
+### Attitude Groups
+
+Check if NPC belongs to a tameable group:
+
+```java
+WorldSupport worldSupport = role.getWorldSupport();
+AttitudeGroup group = AttitudeGroup.getAssetMap().getAsset(worldSupport.getAttitudeGroup());
+String groupId = group.getId();  // "PreyBig", "PreySmall", "Livestock", "Critters", etc.
+```
+
+---
+
+## NPC Spawn Tracking
+
+### Removing from Overpopulation Tracking
+
+Tamed animals should not count toward spawn limits:
+
+```java
+NPCEntity npcEntity = store.getComponent(ref, NPCEntity.getComponentType());
+
+// Remove from spawn tracking (returns previous state)
+boolean wasTracked = npcEntity.updateSpawnTrackingState(false);
+
+// Re-enable tracking
+npcEntity.updateSpawnTrackingState(true);
 ```
 
 ---
@@ -735,3 +1093,59 @@ my-mod.jar
 | `SoundUtil` | `com.hypixel.hytale.server.core.universe.world.SoundUtil` |
 | `ParticleUtil` | `com.hypixel.hytale.server.core.universe.world.ParticleUtil` |
 | `NPCPlugin` | `com.hypixel.hytale.server.npc.NPCPlugin` |
+
+### NPC Core
+| Class | Path |
+|-------|------|
+| `NPCEntity` | `com.hypixel.hytale.server.npc.entities.NPCEntity` |
+| `Role` | `com.hypixel.hytale.server.npc.role.Role` |
+| `WorldSupport` | `com.hypixel.hytale.server.npc.role.support.WorldSupport` |
+| `StateSupport` | `com.hypixel.hytale.server.npc.role.support.StateSupport` |
+| `NPCMountComponent` | `com.hypixel.hytale.builtin.mounts.NPCMountComponent` |
+
+### NPC Attitude
+| Class | Path |
+|-------|------|
+| `Attitude` | `com.hypixel.hytale.server.core.asset.type.attitude.Attitude` |
+| `AttitudeGroup` | `com.hypixel.hytale.server.npc.config.AttitudeGroup` |
+
+### NPC Behavior Trees
+| Class | Path |
+|-------|------|
+| `Action` | `com.hypixel.hytale.server.npc.corecomponents.Action` |
+| `ActionBase` | `com.hypixel.hytale.server.npc.corecomponents.ActionBase` |
+| `Sensor` | `com.hypixel.hytale.server.npc.corecomponents.Sensor` |
+| `SensorBase` | `com.hypixel.hytale.server.npc.corecomponents.SensorBase` |
+| `BuilderActionBase` | `com.hypixel.hytale.server.npc.corecomponents.builders.BuilderActionBase` |
+| `BuilderSensorBase` | `com.hypixel.hytale.server.npc.corecomponents.builders.BuilderSensorBase` |
+| `BuilderSupport` | `com.hypixel.hytale.server.npc.asset.builder.BuilderSupport` |
+| `InfoProvider` | `com.hypixel.hytale.server.npc.sensorinfo.InfoProvider` |
+| `StringArrayHolder` | `com.hypixel.hytale.server.npc.asset.builder.holder.StringArrayHolder` |
+| `BooleanHolder` | `com.hypixel.hytale.server.npc.asset.builder.holder.BooleanHolder` |
+| `BuilderDescriptorState` | `com.hypixel.hytale.server.npc.asset.builder.BuilderDescriptorState` |
+
+### ECS Systems
+| Class | Path |
+|-------|------|
+| `HolderSystem` | `com.hypixel.hytale.component.system.HolderSystem` |
+| `Holder` | `com.hypixel.hytale.component.Holder` |
+| `Query` | `com.hypixel.hytale.component.query.Query` |
+| `Dependency` | `com.hypixel.hytale.component.dependency.Dependency` |
+| `SystemDependency` | `com.hypixel.hytale.component.dependency.SystemDependency` |
+| `Order` | `com.hypixel.hytale.component.dependency.Order` |
+| `AddReason` | `com.hypixel.hytale.component.AddReason` |
+| `RemoveReason` | `com.hypixel.hytale.component.RemoveReason` |
+| `RoleBuilderSystem` | `com.hypixel.hytale.server.npc.systems.RoleBuilderSystem` |
+
+### Codecs (for persistence)
+| Class | Path |
+|-------|------|
+| `BuilderCodec` | `com.hypixel.hytale.codec.builder.BuilderCodec` |
+| `Codec` | `com.hypixel.hytale.codec.Codec` |
+| `KeyedCodec` | `com.hypixel.hytale.codec.KeyedCodec` |
+
+### Player
+| Class | Path |
+|-------|------|
+| `Player` | `com.hypixel.hytale.server.core.entity.Player` |
+| `PlayerRef` | `com.hypixel.hytale.server.core.universe.PlayerRef` |
