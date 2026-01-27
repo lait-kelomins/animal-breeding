@@ -310,56 +310,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         LOGGER.atWarning().log("[Lait:AnimalBreeding] " + message);
     }
 
-    /** Log error message */
-    private void logError(String message) {
-        LOGGER.atSevere().log("[Lait:AnimalBreeding] " + message);
-    }
-
-    /**
-     * Broadcast a development debug message to all online players (all worlds).
-     * Only works when devMode is enabled via /breeddev command.
-     * Use this for in-game debugging during development.
-     */
-    private void devLog(String message) {
-        if (!devMode)
-            return;
-
-        try {
-            // Also log to server console
-            LOGGER.atInfo().log("[DEV] " + message);
-
-            final String devMessage = "[DEV] " + message;
-
-            // Broadcast to all online players in all worlds
-            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
-                World world = entry.getValue();
-                if (world == null) continue;
-
-                Store<EntityStore> store = world.getEntityStore().getStore();
-                if (store == null) continue;
-
-                // Use forEachChunk to find all players
-                store.forEachChunk(EcsReflectionUtil.PLAYER_REF_TYPE,
-                        (BiConsumer<ArchetypeChunk<EntityStore>, CommandBuffer<EntityStore>>) (chunk, commandBuffer) -> {
-                            int size = chunk.size();
-                            for (int i = 0; i < size; i++) {
-                                Ref<EntityStore> ref = chunk.getReferenceTo(i);
-                                PlayerRef playerRef = store.getComponent(ref, EcsReflectionUtil.PLAYER_REF_TYPE);
-                                if (ref != null) {
-                                    // Check if this is a player by trying to call sendMessage
-                                    try {
-                                        playerRef.sendMessage(Message.raw(devMessage).color("#FFAA00"));
-                                    } catch (Exception e) {
-                                        // Not a player, skip
-                                    }
-                                }
-                            }
-                        });
-            }
-        } catch (Exception e) {
-            // Silent - dev logging should never crash
-        }
-    }
+    // NOTE: logError() and devLog() removed - unused dead code
 
     public LaitsBreedingPlugin(JavaPluginInit init) {
         super(init);
@@ -643,9 +594,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             rootInt.build(Set.of(newIds));
         }
 
-        // Initialize reflection cache for performance
-        initReflectionCache();
-
         // Start tick scheduler for pregnancy and growth updates
         tickScheduler = Executors.newSingleThreadScheduledExecutor();
         scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
@@ -800,16 +748,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         }
 
         getLogger().atInfo().log("[Lait:AnimalBreeding] Plugin started! Commands: /laitsbreeding, /breedstatus");
-    }
-
-    /**
-     * Initialize cached objects - now mostly done via static final fields.
-     * This method is kept for any remaining runtime initialization.
-     */
-    private void initReflectionCache() {
-        // Component types are now static final fields using direct imports
-        // No reflection needed - all types are initialized at class load time
-        logVerbose("ECS component types initialized via direct imports");
     }
 
     /**
