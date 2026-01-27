@@ -18,6 +18,7 @@ public class BreedingData {
     private boolean inLove;
     private long loveStartTime;
     private Ref<EntityStore> entityRef;  // Ref<EntityStore> for entity manipulation
+    private String worldName;  // World name for multi-world support
 
     // Taming fields
     private boolean tamed;
@@ -203,6 +204,20 @@ public class BreedingData {
      */
     public void setEntityRef(Ref<EntityStore> entityRef) {
         this.entityRef = entityRef;
+    }
+
+    /**
+     * Get the world name this animal is in.
+     */
+    public String getWorldName() {
+        return worldName;
+    }
+
+    /**
+     * Set the world name this animal is in.
+     */
+    public void setWorldName(String worldName) {
+        this.worldName = worldName;
     }
 
     // ===========================================

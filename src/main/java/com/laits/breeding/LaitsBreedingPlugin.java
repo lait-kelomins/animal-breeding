@@ -33,6 +33,7 @@ import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.Universe;
+import com.hypixel.hytale.server.core.universe.world.ParticleUtil;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.npc.INonPlayerCharacter;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
@@ -272,20 +273,22 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // Only applies when USE_ENTITY_BASED_INTERACTIONS is false
     private static final boolean SHOW_ABILITY2_HINTS_ON_ENTITIES = true;
 
-    /** Broadcast a message to all online players in chat */
+    /** Broadcast a message to all online players in chat (all worlds) */
     private void broadcastToChat(String message) {
         try {
-            World world = Universe.get().getDefaultWorld();
-            if (world == null)
-                return;
+            // Broadcast to all worlds for multi-world support
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null) continue;
 
-            world.getPlayers().forEach(player -> {
-                try {
-                    player.sendMessage(Message.raw("[Breeding] " + message).color("#AAAAAA"));
-                } catch (Exception e) {
-                    // Silent
-                }
-            });
+                world.getPlayers().forEach(player -> {
+                    try {
+                        player.sendMessage(Message.raw("[Breeding] " + message).color("#AAAAAA"));
+                    } catch (Exception e) {
+                        // Silent
+                    }
+                });
+            }
         } catch (Exception e) {
             // Silent
         }
@@ -313,7 +316,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Broadcast a development debug message to all online players.
+     * Broadcast a development debug message to all online players (all worlds).
      * Only works when devMode is enabled via /breeddev command.
      * Use this for in-game debugging during development.
      */
@@ -325,32 +328,34 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Also log to server console
             LOGGER.atInfo().log("[DEV] " + message);
 
-            // Broadcast to all online players
-            World world = Universe.get().getDefaultWorld();
-            if (world == null)
-                return;
-
-            // Get all players from the world
-            Store<EntityStore> store = world.getEntityStore().getStore();
             final String devMessage = "[DEV] " + message;
 
-            // Use forEachChunk to find all players
-            store.forEachChunk(EcsReflectionUtil.PLAYER_REF_TYPE,
-                    (BiConsumer<ArchetypeChunk<EntityStore>, CommandBuffer<EntityStore>>) (chunk, commandBuffer) -> {
-                        int size = chunk.size();
-                        for (int i = 0; i < size; i++) {
-                            Ref<EntityStore> ref = chunk.getReferenceTo(i);
-                            PlayerRef playerRef = store.getComponent(ref, EcsReflectionUtil.PLAYER_REF_TYPE);
-                            if (ref != null) {
-                                // Check if this is a player by trying to call sendMessage
-                                try {
-                                    playerRef.sendMessage(Message.raw(devMessage).color("#FFAA00"));
-                                } catch (Exception e) {
-                                    // Not a player, skip
+            // Broadcast to all online players in all worlds
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null) continue;
+
+                Store<EntityStore> store = world.getEntityStore().getStore();
+                if (store == null) continue;
+
+                // Use forEachChunk to find all players
+                store.forEachChunk(EcsReflectionUtil.PLAYER_REF_TYPE,
+                        (BiConsumer<ArchetypeChunk<EntityStore>, CommandBuffer<EntityStore>>) (chunk, commandBuffer) -> {
+                            int size = chunk.size();
+                            for (int i = 0; i < size; i++) {
+                                Ref<EntityStore> ref = chunk.getReferenceTo(i);
+                                PlayerRef playerRef = store.getComponent(ref, EcsReflectionUtil.PLAYER_REF_TYPE);
+                                if (ref != null) {
+                                    // Check if this is a player by trying to call sendMessage
+                                    try {
+                                        playerRef.sendMessage(Message.raw(devMessage).color("#FFAA00"));
+                                    } catch (Exception e) {
+                                        // Not a player, skip
+                                    }
                                 }
                             }
-                        }
-                    });
+                        });
+            }
         } catch (Exception e) {
             // Silent - dev logging should never crash
         }
@@ -447,7 +452,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         (pos1.getX() + pos2.getX()) / 2.0,
                         (pos1.getY() + pos2.getY()) / 2.0,
                         (pos1.getZ() + pos2.getZ()) / 2.0);
-                spawningManager.spawnBabyAnimal(type, midpoint, animals[0].getAnimalId(), animals[1].getAnimalId());
+                // Use world name from either parent (prefer first, fall back to second)
+                String worldName = animals[0].getWorldName();
+                if (worldName == null) {
+                    worldName = animals[1].getWorldName();
+                }
+                spawningManager.spawnBabyAnimal(type, midpoint, animals[0].getAnimalId(), animals[1].getAnimalId(), worldName);
             }
         });
 
@@ -460,17 +470,48 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         (pos1.getX() + pos2.getX()) / 2.0,
                         (pos1.getY() + pos2.getY()) / 2.0,
                         (pos1.getZ() + pos2.getZ()) / 2.0);
+                // Use world name from either parent (prefer first, fall back to second)
+                String worldName = animals[0].getWorldName();
+                if (worldName == null) {
+                    worldName = animals[1].getWorldName();
+                }
                 CustomAnimalConfig customConfig = configManager.getCustomAnimal(modelAssetId);
-                spawningManager.spawnCustomAnimalBaby(modelAssetId, customConfig, midpoint);
+                spawningManager.spawnCustomAnimalBaby(modelAssetId, customConfig, midpoint, worldName);
             }
         });
 
+        // Heart particle spawner for custom animals (uses entity ref)
         breedingTickManager.setHeartParticleSpawner(entityRef -> {
-            World world = Universe.get().getDefaultWorld();
-            if (world != null) {
-                world.execute(() -> {
+            // Find the world that contains this entity by comparing stores
+            World targetWorld = null;
+            if (entityRef instanceof Ref) {
+                @SuppressWarnings("unchecked")
+                Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+                Store<EntityStore> entityStore = ref.getStore();
+                if (entityStore != null) {
+                    for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                        World w = entry.getValue();
+                        if (w == null) continue;
+                        try {
+                            if (w.getEntityStore().getStore() == entityStore) {
+                                targetWorld = w;
+                                break;
+                            }
+                        } catch (Exception e) {
+                            // Skip this world
+                        }
+                    }
+                }
+            }
+            // Fallback to default world if not found
+            if (targetWorld == null) {
+                targetWorld = Universe.get().getDefaultWorld();
+            }
+            if (targetWorld != null) {
+                final World finalWorld = targetWorld;
+                finalWorld.execute(() -> {
                     try {
-                        Store<EntityStore> store = world.getEntityStore().getStore();
+                        Store<EntityStore> store = finalWorld.getEntityStore().getStore();
                         effectsManager.spawnHeartParticlesAtRef(store, entityRef);
                     } catch (Exception e) {
                         // Silent
@@ -479,9 +520,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
         });
 
-        // Position-based heart particle spawner (more reliable - doesn't depend on stale refs)
+        // Heart particle spawner for regular animals (uses position + store directly)
         breedingTickManager.setHeartParticlePositionSpawner((position, store) -> {
-            effectsManager.spawnHeartParticlesAtPosition(position, store);
+            try {
+                Vector3d heartsPos = new Vector3d(position.getX(), position.getY() + 1.5, position.getZ());
+                ParticleUtil.spawnParticleEffect("BreedingHearts", heartsPos, store);
+            } catch (Exception e) {
+                // Silent
+            }
         });
 
         // Set up growth callback - handle growth stage changes
@@ -671,8 +717,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 try {
                     if (spawnDetector != null) {
                         Set<UUID> currentPlayerUuids = ConcurrentHashMap.newKeySet();
-                        World world = Universe.get().getDefaultWorld();
-                        if (world != null) {
+                        // Collect player UUIDs from all worlds
+                        for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                            World world = entry.getValue();
+                            if (world == null) continue;
                             for (Player p : world.getPlayers()) {
                                 UUID pUuid = EntityUtil.getEntityUUID(p);
                                 if (pUuid != null) {
@@ -1506,49 +1554,57 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         if (verboseLogging)
             getLogger().atInfo().log("[AutoScan] autoSetupNearbyAnimals CALLED");
         try {
-            World world = Universe.get().getDefaultWorld();
-            if (world == null) {
-                getLogger().atWarning().log("[AutoScan] world is NULL, aborting");
-                return;
-            }
-
-            // Collect player UUIDs to exclude from animal detection
+            // Collect player UUIDs from all worlds to exclude from animal detection
             final Set<UUID> playerUuids = new HashSet<>();
-            for (Player p : world.getPlayers()) {
-                UUID pUuid = EntityUtil.getEntityUUID(p);
-                if (pUuid != null) {
-                    playerUuids.add(pUuid);
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null) continue;
+                for (Player p : world.getPlayers()) {
+                    UUID pUuid = EntityUtil.getEntityUUID(p);
+                    if (pUuid != null) {
+                        playerUuids.add(pUuid);
+                    }
                 }
             }
 
-            // Find all farm animals (including babies)
+            // Scan all worlds for animals
             if (verboseLogging)
-                getLogger().atInfo().log("[AutoScan] Starting animal scan (customAnimals registered: %d)",
+                getLogger().atInfo().log("[AutoScan] Starting animal scan in all worlds (customAnimals registered: %d)",
                         configManager.getCustomAnimals().size());
-            AnimalFinder.findAnimals(world, false, animals -> {
-                try {
-                    if (verboseLogging)
-                        getLogger().atInfo().log("[AutoScan] Found %d animals total", animals.size());
-                    if (animals.isEmpty())
-                        return;
 
-                    // Log the registered custom animals for debugging
-                    if (verboseLogging)
-                        getLogger().atInfo().log("[AutoScan] Registered custom animals: %s",
-                                String.join(", ", configManager.getCustomAnimals().keySet()));
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                String worldName = entry.getKey();
+                World world = entry.getValue();
+                if (world == null) continue;
 
-                    for (AnimalFinder.FoundAnimal animal : animals) {
-                        scanAnimal(animal, playerUuids);
+                if (verboseLogging)
+                    getLogger().atInfo().log("[AutoScan] Scanning world: %s", worldName);
+
+                AnimalFinder.findAnimals(world, false, animals -> {
+                    try {
+                        if (verboseLogging)
+                            getLogger().atInfo().log("[AutoScan] Found %d animals in world %s", animals.size(), worldName);
+                        if (animals.isEmpty())
+                            return;
+
+                        // Log the registered custom animals for debugging (only once)
+                        if (verboseLogging && worldName.equals(Universe.get().getWorlds().keySet().iterator().next()))
+                            getLogger().atInfo().log("[AutoScan] Registered custom animals: %s",
+                                    String.join(", ", configManager.getCustomAnimals().keySet()));
+
+                        for (AnimalFinder.FoundAnimal animal : animals) {
+                            scanAnimal(animal, playerUuids);
+                        }
+                    } catch (Exception e) {
+                        // Log errors from animal processing
+                        logWarning("autoSetupNearbyAnimals callback error in " + worldName + ": " + e.getClass().getSimpleName() + ": "
+                                + e.getMessage());
+                        if (verboseLogging && e.getCause() != null) {
+                            logWarning("  Caused by: " + e.getCause().getMessage());
+                        }
                     }
-                } catch (Exception e) {
-                    // Log errors from animal processing
-                    logWarning("autoSetupNearbyAnimals callback error: " + e.getClass().getSimpleName() + ": "
-                            + e.getMessage());
-                    if (verboseLogging && e.getCause() != null) {
-                        logWarning("  Caused by: " + e.getCause().getMessage());
-                    }
-                }
-            });
+                });
+            }
 
         } catch (Exception e) {
             // Log errors from initial setup
@@ -2071,12 +2127,22 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Spawn a baby animal with parent UUIDs for auto-taming.
-     * 
+     * Spawn a baby animal with parent UUIDs for auto-taming (uses default world).
+     *
      * @see SpawningManager#spawnBabyAnimal(AnimalType, Vector3d, UUID, UUID)
      */
     public void spawnBabyAnimal(AnimalType animalType, Vector3d position, UUID parent1Id, UUID parent2Id) {
         spawningManager.spawnBabyAnimal(animalType, position, parent1Id, parent2Id);
+    }
+
+    /**
+     * Spawn a baby animal with parent UUIDs for auto-taming in a specific world.
+     *
+     * @param worldName the name of the world to spawn in (null for default world)
+     * @see SpawningManager#spawnBabyAnimal(AnimalType, Vector3d, UUID, UUID, String)
+     */
+    public void spawnBabyAnimal(AnimalType animalType, Vector3d position, UUID parent1Id, UUID parent2Id, String worldName) {
+        spawningManager.spawnBabyAnimal(animalType, position, parent1Id, parent2Id, worldName);
     }
 
     /**
@@ -2090,47 +2156,52 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     public int scanForUntrackedBabies() {
         int registered = 0;
         try {
-            World world = Universe.get().getDefaultWorld();
-            if (world == null)
-                return 0;
-
-            Store<EntityStore> store = world.getEntityStore().getStore();
-
             java.util.List<BreedingManager.UntrackedBaby> untrackedBabies = new java.util.ArrayList<>();
 
-            world.execute(() -> {
-                store.forEachChunk((ArchetypeChunk<EntityStore> chunk, CommandBuffer<EntityStore> buffer) -> {
-                    int size = chunk.size();
-                    for (int i = 0; i < size; i++) {
-                        try {
-                            Ref<EntityStore> ref = chunk.getReferenceTo(i);
+            // Scan all worlds for untracked babies
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null) continue;
 
-                            String modelAssetId = getEntityModelAssetId(store, ref);
-                            if (modelAssetId == null)
-                                continue;
+                Store<EntityStore> store = world.getEntityStore().getStore();
+                if (store == null) continue;
 
-                            // Check if this is a baby model
-                            if (!AnimalType.isBabyVariant(modelAssetId))
-                                continue;
+                world.execute(() -> {
+                    store.forEachChunk((ArchetypeChunk<EntityStore> chunk, CommandBuffer<EntityStore> buffer) -> {
+                        int size = chunk.size();
+                        for (int i = 0; i < size; i++) {
+                            try {
+                                Ref<EntityStore> ref = chunk.getReferenceTo(i);
 
-                            // Get the animal type for this baby
-                            AnimalType animalType = AnimalType.fromModelAssetId(modelAssetId);
-                            if (animalType == null)
-                                continue;
+                                String modelAssetId = getEntityModelAssetId(store, ref);
+                                if (modelAssetId == null)
+                                    continue;
 
-                            // Check if already tracked
-                            UUID refUuid = UUID.nameUUIDFromBytes(ref.toString().getBytes());
-                            if (breedingManager.isBabyTracked(ref, refUuid))
-                                continue;
+                                // Check if this is a baby model
+                                if (!AnimalType.isBabyVariant(modelAssetId))
+                                    continue;
 
-                            // Found an untracked baby
-                            untrackedBabies.add(new BreedingManager.UntrackedBaby(ref, modelAssetId, animalType));
-                        } catch (Exception e) {
-                            // Skip invalid refs
+                                // Get the animal type for this baby
+                                AnimalType animalType = AnimalType.fromModelAssetId(modelAssetId);
+                                if (animalType == null)
+                                    continue;
+
+                                // Check if already tracked
+                                UUID refUuid = UUID.nameUUIDFromBytes(ref.toString().getBytes());
+                                if (breedingManager.isBabyTracked(ref, refUuid))
+                                    continue;
+
+                                // Found an untracked baby
+                                synchronized (untrackedBabies) {
+                                    untrackedBabies.add(new BreedingManager.UntrackedBaby(ref, modelAssetId, animalType));
+                                }
+                            } catch (Exception e) {
+                                // Skip invalid refs
+                            }
                         }
-                    }
+                    });
                 });
-            });
+            }
 
             // Register all untracked babies
             for (BreedingManager.UntrackedBaby baby : untrackedBabies) {
@@ -2142,7 +2213,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
             if (registered > 0 || verboseLogging) {
                 if (registered > 0) {
-                    getLogger().atInfo().log("[BabyScan] Found %d untracked babies, registered all", registered);
+                    getLogger().atInfo().log("[BabyScan] Found %d untracked babies across all worlds, registered all", registered);
                 }
             }
 

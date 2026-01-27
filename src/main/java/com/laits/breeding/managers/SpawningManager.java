@@ -135,6 +135,23 @@ public class SpawningManager {
      * @param parent2Id  UUID of second parent (pass null if unknown)
      */
     public void spawnBabyAnimal(AnimalType animalType, Vector3d position, UUID parent1Id, UUID parent2Id) {
+        spawnBabyAnimal(animalType, position, parent1Id, parent2Id, null);
+    }
+
+    /**
+     * Spawn a baby animal with parent UUIDs for auto-taming in a specific world.
+     * If BOTH parents are tamed by the same player, the baby will be auto-tamed.
+     *
+     * For animals WITH baby variants: spawns baby NPC
+     * For animals WITHOUT baby variants: spawns adult NPC at small scale (0.4)
+     *
+     * @param animalType The type of animal to spawn
+     * @param position   The spawn position
+     * @param parent1Id  UUID of first parent (pass null if unknown)
+     * @param parent2Id  UUID of second parent (pass null if unknown)
+     * @param worldName  Name of the world to spawn in (null = default world)
+     */
+    public void spawnBabyAnimal(AnimalType animalType, Vector3d position, UUID parent1Id, UUID parent2Id, String worldName) {
         try {
             boolean hasBabyVariant = animalType.hasBabyVariant();
             String roleId = hasBabyVariant ? animalType.getBabyNpcRoleId() : animalType.getAdultNpcRoleId();
@@ -143,12 +160,22 @@ public class SpawningManager {
             logVerbose("Attempting to spawn " + (hasBabyVariant ? "baby" : "scaled adult") + ": " + roleId +
                     (hasBabyVariant ? "" : " at scale " + initialScale));
 
-            World world = Universe.get().getDefaultWorld();
+            // Get world from name if provided, otherwise fall back to default
+            World world = null;
+            if (worldName != null) {
+                world = Universe.get().getWorld(worldName);
+                logVerbose("Using world: " + worldName);
+            }
+            if (world == null) {
+                world = Universe.get().getDefaultWorld();
+                logVerbose("Using default world");
+            }
             if (world == null) {
                 logWarning("Cannot spawn baby - world is null");
                 return;
             }
 
+            final World finalWorld = world;
             final Vector3d spawnPos = position;
             final AnimalType finalAnimalType = animalType;
             final String finalRoleId = roleId;
@@ -156,10 +183,11 @@ public class SpawningManager {
             final float finalInitialScale = initialScale;
             final UUID finalParent1Id = parent1Id;
             final UUID finalParent2Id = parent2Id;
+            final String finalWorldName = worldName;
 
-            world.execute(() -> {
+            finalWorld.execute(() -> {
                 try {
-                    Store<EntityStore> store = world.getEntityStore().getStore();
+                    Store<EntityStore> store = finalWorld.getEntityStore().getStore();
                     boolean roleExists = NPCPlugin.get().hasRoleName(finalRoleId);
 
                     if (!roleExists) {
@@ -225,7 +253,7 @@ public class SpawningManager {
 
                         // Auto-tame baby if BOTH parents are tamed
                         autoTameBabyIfParentsTamed(store, entityRef, babyId, finalAnimalType, spawnPos,
-                                finalParent1Id, finalParent2Id);
+                                finalParent1Id, finalParent2Id, finalWorldName);
 
                     } else {
                         logWarning("Failed to spawn " + (finalHasBabyVariant ? "baby" : "young") + " "
@@ -247,7 +275,7 @@ public class SpawningManager {
      */
     private void autoTameBabyIfParentsTamed(Store<EntityStore> store, Ref<EntityStore> entityRef,
             UUID babyId, AnimalType animalType, Vector3d spawnPos,
-            UUID parent1Id, UUID parent2Id) {
+            UUID parent1Id, UUID parent2Id, String worldName) {
         if (tamingManager == null || parent1Id == null || parent2Id == null) {
             return;
         }
@@ -285,7 +313,8 @@ public class SpawningManager {
                 spawnPos.getX(),
                 spawnPos.getY(),
                 spawnPos.getZ(),
-                GrowthStage.BABY);
+                GrowthStage.BABY,
+                worldName);
 
         if (babyTameData != null) {
             String ownerName = babyTameData.getOwnerName();
@@ -318,18 +347,40 @@ public class SpawningManager {
      * Otherwise, use scaling fallback: spawn adult NPC at 40% scale.
      */
     public void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position) {
+        spawnCustomAnimalBaby(modelAssetId, customConfig, position, null);
+    }
+
+    /**
+     * Spawn a baby custom animal at the given position in a specific world.
+     * If babyNpcRoleId is set, spawn using that role at full scale.
+     * Otherwise, use scaling fallback: spawn adult NPC at 40% scale.
+     *
+     * @param modelAssetId The model asset ID of the custom animal
+     * @param customConfig The custom animal configuration
+     * @param position     The spawn position
+     * @param worldName    Name of the world to spawn in (null = default world)
+     */
+    public void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position, String worldName) {
         try {
-            World world = Universe.get().getDefaultWorld();
+            // Get world from name if provided, otherwise fall back to default
+            World world = null;
+            if (worldName != null) {
+                world = Universe.get().getWorld(worldName);
+            }
+            if (world == null) {
+                world = Universe.get().getDefaultWorld();
+            }
             if (world == null)
                 return;
 
+            final World finalWorld = world;
             final String finalModelAssetId = modelAssetId;
             final CustomAnimalConfig finalConfig = customConfig;
             final Vector3d spawnPos = position;
 
-            world.execute(() -> {
+            finalWorld.execute(() -> {
                 try {
-                    Store<EntityStore> store = world.getEntityStore().getStore();
+                    Store<EntityStore> store = finalWorld.getEntityStore().getStore();
 
                     String usedRoleName = null;
                     boolean usingBabyRole = false;
@@ -431,19 +482,28 @@ public class SpawningManager {
                 return;
             }
 
-            World world = Universe.get().getDefaultWorld();
+            // Get world from BreedingData, fall back to default
+            World world = null;
+            String worldName = data.getWorldName();
+            if (worldName != null) {
+                world = Universe.get().getWorld(worldName);
+            }
+            if (world == null) {
+                world = Universe.get().getDefaultWorld();
+            }
             if (world == null) {
                 logWarning("Cannot update scale - world is null");
                 return;
             }
 
+            final World finalWorld = world;
             final Ref<EntityStore> finalEntityRef = entityRef;
             final float targetScale = scale;
             final UUID finalAnimalId = animalId;
 
-            world.execute(() -> {
+            finalWorld.execute(() -> {
                 try {
-                    Store<EntityStore> store = world.getEntityStore().getStore();
+                    Store<EntityStore> store = finalWorld.getEntityStore().getStore();
                     ComponentType<EntityStore, ModelComponent> modelType = EcsReflectionUtil.MODEL_TYPE;
 
                     ModelComponent modelComp = null;
@@ -528,7 +588,7 @@ public class SpawningManager {
 
             Ref<EntityStore> entityRef = data.getEntityRef();
             if (entityRef == null) {
-                entityRef = tryReacquireBabyRef(animalId, animalType);
+                entityRef = tryReacquireBabyRef(animalId, animalType, data.getWorldName());
                 if (entityRef != null) {
                     data.setEntityRef(entityRef);
                     logVerbose("Re-acquired entityRef for baby " + animalType.getId());
@@ -539,24 +599,38 @@ public class SpawningManager {
                 }
             }
 
-            World world = Universe.get().getDefaultWorld();
+            // Get world from BreedingData, fall back to default
+            World world = null;
+            String worldName = data.getWorldName();
+            if (worldName != null) {
+                world = Universe.get().getWorld(worldName);
+            }
+            if (world == null) {
+                world = Universe.get().getDefaultWorld();
+            }
             if (world == null) {
                 logWarning("Cannot transform - world is null");
                 return;
             }
 
+            final World finalWorld = world;
             String adultRoleId = animalType.getModelAssetId();
             final Ref<EntityStore> finalEntityRef = entityRef;
             final UUID finalAnimalId = animalId;
 
-            world.execute(() -> {
+            finalWorld.execute(() -> {
                 try {
-                    Store<EntityStore> store = world.getEntityStore().getStore();
+                    Store<EntityStore> store = finalWorld.getEntityStore().getStore();
 
                     // Get baby position
                     TransformComponent transformComp = null;
                     try {
                         transformComp = store.getComponent(finalEntityRef, EcsReflectionUtil.TRANSFORM_TYPE);
+                    } catch (ArrayIndexOutOfBoundsException aioobEx) {
+                        // Entity ref became stale - index is invalid
+                        logVerbose("Baby entity ref is stale (ArrayIndexOutOfBounds) - removing tracking data");
+                        breedingManager.removeData(finalAnimalId);
+                        return;
                     } catch (Exception refEx) {
                         Throwable cause = refEx;
                         if (refEx instanceof java.lang.reflect.InvocationTargetException) {
@@ -566,6 +640,11 @@ public class SpawningManager {
                                 cause.getMessage() != null &&
                                 cause.getMessage().contains("Invalid entity")) {
                             logVerbose("Baby entity ref is stale - removing tracking data");
+                            breedingManager.removeData(finalAnimalId);
+                            return;
+                        }
+                        if (cause instanceof ArrayIndexOutOfBoundsException) {
+                            logVerbose("Baby entity ref is stale (ArrayIndexOutOfBounds wrapped) - removing tracking data");
                             breedingManager.removeData(finalAnimalId);
                             return;
                         }
@@ -627,11 +706,21 @@ public class SpawningManager {
 
                     breedingManager.removeData(finalAnimalId);
 
+                } catch (ArrayIndexOutOfBoundsException aioobEx) {
+                    // Entity ref became stale during transformation - this is expected
+                    logVerbose("Entity ref became stale during transformation - cleaning up");
+                    breedingManager.removeData(finalAnimalId);
                 } catch (Exception e) {
                     Throwable cause = e;
                     if (e instanceof java.lang.reflect.InvocationTargetException) {
                         cause = ((java.lang.reflect.InvocationTargetException) e).getTargetException();
                         if (cause == null) cause = e;
+                    }
+                    // Handle wrapped ArrayIndexOutOfBoundsException
+                    if (cause instanceof ArrayIndexOutOfBoundsException) {
+                        logVerbose("Entity ref became stale during transformation (wrapped) - cleaning up");
+                        breedingManager.removeData(finalAnimalId);
+                        return;
                     }
                     String errorMsg = cause.getMessage();
                     if (errorMsg == null) {
@@ -652,9 +741,16 @@ public class SpawningManager {
      * Attempt to re-acquire an entityRef for a baby animal by scanning the world.
      */
     @SuppressWarnings("unchecked")
-    private Ref<EntityStore> tryReacquireBabyRef(UUID animalId, AnimalType animalType) {
+    private Ref<EntityStore> tryReacquireBabyRef(UUID animalId, AnimalType animalType, String worldName) {
         try {
-            World world = Universe.get().getDefaultWorld();
+            // Get world from name if provided, otherwise fall back to default
+            World world = null;
+            if (worldName != null) {
+                world = Universe.get().getWorld(worldName);
+            }
+            if (world == null) {
+                world = Universe.get().getDefaultWorld();
+            }
             if (world == null)
                 return null;
 
@@ -733,7 +829,15 @@ public class SpawningManager {
             return null;
 
         try {
-            World world = Universe.get().getDefaultWorld();
+            // Get world from BreedingData, fall back to default
+            World world = null;
+            String worldName = data.getWorldName();
+            if (worldName != null) {
+                world = Universe.get().getWorld(worldName);
+            }
+            if (world == null) {
+                world = Universe.get().getDefaultWorld();
+            }
             if (world == null)
                 return null;
 

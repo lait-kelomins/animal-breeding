@@ -114,58 +114,96 @@ public class RespawnManager {
     /**
      * Update positions for all tamed animals.
      * Called periodically to keep saved positions current.
+     * Groups animals by world for multi-world support.
      */
     public void updateTamedAnimalPositions() {
         if (tamingManager == null)
             return;
 
-        World world = Universe.get().getDefaultWorld();
-        if (world == null)
-            return;
+        // Group animals by worldId
+        Map<String, java.util.List<TamedAnimalData>> animalsByWorld = new HashMap<>();
+        for (TamedAnimalData data : tamingManager.getAllTamedAnimals()) {
+            if (data == null || data.isDespawned())
+                continue;
+            if (data.getEntityRef() == null)
+                continue;
 
-        world.execute(() -> {
-            try {
-                int updated = 0;
-                for (TamedAnimalData data : tamingManager.getAllTamedAnimals()) {
-                    if (data == null || data.isDespawned())
-                        continue;
+            String worldId = data.getWorldId();
+            if (worldId == null) worldId = "default";
+            animalsByWorld.computeIfAbsent(worldId, k -> new java.util.ArrayList<>()).add(data);
+        }
 
-                    Object refObj = data.getEntityRef();
-                    if (refObj == null)
-                        continue;
+        final int[] totalUpdated = {0};
 
-                    @SuppressWarnings("unchecked")
-                    Ref<EntityStore> entityRef = (Ref<EntityStore>) refObj;
+        // Process each world's animals on that world's thread
+        for (Map.Entry<String, java.util.List<TamedAnimalData>> entry : animalsByWorld.entrySet()) {
+            String worldId = entry.getKey();
+            java.util.List<TamedAnimalData> animals = entry.getValue();
 
-                    try {
-                        Vector3d pos = positionGetter != null ? positionGetter.apply(entityRef) : null;
-                        if (pos != null) {
-                            // Update position if it changed significantly (> 0.5 blocks)
-                            double dx = pos.getX() - data.getLastX();
-                            double dy = pos.getY() - data.getLastY();
-                            double dz = pos.getZ() - data.getLastZ();
-                            double distSq = dx * dx + dy * dy + dz * dz;
-
-                            if (distSq > 0.25) { // > 0.5 block movement
-                                data.setLastPosition(pos.getX(), pos.getY(), pos.getZ());
-                                updated++;
-                            }
-                        }
-                    } catch (Exception e) {
-                        // Entity may have despawned - mark it
-                        data.setDespawned(true);
-                        data.setEntityRef(null);
-                    }
-                }
-
-                if (updated > 0) {
-                    tamingManager.saveImmediately();
-                    logVerbose("Updated positions for " + updated + " tamed animals");
-                }
-            } catch (Exception e) {
-                // Silent
+            World world = "default".equals(worldId) ?
+                Universe.get().getDefaultWorld() :
+                Universe.get().getWorld(worldId);
+            if (world == null) {
+                world = Universe.get().getDefaultWorld();
             }
-        });
+            if (world == null) continue;
+
+            final java.util.List<TamedAnimalData> finalAnimals = animals;
+            world.execute(() -> {
+                try {
+                    int updated = 0;
+                    for (TamedAnimalData data : finalAnimals) {
+                        Object refObj = data.getEntityRef();
+                        if (refObj == null) continue;
+
+                        @SuppressWarnings("unchecked")
+                        Ref<EntityStore> entityRef = (Ref<EntityStore>) refObj;
+
+                        try {
+                            Vector3d pos = positionGetter != null ? positionGetter.apply(entityRef) : null;
+                            if (pos != null) {
+                                // Update position if it changed significantly (> 0.5 blocks)
+                                double dx = pos.getX() - data.getLastX();
+                                double dy = pos.getY() - data.getLastY();
+                                double dz = pos.getZ() - data.getLastZ();
+                                double distSq = dx * dx + dy * dy + dz * dz;
+
+                                if (distSq > 0.25) { // > 0.5 block movement
+                                    data.setLastPosition(pos.getX(), pos.getY(), pos.getZ());
+                                    updated++;
+                                }
+                            }
+                        } catch (Exception e) {
+                            // Entity may have despawned - mark it
+                            data.setDespawned(true);
+                            data.setEntityRef(null);
+                        }
+                    }
+
+                    if (updated > 0) {
+                        synchronized (totalUpdated) {
+                            totalUpdated[0] += updated;
+                        }
+                    }
+                } catch (Exception e) {
+                    // Silent
+                }
+            });
+        }
+
+        // Save after all worlds processed (with small delay to allow world.execute to complete)
+        if (!animalsByWorld.isEmpty()) {
+            // Schedule save slightly later
+            World defaultWorld = Universe.get().getDefaultWorld();
+            if (defaultWorld != null) {
+                defaultWorld.execute(() -> {
+                    if (totalUpdated[0] > 0) {
+                        tamingManager.saveImmediately();
+                        logVerbose("Updated positions for " + totalUpdated[0] + " tamed animals across all worlds");
+                    }
+                });
+            }
+        }
     }
 
     // ========================================================================
@@ -189,142 +227,172 @@ public class RespawnManager {
             return;
         }
 
-        World world = Universe.get().getDefaultWorld();
-        if (world == null) {
-            logVerbose("[RespawnCheck] world is null");
+        Collection<TamedAnimalData> allAnimals = tamingManager.getAllTamedAnimals();
+        logVerbose("[RespawnCheck] Tamed animals count: " + allAnimals.size());
+
+        if (allAnimals.isEmpty()) {
             return;
         }
 
-        // Must run on world thread to access entity components
-        world.execute(() -> {
-            try {
-                Collection<TamedAnimalData> allAnimals = tamingManager.getAllTamedAnimals();
-                logVerbose("[RespawnCheck] Tamed animals count: " + allAnimals.size());
+        // Group animals by worldId for multi-world support
+        Map<String, java.util.List<TamedAnimalData>> animalsByWorld = new HashMap<>();
+        for (TamedAnimalData data : allAnimals) {
+            String worldId = data.getWorldId();
+            if (worldId == null || worldId.isEmpty()) {
+                worldId = "default";
+            }
+            animalsByWorld.computeIfAbsent(worldId, k -> new java.util.ArrayList<>()).add(data);
+        }
 
-                if (allAnimals.isEmpty()) {
-                    return;
-                }
+        // Process each world that has tamed animals
+        for (Map.Entry<String, java.util.List<TamedAnimalData>> entry : animalsByWorld.entrySet()) {
+            String worldName = entry.getKey();
+            java.util.List<TamedAnimalData> worldAnimals = entry.getValue();
 
-                Store<EntityStore> store = world.getEntityStore().getStore();
+            World world = "default".equals(worldName) ? Universe.get().getDefaultWorld() : Universe.get().getWorld(worldName);
+            if (world == null) {
+                logVerbose("[RespawnCheck] World not found: " + worldName + ", trying default");
+                world = Universe.get().getDefaultWorld();
+            }
+            if (world == null) {
+                logVerbose("[RespawnCheck] No world available for: " + worldName);
+                continue;
+            }
 
-                // Phase 0: Scan all entities for HyTameComponent and build hytameId -> entityRef map
-                Map<UUID, Ref<EntityStore>> entitiesByHytameId = new HashMap<>();
-                ComponentType<EntityStore, HyTameComponent> hyTameType = hyTameTypeSupplier != null
-                        ? hyTameTypeSupplier.get()
-                        : null;
+            final World finalWorld = world;
+            final java.util.List<TamedAnimalData> finalWorldAnimals = worldAnimals;
+            final String finalWorldName = worldName;
 
-                if (hyTameType != null) {
-                    store.forEachChunk((ArchetypeChunk<EntityStore> chunk, CommandBuffer<EntityStore> buffer) -> {
-                        int chunkSize = chunk.size();
-                        for (int i = 0; i < chunkSize; i++) {
-                            try {
-                                HyTameComponent hyTameComp = chunk.getComponent(i, hyTameType);
-                                if (hyTameComp != null && hyTameComp.isTamed() && hyTameComp.getHytameId() != null) {
-                                    Ref<EntityStore> ref = chunk.getReferenceTo(i);
-                                    if (ref != null && ref.isValid()) {
-                                        NPCEntity npc = store.getComponent(ref, EcsReflectionUtil.NPC_TYPE);
-                                        var despawn = store.getComponent(ref, EcsReflectionUtil.DESPAWN_TYPE);
-                                        if (npc != null && !npc.isDespawning() && despawn == null) {
-                                            entitiesByHytameId.put(hyTameComp.getHytameId(), ref);
+            // Must run on world thread to access entity components
+            finalWorld.execute(() -> {
+                try {
+                    Store<EntityStore> store = finalWorld.getEntityStore().getStore();
+
+                    // Phase 0: Scan all entities for HyTameComponent and build hytameId -> entityRef map
+                    Map<UUID, Ref<EntityStore>> entitiesByHytameId = new HashMap<>();
+                    ComponentType<EntityStore, HyTameComponent> hyTameType = hyTameTypeSupplier != null
+                            ? hyTameTypeSupplier.get()
+                            : null;
+
+                    if (hyTameType != null) {
+                        store.forEachChunk((ArchetypeChunk<EntityStore> chunk, CommandBuffer<EntityStore> buffer) -> {
+                            int chunkSize = chunk.size();
+                            for (int i = 0; i < chunkSize; i++) {
+                                try {
+                                    HyTameComponent hyTameComp = chunk.getComponent(i, hyTameType);
+                                    if (hyTameComp != null && hyTameComp.isTamed() && hyTameComp.getHytameId() != null) {
+                                        Ref<EntityStore> ref = chunk.getReferenceTo(i);
+                                        if (ref != null && ref.isValid()) {
+                                            NPCEntity npc = store.getComponent(ref, EcsReflectionUtil.NPC_TYPE);
+                                            var despawn = store.getComponent(ref, EcsReflectionUtil.DESPAWN_TYPE);
+                                            if (npc != null && !npc.isDespawning() && despawn == null) {
+                                                entitiesByHytameId.put(hyTameComp.getHytameId(), ref);
+                                            }
                                         }
                                     }
+                                } catch (Exception e) {
+                                    // Skip invalid entries
                                 }
-                            } catch (Exception e) {
-                                // Skip invalid entries
                             }
-                        }
-                    });
-                    logVerbose("[RespawnCheck] Found " + entitiesByHytameId.size() + " entities with HyTameComponent");
-                }
-
-                // Phase 1: Update entity status for all JSON entries
-                for (TamedAnimalData tamedData : allAnimals) {
-                    if (tamedData.isDead()) {
-                        continue;
+                        });
+                        logVerbose("[RespawnCheck] World " + finalWorldName + ": Found " + entitiesByHytameId.size() + " entities with HyTameComponent");
                     }
 
-                    boolean entityExists = false;
-                    Ref<EntityStore> tamedRef = tamedData.getEntityRef();
-                    UUID hytameId = tamedData.getHytameId();
-
-                    // First check: stored entityRef
-                    if (tamedRef != null && tamedRef.isValid()) {
-                        try {
-                            NPCEntity npcEntity = store.getComponent(tamedRef, EcsReflectionUtil.NPC_TYPE);
-                            var despawnComp = store.getComponent(tamedRef, EcsReflectionUtil.DESPAWN_TYPE);
-
-                            if (npcEntity != null && !npcEntity.isDespawning() && despawnComp == null) {
-                                entityExists = true;
-                            }
-                        } catch (ArrayIndexOutOfBoundsException e) {
-                            // Entity ref became stale between validity check and access - treat as not existing
+                    // Phase 1: Update entity status for animals in this world
+                    for (TamedAnimalData tamedData : finalWorldAnimals) {
+                        if (tamedData.isDead()) {
+                            continue;
                         }
-                    }
 
-                    // Second check: scan by HytameId
-                    if (!entityExists && hytameId != null) {
-                        Ref<EntityStore> foundRef = entitiesByHytameId.get(hytameId);
-                        if (foundRef != null && foundRef.isValid()) {
+                        boolean entityExists = false;
+                        Ref<EntityStore> tamedRef = tamedData.getEntityRef();
+                        UUID hytameId = tamedData.getHytameId();
+
+                        // First check: stored entityRef
+                        if (tamedRef != null && tamedRef.isValid()) {
                             try {
-                                tamedData.setEntityRef(foundRef);
-                                entityExists = true;
-                                logVerbose("[RespawnCheck] Found entity by HytameId: " + tamedData.getCustomName());
+                                NPCEntity npcEntity = store.getComponent(tamedRef, EcsReflectionUtil.NPC_TYPE);
+                                var despawnComp = store.getComponent(tamedRef, EcsReflectionUtil.DESPAWN_TYPE);
 
-                                var uuidComp = store.getComponent(foundRef, EcsReflectionUtil.UUID_TYPE);
-                                if (uuidComp != null) {
-                                    UUID newUuid = uuidComp.getUuid();
-                                    if (newUuid != null && !newUuid.equals(tamedData.getAnimalUuid())) {
-                                        tamingManager.markRespawned(tamedData.getAnimalUuid(), newUuid, foundRef);
-                                    }
+                                if (npcEntity != null && !npcEntity.isDespawning() && despawnComp == null) {
+                                    entityExists = true;
                                 }
                             } catch (ArrayIndexOutOfBoundsException e) {
-                                // Entity ref became stale - treat as not existing
-                                entityExists = false;
+                                // Entity ref became stale between validity check and access - treat as not existing
+                            }
+                        }
+
+                        // Second check: scan by HytameId
+                        if (!entityExists && hytameId != null) {
+                            Ref<EntityStore> foundRef = entitiesByHytameId.get(hytameId);
+                            if (foundRef != null && foundRef.isValid()) {
+                                try {
+                                    tamedData.setEntityRef(foundRef);
+                                    entityExists = true;
+                                    logVerbose("[RespawnCheck] Found entity by HytameId: " + tamedData.getCustomName());
+
+                                    var uuidComp = store.getComponent(foundRef, EcsReflectionUtil.UUID_TYPE);
+                                    if (uuidComp != null) {
+                                        UUID newUuid = uuidComp.getUuid();
+                                        if (newUuid != null && !newUuid.equals(tamedData.getAnimalUuid())) {
+                                            tamingManager.markRespawned(tamedData.getAnimalUuid(), newUuid, foundRef);
+                                        }
+                                    }
+                                } catch (ArrayIndexOutOfBoundsException e) {
+                                    // Entity ref became stale - treat as not existing
+                                    entityExists = false;
+                                }
+                            }
+                        }
+
+                        if (entityExists) {
+                            if (tamedData.isDespawned()) {
+                                tamedData.setDespawned(false);
+                                logVerbose("[RespawnCheck] Entity found for: " + tamedData.getCustomName()
+                                        + ", unmarking despawned");
+                            }
+                        } else {
+                            if (!tamedData.isDespawned()) {
+                                double x = tamedData.getLastX();
+                                double y = tamedData.getLastY();
+                                double z = tamedData.getLastZ();
+                                tamingManager.onTamedAnimalDespawn(tamedData.getAnimalUuid(), x, y, z);
+                                logVerbose("[RespawnCheck] Marking despawned: " + tamedData.getCustomName());
                             }
                         }
                     }
 
-                    if (entityExists) {
-                        if (tamedData.isDespawned()) {
-                            tamedData.setDespawned(false);
-                            logVerbose("[RespawnCheck] Entity found for: " + tamedData.getCustomName()
-                                    + ", unmarking despawned");
-                        }
-                    } else {
-                        if (!tamedData.isDespawned()) {
-                            double x = tamedData.getLastX();
-                            double y = tamedData.getLastY();
-                            double z = tamedData.getLastZ();
-                            tamingManager.onTamedAnimalDespawn(tamedData.getAnimalUuid(), x, y, z);
-                            logVerbose("[RespawnCheck] Marking despawned: " + tamedData.getCustomName());
-                        }
-                    }
-                }
+                    // Phase 2: Respawn despawned animals near players in this world
+                    for (Player player : finalWorld.getPlayers()) {
+                        try {
+                            Vector3d playerPos = player.getTransformComponent().getPosition();
+                            if (playerPos == null)
+                                continue;
 
-                // Phase 2: Respawn despawned animals near players
-                for (Player player : world.getPlayers()) {
-                    try {
-                        Vector3d playerPos = player.getTransformComponent().getPosition();
-                        if (playerPos == null)
-                            continue;
+                            // Only get despawned animals that belong to this world
+                            java.util.List<TamedAnimalData> toRespawn = tamingManager.getDespawnedAnimalsInRegion(
+                                    playerPos.getX(), playerPos.getZ(), RESPAWN_RADIUS);
 
-                        java.util.List<TamedAnimalData> toRespawn = tamingManager.getDespawnedAnimalsInRegion(
-                                playerPos.getX(), playerPos.getZ(), RESPAWN_RADIUS);
+                            for (TamedAnimalData tamedData : toRespawn) {
+                                // Filter by world
+                                String animalWorld = tamedData.getWorldId();
+                                if (animalWorld == null || animalWorld.isEmpty()) animalWorld = "default";
+                                if (!finalWorldName.equals(animalWorld)) continue;
 
-                        for (TamedAnimalData tamedData : toRespawn) {
-                            if (!tamedData.isDead()) {
-                                respawnTamedAnimal(world, store, tamedData);
+                                if (!tamedData.isDead()) {
+                                    respawnTamedAnimal(finalWorld, store, tamedData);
+                                }
                             }
+                        } catch (Exception e) {
+                            logVerbose("[RespawnCheck] Error processing player: " + e.getMessage());
                         }
-                    } catch (Exception e) {
-                        logVerbose("[RespawnCheck] Error processing player: " + e.getMessage());
                     }
+                } catch (Exception e) {
+                    logWarning("[RespawnCheck] Exception in world.execute: " + e.getMessage());
+                    e.printStackTrace();
                 }
-            } catch (Exception e) {
-                logWarning("[RespawnCheck] Exception in world.execute: " + e.getMessage());
-                e.printStackTrace();
-            }
-        });
+            });
+        }
     }
 
     // ========================================================================

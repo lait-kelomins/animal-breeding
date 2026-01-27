@@ -195,7 +195,15 @@ public class TamingManager {
      * Use this when taming babies to ensure correct growth stage is saved.
      */
     public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type, Ref<EntityStore> entityRef, double x, double y, double z, GrowthStage growthStage) {
-        return tameAnimal(null, animalId, ownerUuid, name, type, entityRef, x, y, z, growthStage);
+        return tameAnimal(null, animalId, ownerUuid, name, type, entityRef, x, y, z, growthStage, null);
+    }
+
+    /**
+     * Tame an animal with entity reference, initial position, growth stage, and world name.
+     * Use this overload for multi-world support.
+     */
+    public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type, Ref<EntityStore> entityRef, double x, double y, double z, GrowthStage growthStage, String worldName) {
+        return tameAnimal(null, animalId, ownerUuid, name, type, entityRef, x, y, z, growthStage, worldName);
     }
 
     /**
@@ -203,8 +211,9 @@ public class TamingManager {
      * This is the core taming method that all others delegate to.
      *
      * @param hytameId Stable ID from ECS TameComponent (null to generate new)
+     * @param worldName World name for multi-world support (null uses "default")
      */
-    public TamedAnimalData tameAnimal(UUID hytameId, UUID animalId, UUID ownerUuid, String name, AnimalType type, Ref<EntityStore> entityRef, double x, double y, double z, GrowthStage growthStage) {
+    public TamedAnimalData tameAnimal(UUID hytameId, UUID animalId, UUID ownerUuid, String name, AnimalType type, Ref<EntityStore> entityRef, double x, double y, double z, GrowthStage growthStage, String worldName) {
         if (animalId == null || ownerUuid == null || name == null) {
             return null;
         }
@@ -225,6 +234,10 @@ public class TamingManager {
             if (growthStage != null && existing.getGrowthStage() != growthStage) {
                 existing.setGrowthStage(growthStage);
             }
+            // Update world ID if provided and different
+            if (worldName != null && !worldName.isEmpty() && !worldName.equals(existing.getWorldId())) {
+                existing.setWorldId(worldName);
+            }
             return existing;
         }
 
@@ -243,6 +256,10 @@ public class TamingManager {
             }
             if (x != 0 || y != 0 || z != 0) {
                 existing.setLastPosition(x, y, z);
+            }
+            // Update world ID if provided
+            if (worldName != null && !worldName.isEmpty()) {
+                existing.setWorldId(worldName);
             }
             tamedAnimalsByUuid.put(animalId, existing);
             markDirty(true);
@@ -270,12 +287,16 @@ public class TamingManager {
         if (growthStage == GrowthStage.BABY) {
             data.setBirthTime(System.currentTimeMillis());
         }
+        // Set world ID for multi-world support
+        if (worldName != null && !worldName.isEmpty()) {
+            data.setWorldId(worldName);
+        }
 
         tamedAnimalsByUuid.put(animalId, data);
         tamedByHytameId.put(data.getHytameId(), data);
         markDirty(true); // Save immediately - user action
 
-        log("Tamed animal: " + name + " (" + type + ", " + growthStage + ") at (" +
+        log("Tamed animal: " + name + " (" + type + ", " + growthStage + ") in world=" + (worldName != null ? worldName : "default") + " at (" +
             String.format("%.1f, %.1f, %.1f", x, y, z) + ") hytameId=" + data.getHytameId() + " owned by " + ownerUuid);
         return data;
     }
@@ -687,7 +708,7 @@ public class TamingManager {
         // No JSON entry - create one (entity was tamed but we lost the JSON data)
         // This is a recovery scenario or first-time setup
         TamedAnimalData newData = tameAnimal(hytameId, entityUuid, tamerUuid,
-            "Unknown", null, entityRef, x, y, z, GrowthStage.ADULT);
+            "Unknown", null, entityRef, x, y, z, GrowthStage.ADULT, null);
         if (newData != null) {
             log("Created JSON entry for existing tamed entity hytameId=" + hytameId);
             return SyncResult.CREATED;

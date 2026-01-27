@@ -167,19 +167,37 @@ public class BreedingTickManager {
             }
         }
 
-        // Debug logging
-        if (!animalsInLove.isEmpty() && logger != null) {
-            logger.accept("[Hearts] Animals in love: " + animalsInLove.size());
+        // Group animals by world for multi-world support
+        Map<String, List<BreedingData>> animalsByWorld = new HashMap<>();
+        for (BreedingData data : animalsInLove) {
+            String worldName = data.getWorldName();
+            if (worldName == null) {
+                worldName = "__default__";
+            }
+            animalsByWorld.computeIfAbsent(worldName, k -> new ArrayList<>()).add(data);
         }
 
-        // Spawn heart particles using UUID lookup for fresh positions
+        // Spawn heart particles per world using UUID lookup for fresh positions
         if (!animalsInLove.isEmpty() && heartParticlePositionSpawner != null) {
-            World world = Universe.get().getDefaultWorld();
-            if (world != null) {
+            for (Map.Entry<String, List<BreedingData>> worldEntry : animalsByWorld.entrySet()) {
+                String worldName = worldEntry.getKey();
+                List<BreedingData> worldAnimals = worldEntry.getValue();
+
+                World world = "__default__".equals(worldName) ?
+                    Universe.get().getDefaultWorld() :
+                    Universe.get().getWorld(worldName);
+                if (world == null) {
+                    world = Universe.get().getDefaultWorld();
+                }
+                if (world == null) continue;
+
+                final World finalWorld = world;
+                final List<BreedingData> finalWorldAnimals = worldAnimals;
+
                 world.execute(() -> {
                     try {
-                        Store<EntityStore> store = world.getEntityStore().getStore();
-                        for (BreedingData data : animalsInLove) {
+                        Store<EntityStore> store = finalWorld.getEntityStore().getStore();
+                        for (BreedingData data : finalWorldAnimals) {
                             // Use UUID lookup to get fresh position
                             Vector3d pos = findEntityPositionByUuid(store, data);
                             if (pos != null) {
@@ -205,28 +223,44 @@ public class BreedingTickManager {
         if (inLoveCount < 2)
             return;
 
-        // Check breeding for each type with 2+ animals in love
-        World world = Universe.get().getDefaultWorld();
-        if (world == null)
-            return;
-
+        // Check breeding for each type with 2+ animals in love, grouped by world
         for (Map.Entry<AnimalType, List<BreedingData>> entry : tickLoveByType.entrySet()) {
             List<BreedingData> animalsOfType = entry.getValue();
             if (animalsOfType.size() < 2)
                 continue;
 
-            BreedingData animal1 = animalsOfType.get(0);
-            BreedingData animal2 = animalsOfType.get(1);
-
-            if (animal1.getEntityRef() == null || animal2.getEntityRef() == null) {
-                continue;
+            // Group by world within this animal type
+            Map<String, List<BreedingData>> typeByWorld = new HashMap<>();
+            for (BreedingData data : animalsOfType) {
+                if (data.getEntityRef() == null) continue;
+                String worldName = data.getWorldName();
+                if (worldName == null) worldName = "__default__";
+                typeByWorld.computeIfAbsent(worldName, k -> new ArrayList<>()).add(data);
             }
 
-            checkBreedingDistance(world, entry.getKey(), animal1, animal2);
+            // Check breeding only within the same world
+            for (Map.Entry<String, List<BreedingData>> worldEntry : typeByWorld.entrySet()) {
+                List<BreedingData> worldAnimals = worldEntry.getValue();
+                if (worldAnimals.size() < 2) continue;
+
+                String worldName = worldEntry.getKey();
+                World world = "__default__".equals(worldName) ?
+                    Universe.get().getDefaultWorld() :
+                    Universe.get().getWorld(worldName);
+                if (world == null) {
+                    world = Universe.get().getDefaultWorld();
+                }
+                if (world == null) continue;
+
+                BreedingData animal1 = worldAnimals.get(0);
+                BreedingData animal2 = worldAnimals.get(1);
+
+                checkBreedingDistance(world, entry.getKey(), animal1, animal2);
+            }
         }
 
-        // Also check custom animal breeding
-        checkCustomAnimalBreeding(world);
+        // Also check custom animal breeding (handles multi-world internally)
+        checkCustomAnimalBreeding();
     }
 
     /**
@@ -268,18 +302,23 @@ public class BreedingTickManager {
 
     /**
      * Check for custom animals in love that are close enough to breed.
+     * Groups by world and model asset ID for multi-world support.
      */
-    private void checkCustomAnimalBreeding(World world) {
-        // Group custom animals in love by modelAssetId
-        Map<String, List<BreedingManager.CustomAnimalLoveData>> byType = new HashMap<>();
+    private void checkCustomAnimalBreeding() {
+        // Group custom animals in love by modelAssetId AND world
+        // Key: "worldName:modelAssetId"
+        Map<String, List<BreedingManager.CustomAnimalLoveData>> byTypeAndWorld = new HashMap<>();
         for (BreedingManager.CustomAnimalLoveData data : breedingManager.getCustomAnimalsInLove()) {
             if (data.isInLove() && data.getEntityRef() != null) {
-                byType.computeIfAbsent(data.getModelAssetId(), k -> new ArrayList<>()).add(data);
+                String worldName = data.getWorldName();
+                if (worldName == null) worldName = "__default__";
+                String key = worldName + ":" + data.getModelAssetId();
+                byTypeAndWorld.computeIfAbsent(key, k -> new ArrayList<>()).add(data);
             }
         }
 
-        // For each type with 2+ animals in love, check distance
-        for (Map.Entry<String, List<BreedingManager.CustomAnimalLoveData>> entry : byType.entrySet()) {
+        // For each type+world with 2+ animals in love, check distance
+        for (Map.Entry<String, List<BreedingManager.CustomAnimalLoveData>> entry : byTypeAndWorld.entrySet()) {
             List<BreedingManager.CustomAnimalLoveData> animalsOfType = entry.getValue();
             if (animalsOfType.size() < 2)
                 continue;
@@ -290,13 +329,24 @@ public class BreedingTickManager {
             if (animal1.getEntityRef() == null || animal2.getEntityRef() == null)
                 continue;
 
+            // Get world from animal data
+            String worldName = animal1.getWorldName();
+            World world = (worldName == null || "__default__".equals(worldName)) ?
+                Universe.get().getDefaultWorld() :
+                Universe.get().getWorld(worldName);
+            if (world == null) {
+                world = Universe.get().getDefaultWorld();
+            }
+            if (world == null) continue;
+
+            final World finalWorld = world;
             final BreedingManager.CustomAnimalLoveData finalAnimal1 = animal1;
             final BreedingManager.CustomAnimalLoveData finalAnimal2 = animal2;
-            final String modelAssetId = entry.getKey();
+            final String modelAssetId = animal1.getModelAssetId();
 
             world.execute(() -> {
                 try {
-                    Store<EntityStore> store = world.getEntityStore().getStore();
+                    Store<EntityStore> store = finalWorld.getEntityStore().getStore();
 
                     Vector3d pos1 = getPositionFromRef(store, finalAnimal1.getEntityRef());
                     Vector3d pos2 = getPositionFromRef(store, finalAnimal2.getEntityRef());

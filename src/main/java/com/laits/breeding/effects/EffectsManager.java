@@ -13,6 +13,7 @@ import com.hypixel.hytale.server.core.universe.world.ParticleUtil;
 import com.hypixel.hytale.server.core.universe.world.SoundUtil;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.laits.breeding.util.EcsReflectionUtil;
 import com.laits.breeding.util.EntityUtil;
 
 import java.util.function.BiConsumer;
@@ -93,17 +94,33 @@ public class EffectsManager {
     }
 
     /**
-     * Play feeding sound at an entity's position (alternate implementation).
+     * Play feeding sound at an entity's position (uses default world).
      *
      * @param entity The entity to play the sound at
      */
     public void playFeedingSoundAtEntity(Entity entity) {
+        playFeedingSoundAtEntity(entity, null);
+    }
+
+    /**
+     * Play feeding sound at an entity's position in a specific world.
+     *
+     * @param entity    The entity to play the sound at
+     * @param worldName The world name (null for default world)
+     */
+    public void playFeedingSoundAtEntity(Entity entity, String worldName) {
         try {
             Vector3d pos = EntityUtil.getEntityPosition(entity);
             if (pos == null)
                 return;
 
-            World world = Universe.get().getDefaultWorld();
+            World world = null;
+            if (worldName != null) {
+                world = Universe.get().getWorld(worldName);
+            }
+            if (world == null) {
+                world = Universe.get().getDefaultWorld();
+            }
             if (world == null)
                 return;
 
@@ -120,11 +137,21 @@ public class EffectsManager {
     }
 
     /**
-     * Spawn heart particles at an entity's position.
+     * Spawn heart particles at an entity's position (uses default world).
      *
      * @param entity The entity to spawn particles above
      */
     public void spawnHeartParticlesAtEntity(Entity entity) {
+        spawnHeartParticlesAtEntity(entity, null);
+    }
+
+    /**
+     * Spawn heart particles at an entity's position in a specific world.
+     *
+     * @param entity    The entity to spawn particles above
+     * @param worldName The world name (null for default world)
+     */
+    public void spawnHeartParticlesAtEntity(Entity entity, String worldName) {
         try {
             Vector3d position = EntityUtil.getEntityPosition(entity);
             if (position == null)
@@ -134,7 +161,13 @@ public class EffectsManager {
             double y = position.getY() + PARTICLE_HEIGHT_OFFSET;
             double z = position.getZ();
 
-            World world = Universe.get().getDefaultWorld();
+            World world = null;
+            if (worldName != null) {
+                world = Universe.get().getWorld(worldName);
+            }
+            if (world == null) {
+                world = Universe.get().getDefaultWorld();
+            }
             if (world == null)
                 return;
 
@@ -221,7 +254,7 @@ public class EffectsManager {
     }
 
     /**
-     * Get position from an entity reference using reflection for robustness.
+     * Get position from an entity reference.
      */
     private Vector3d getPositionFromRef(Store<EntityStore> store, Ref<EntityStore> ref) {
         try {
@@ -233,7 +266,7 @@ public class EffectsManager {
                 store = refStore;
             }
 
-            TransformComponent transform = store.getComponent(ref, TransformComponent.getComponentType());
+            TransformComponent transform = store.getComponent(ref, EcsReflectionUtil.TRANSFORM_TYPE);
 
             if (transform == null)
                 return null;
@@ -243,7 +276,7 @@ public class EffectsManager {
             return pos;
         } catch (Exception e) {
             if (warningLogger != null) {
-                warningLogger.accept("[Hearts] getPositionFromRef error: " + e.getMessage());
+                warningLogger.accept("[Hearts] getPositionFromRef error: " + e.getMessage() + " - ref is " + (ref != null ? "valid" : "NULL"));
             }
         }
         return null;
