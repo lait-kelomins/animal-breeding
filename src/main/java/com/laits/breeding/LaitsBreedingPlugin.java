@@ -65,7 +65,6 @@ import com.laits.breeding.ui.NametagUIPage;
 import com.laits.breeding.listeners.UseBlockHandler;
 import com.laits.breeding.listeners.DetectTamedDeath;
 import com.laits.breeding.listeners.DetectTamedDespawn;
-import com.laits.breeding.listeners.LaitDamageDisabler;
 import com.laits.breeding.listeners.NewAnimalSpawnDetector;
 import com.laits.breeding.interactions.FeedAnimalInteraction;
 import com.laits.breeding.interactions.NameAnimalInteraction;
@@ -141,12 +140,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         return ATTITUDE_FIELD;
     }
 
-    // NOTE: Heart particle effect constants moved to EffectsManager
-
-    // Breeding distance - animals must be within this range to breed
-    private static final double BREEDING_DISTANCE = 5.0;
-    // How long animals stay in love (milliseconds)
-    private static final long LOVE_DURATION = 30000; // 30 seconds
+    // NOTE: Breeding constants (BREEDING_DISTANCE, LOVE_DURATION) moved to BreedingTickManager
 
     private ConfigManager configManager;
     private BreedingManager breedingManager;
@@ -528,9 +522,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         // Register ECS system for block interactions
         try {
             getEntityStoreRegistry().registerSystem(new UseBlockHandler());
-            // TODO: LaitDamageDisabler needs to implement ISystem<EntityStore> - commenting
-            // out for now
-            // getEntityStoreRegistry().registerSystem(new LaitDamageDisabler());
         } catch (Exception e) {
             // Silent
         }
