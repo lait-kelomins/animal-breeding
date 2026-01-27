@@ -168,7 +168,7 @@ public class NametagUIPage extends InteractiveCustomUIPage<NametagUIPage.Nametag
                                 // Get position for taming
                                 double px = 0, py = 0, pz = 0;
                                 try {
-                                    com.hypixel.hytale.math.vector.Vector3d pos = plugin.getPositionFromRef(targetAnimalRef);
+                                    com.hypixel.hytale.math.vector.Vector3d pos = com.laits.breeding.util.EntityUtil.getPositionFromRef(targetAnimalRef);
                                     if (pos != null) {
                                         px = pos.getX();
                                         py = pos.getY();

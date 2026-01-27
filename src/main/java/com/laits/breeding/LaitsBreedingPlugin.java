@@ -437,7 +437,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         respawnManager.setTamingManager(tamingManager);
         respawnManager.setBreedingManager(breedingManager);
         respawnManager.setHyTameTypeSupplier(() -> hyTameComponentType);
-        respawnManager.setPositionGetter(ref -> getPositionFromRef(ref));
+        respawnManager.setPositionGetter(ref -> EntityUtil.getPositionFromRef(ref));
         respawnManager.setVerboseLogging(verboseLogging);
         respawnManager.setLogger(msg -> getLogger().atInfo().log(msg));
         respawnManager.setWarningLogger(msg -> getLogger().atWarning().log(msg));
@@ -463,8 +463,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         breedingTickManager.setOnCustomBreedingComplete((modelAssetId, animals) -> {
             // Get positions for midpoint calculation
-            Vector3d pos1 = getPositionFromRef(animals[0].getEntityRef());
-            Vector3d pos2 = getPositionFromRef(animals[1].getEntityRef());
+            Vector3d pos1 = EntityUtil.getPositionFromRef(animals[0].getEntityRef());
+            Vector3d pos2 = EntityUtil.getPositionFromRef(animals[1].getEntityRef());
             if (pos1 != null && pos2 != null) {
                 Vector3d midpoint = new Vector3d(
                         (pos1.getX() + pos2.getX()) / 2.0,
@@ -1979,109 +1979,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         effectsManager.playFeedingSound(targetEntity);
     }
 
-    /**
-     * Try to find another animal in love to breed with.
-     * For now, this uses our tracked animals - in future, should scan nearby
-     * entities.
-     */
-    private void tryFindMate(UUID animalId, AnimalType type, Player player) {
-        BreedingData currentData = breedingManager.getData(animalId);
-        if (currentData == null || !currentData.isInLove()) {
-            return;
-        }
-
-        // Look for another animal of same type that's in love
-        for (BreedingData data : breedingManager.getAllBreedingData()) {
-            if (data.getAnimalId().equals(animalId)) {
-                continue; // Skip self
-            }
-            if (data.getAnimalType() != type) {
-                continue; // Different type
-            }
-            if (!data.isInLove()) {
-                continue; // Not in love
-            }
-
-            // Found a mate! Start breeding
-            boolean success = breedingManager.tryBreed(animalId, data.getAnimalId(), type);
-            if (success && player != null) {
-                long gestationTime = configManager.getGestationPeriod(type);
-                player.sendMessage(Message.raw("[Lait:AnimalBreeding] Two " + type.getId() + "s are breeding!"));
-                player.sendMessage(
-                        Message.raw("[Lait:AnimalBreeding] Baby arrives in " + (gestationTime / 1000) + " seconds"));
-            }
-            break;
-        }
-    }
-
-    /**
-     * Try to find another animal in love and breed INSTANTLY (spawn baby
-     * immediately).
-     */
-    private void tryFindMateInstant(UUID animalId, AnimalType type, Entity targetEntity, Player player) {
-        BreedingData currentData = breedingManager.getData(animalId);
-        if (currentData == null || !currentData.isInLove()) {
-            return;
-        }
-
-        // Look for another animal of same type that's in love
-        for (BreedingData data : breedingManager.getAllBreedingData()) {
-            if (data.getAnimalId().equals(animalId)) {
-                continue; // Skip self
-            }
-            if (data.getAnimalType() != type) {
-                continue; // Different type
-            }
-            if (!data.isInLove()) {
-                continue; // Not in love
-            }
-            if (data.isPregnant()) {
-                continue; // Already pregnant
-            }
-
-            // Found a mate! INSTANT BREEDING
-            currentData.completeBreeding();
-            data.completeBreeding();
-
-            // Get spawn position from the target entity
-            Vector3d spawnPos = EntityUtil.getEntityPosition(targetEntity);
-            if (spawnPos == null) {
-                spawnPos = new Vector3d(0, 65, 0);
-            }
-
-            // Spawn baby with parent UUIDs for auto-taming
-            spawningManager.spawnBabyAnimal(type, spawnPos, animalId, data.getAnimalId());
-
-            if (player != null) {
-                player.sendMessage(Message.raw("[Lait:AnimalBreeding] Two " + type.getId() + "s have bred!"));
-                player.sendMessage(Message.raw("[Lait:AnimalBreeding] A baby " + type.getId() + " has been born!"));
-            }
-
-            break;
-        }
-    }
-
     // NOTE: spawnHeartParticlesAtEntity(), spawnHeartParticlesAtRef(),
     // playFeedingSoundAtEntity()
     // have been moved to EffectsManager
-
-    /**
-     * Get position from an entity reference.
-     *
-     * @see EntityUtil#getPositionFromRef(Ref)
-     */
-    public Vector3d getPositionFromRef(Ref<EntityStore> entityRef) {
-        return EntityUtil.getPositionFromRef(entityRef);
-    }
-
-    /**
-     * Get UUID for a player entity.
-     *
-     * @see EntityUtil#getPlayerUuidFromEntity(Player)
-     */
-    public UUID getPlayerUuidFromEntity(Player player) {
-        return EntityUtil.getPlayerUuidFromEntity(player);
-    }
+    // NOTE: tryFindMate(), tryFindMateInstant() were dead code and have been removed
+    // NOTE: getPositionFromRef(), getPlayerUuidFromEntity() wrappers have been inlined to EntityUtil
 
     /**
      * Check if an item ID is a Name Tag item.
