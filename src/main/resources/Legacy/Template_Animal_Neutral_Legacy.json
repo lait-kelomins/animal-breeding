@@ -311,6 +311,10 @@
       "Value": false,
       "Description": "Whether this NPC can breathe underwater."
     },
+    "IsFeedable": {
+      "Value": true,
+      "Description": "Whether this NPC can be fed."
+    },
     "NameTranslationKey": {
       "Value": "server.npcRoles.Template.name",
       "Description": "The translation key for the NPC name display"
@@ -3069,18 +3073,57 @@
     }
   ],
   "InteractionInstruction": {
-    "Enabled": { "Compute": "IsHarvestable" },
+    "Enabled": {
+      "Compute": "IsFeedable || IsHarvestable || IsMountable"
+    },
     "Instructions": [
       {
-        "Enabled": { "Compute": "IsHarvestable" },
-        "Instructions": [
-          {
-            "Sensor": {
-              "$Comment": "Check the negative first so we can exit early and avoid the rest of the logic",
-              "Type": "Not",
-              "Sensor": {
+        "Sensor": {
+          "$Comment": "Check the negative first so we can exit early and avoid the rest of the logic",
+          "Type": "Not",
+          "Sensor": {
+            "Type": "Or",
+            "Sensors": [
+              {
+                "Enabled": {"Compute": "IsFeedable" },
                 "Type": "And",
                 "Sensors": [
+                  {
+                    "Type": "Target",
+                    "Filters": [
+                      {
+                        "Type": "ItemInHand",
+                        "Items": {
+                          "Compute": "LovedItems"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "Type": "Not",
+                    "Sensor": {
+                      "Type": "State",
+                      "State": "Panic"
+                    }
+                  },
+                  {
+                    "Type": "CanInteract",
+                    "ViewSector": 360,
+                    "Attitudes": [
+                        "Friendly",
+                        "Revered"
+                      ]
+                  }
+                ]
+              },
+              {
+                "Enabled": {"Compute": "IsHarvestable" },
+                "Type": "And",
+                "Sensors": [
+                  {
+                    "Type": "Tamed",
+                    "Set": true
+                  },
                   {
                     "Type": "Alarm",
                     "Name": "Harvest_Ready",
@@ -3091,52 +3134,246 @@
                     "Attitudes": { "Compute": "HarvestRequiredAttitudes" }
                   }
                 ]
-              }
-            },
-            "Actions": [
+              },
               {
-                "Type": "SetInteractable",
-                "Interactable": false
+                "Enabled": {"Compute": "IsMountable" },
+                "Type": "And",
+                "Sensors": [
+                  {
+                    "Type": "Tamed",
+                    "Set": true
+                  },
+                  {
+                    "Type": "Not",
+                    "Sensor": {
+                      "Type": "Target",
+                      "Filters": [
+                        {
+                          "Type": "ItemInHand",
+                          "Items": {
+                            "Compute": "LovedItems"
+                          }
+                        }
+                      ]
+                    }
+                  }
+                ]
               }
             ]
-          },
+          }
+        },
+        "Actions": [
           {
-            "$Comment": "Allow contextual interactions (shearing) but hide F key prompt",
-            "Continue": true,
-            "Sensor": {
-              "Type": "Any"
-            },
-            "Actions": [
-              {
-                "Type": "SetInteractable",
-                "Interactable": true,
-                "ShowPrompt": false
-              }
-            ]
-          },
-          {
-            "$Comment": "Harvest action triggered by left-click with appropriate tool",
-            "Sensor": {
-              "Type": "And",
-              "Sensors": [
+            "Type": "SetInteractable",
+            "Interactable": false
+          }
+        ]
+      },
+      {
+        "Enabled": {"Compute": "IsFeedable" },
+        "Continue": true,
+        "Sensor": {
+          "Type": "And",
+          "Sensors": [
+            {
+              "Type": "Target",
+              "Filters": [
                 {
-                  "Enabled": { "Compute": "!isEmpty(HarvestInteractionContext)" },
-                  "Type": "InteractionContext",
-                  "Context": { "Compute": "HarvestInteractionContext" }
-                },
-                {
-                  "Type": "Alarm",
-                  "Name": "Harvest_Ready",
-                  "State": "Unset"
+                  "Type": "ItemInHand",
+                  "Items": {
+                    "Compute": "LovedItems"
+                  }
                 }
               ]
             },
-            "Actions": [
-              {
+            {
+              "Type": "Not",
+              "Sensor": {
                 "Type": "State",
-                "State": "$Harvest"
+                "State": "Panic"
               }
+            }
+          ]
+        },
+        "Actions": [
+          {
+            "Type": "SetInteractable",
+            "Interactable": true,
+            "Hint": "server.interactionHints.feed"
+          }
+        ]
+      },
+      {
+        "Enabled": {"Compute": "IsHarvestable" },
+        "Continue": true,
+        "Sensor": {
+          "Type": "And",
+          "Sensors": [
+            {
+              "Type": "Tamed",
+              "Set": true
+            },
+            {
+              "Type": "Alarm",
+              "Name": "Harvest_Ready",
+              "State": "Unset"
+            }
+          ]
+        },
+        "Actions": [
+          {
+            "Type": "SetInteractable",
+            "Interactable": true,
+            "ShowPrompt": false
+          }
+        ]
+      },
+      {
+        "Enabled": {"Compute": "IsMountable" },
+        "Continue": true,
+        "Sensor": {
+          "Type": "And",
+          "Sensors": [
+            {
+              "Type": "Tamed",
+              "Set": true
+            },
+            {
+              "Type": "Not",
+              "Sensor": {
+                "Type": "Target",
+                "Filters": [
+                  {
+                    "Type": "ItemInHand",
+                    "Items": {
+                      "Compute": "LovedItems"
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        "Actions": [
+          {
+            "Type": "SetInteractable",
+            "Interactable": true,
+            "Hint": "server.interactionHints.mount"
+          }
+        ]
+      },
+      {
+        "Enabled": {"Compute": "IsFeedable" },
+        "Sensor": {
+          "Type": "And",
+          "Sensors": [
+            {
+              "Type": "Target",
+              "Filters": [
+                {
+                  "Type": "ItemInHand",
+                  "Items": {
+                    "Compute": "LovedItems"
+                  }
+                }
+              ]
+            },
+            {
+              "Type": "HasInteracted"
+            }
+          ]
+        },
+        "Actions": [
+          {
+            "Type": "RemovePlayerHeldItems",
+            "count": 1
+          },
+          {
+            "Type": "OverrideAttitude",
+            "Attitude": "Ignore",
+            "Duration": 2
+          },
+          {
+            "Type": "PlayAnimation",
+            "Slot": "Status",
+            "Animation": "Eat"
+          },
+          {
+            "Type": "Timeout",
+            "Delay": [
+              2,
+              3
             ]
+          },
+          {
+            "Type": "SpawnParticles",
+            "Offset": [
+              0,
+              2,
+              0
+            ],
+            "ParticleSystem": "Hearts"
+          },
+          {
+            "Type": "SetInteractable",
+            "Interactable": false
+          },
+          {
+            "Type": "HyTameOrFeed",
+            "Food": { "Compute": "LovedItems" }
+          }
+        ]
+      },
+      {
+        "Enabled": {"Compute": "IsHarvestable" },
+        "$Comment": "Harvest action triggered by left-click with appropriate tool",
+        "Sensor": {
+          "Type": "And",
+          "Sensors": [
+            {
+              "Enabled": { "Compute": "!isEmpty(HarvestInteractionContext)" },
+              "Type": "InteractionContext",
+              "Context": { "Compute": "HarvestInteractionContext" }
+            },
+            {
+              "Type": "Alarm",
+              "Name": "Harvest_Ready",
+              "State": "Unset"
+            }
+          ]
+        },
+        "Actions": [
+          {
+            "Type": "State",
+            "State": "$Harvest"
+          }
+        ]
+      },
+      {
+        "Enabled": { "Compute": "IsMountable" },
+        "Sensor": {
+          "Type": "And",
+          "Sensors": [
+            {
+              "Type": "Tamed",
+              "Set": true
+            },
+            {
+              "Type": "HasInteracted"
+            }
+          ]
+        },
+        "Actions": [
+          {
+            "Type": "Mount",
+            "AnchorX": { "Compute": "MountAnchorX" },
+            "AnchorY": { "Compute": "MountAnchorY" },
+            "AnchorZ": { "Compute": "MountAnchorZ" },
+            "MovementConfig": { "Compute": "MountMovementConfig" }
+          },
+          {
+            "Type": "SetInteractable",
+            "Interactable": false
           }
         ]
       }
