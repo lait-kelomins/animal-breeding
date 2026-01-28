@@ -65,6 +65,8 @@ import com.laits.breeding.ui.NametagUIPage;
 import com.laits.breeding.listeners.UseBlockHandler;
 import com.laits.breeding.listeners.DetectTamedDeath;
 import com.laits.breeding.listeners.DetectTamedDespawn;
+import com.laits.breeding.listeners.CoopResidentTracker;
+import com.laits.breeding.listeners.CaptureCratePacketListener;
 import com.laits.breeding.listeners.NewAnimalSpawnDetector;
 import com.laits.breeding.interactions.FeedAnimalInteraction;
 import com.laits.breeding.interactions.NameAnimalInteraction;
@@ -116,7 +118,7 @@ import java.util.function.BiConsumer;
  */
 public class LaitsBreedingPlugin extends JavaPlugin {
 
-    public static final String VERSION = "1.4.2";
+    public static final String VERSION = "1.4.3";
 
     private static LaitsBreedingPlugin instance;
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClassFull();
@@ -336,6 +338,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 LOGGER.atInfo().log("[Taming] " + msg);
         });
         tamingManager.setPersistenceManager(persistenceManager);
+        // Set grace period from config (convert seconds to milliseconds)
+        tamingManager.setGracePeriodMs(configManager.getInitializationGracePeriodSeconds() * 1000);
 
         // Load saved tamed animals
         java.util.List<TamedAnimalData> savedAnimals = persistenceManager.loadData();
@@ -389,6 +393,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         mouseInteractionHandler = new MouseInteractionHandler(configManager, breedingManager, effectsManager, interactionSetupManager);
         mouseInteractionHandler.setVerboseLogging(verboseLogging);
         mouseInteractionHandler.setLogger(msg -> getLogger().atInfo().log(msg));
+        mouseInteractionHandler.setTamingManager(tamingManager);
 
         // Set up breeding callbacks
         breedingTickManager.setOnBreedingComplete((type, animals) -> {
@@ -551,6 +556,31 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             logWarning("Failed to register DetectTamedDeath: " + e.getMessage());
         }
 
+        // Register coop/capture crate tracking to prevent duplication
+        try {
+            getEntityStoreRegistry().registerSystem(new CoopResidentTracker());
+            logVerbose("CoopResidentTracker system registered");
+        } catch (Exception e) {
+            logWarning("Failed to register CoopResidentTracker: " + e.getMessage());
+        }
+
+        // Register NetworkId cache for O(1) entity lookup by network ID
+        try {
+            getEntityStoreRegistry().registerSystem(new com.laits.breeding.util.NetworkIdCache());
+            logVerbose("NetworkIdCache system registered");
+        } catch (Exception e) {
+            logWarning("Failed to register NetworkIdCache: " + e.getMessage());
+        }
+
+        // Register capture crate packet listener for detecting captures/releases
+        try {
+            CaptureCratePacketListener captureCrateListener = new CaptureCratePacketListener(getLogger());
+            captureCrateListener.register();
+            logVerbose("CaptureCratePacketListener registered");
+        } catch (Exception e) {
+            logWarning("Failed to register CaptureCratePacketListener: " + e.getMessage());
+        }
+
         // NOTE: NewAnimalSpawnDetector is registered in start() after world is ready
 
         // Register unified /breed command (recommended)
@@ -622,6 +652,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Attach Root_FeedAnimal interaction to all breedable animals
         attachInteractionsToAnimals();
+
+        // Mark taming manager as initialized after initial entity scanning
+        // This starts the grace period timer to prevent duplication on slow servers
+        if (tamingManager != null) {
+            tamingManager.markInitialized();
+        }
 
         // Register entity removal listener to clean up breeding data when animals die
         registerEntityRemovalListener();
@@ -836,8 +872,62 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                     UUID entityId = EntityUtil.getEntityUUID(entity);
 
+                    // Debug: Log all entity removals to check if event is firing
+                    try {
+                        Ref<EntityStore> debugRef = entity.getReference();
+                        Integer debugRefIndex = (debugRef != null) ? debugRef.getIndex() : null;
+                        boolean debugIsTamed = (tamingManager != null && tamingManager.isTamed(entityId));
+                        logVerbose("EntityRemoveEvent: entity removed - refIndex=" + debugRefIndex + ", uuid=" + entityId + ", isTamed=" + debugIsTamed);
+                    } catch (Exception e) {
+                        // Silent
+                    }
+
                     // Check if this is a tamed animal - don't delete, mark for respawn
                     if (tamingManager != null && tamingManager.isTamed(entityId)) {
+                        // Check if animal is entering coop/capture crate storage
+                        // If so, don't mark as despawned - it's stored, not gone
+                        if (CoopResidentTracker.isInStorage(entityId)) {
+                            logVerbose("Tamed animal entering coop/crate storage (not marking as despawned): " + entityId);
+                            // Don't remove breeding data for tamed animals in storage
+                            return;
+                        }
+
+                        // Check if this animal is being captured by a capture crate
+                        // Method 1: Check CoopResidentTracker by UUID (legacy path)
+                        UUID capturingPlayer = CoopResidentTracker.consumePendingCapture(entityId);
+                        if (capturingPlayer != null) {
+                            // Track the capture for later restoration when released
+                            CoopResidentTracker.trackCapture(capturingPlayer, entityId);
+                            logVerbose("Tamed animal captured by capture crate (player=" + capturingPlayer + "): " + entityId);
+                            // Don't remove breeding data, don't mark as despawned
+                            return;
+                        }
+
+                        // Method 2: Check CaptureCratePacketListener by ref index (packet-based detection)
+                        try {
+                            Ref<EntityStore> ref = entity.getReference();
+                            if (ref != null) {
+                                Integer refIndex = ref.getIndex();
+                                logVerbose("EntityRemoveEvent: tamed animal removed, checking packet capture (refIndex=" + refIndex + ", entityId=" + entityId + ")");
+                                if (refIndex != null) {
+                                    var pendingCapture = CaptureCratePacketListener.consumePendingCapture(refIndex);
+                                    if (pendingCapture != null) {
+                                        // Track the capture for later restoration when released
+                                        CoopResidentTracker.trackCapture(pendingCapture.playerUuid, entityId);
+                                        logVerbose("Tamed animal captured by capture crate via packet (player=" + pendingCapture.playerUuid + ", refIndex=" + refIndex + "): " + entityId);
+                                        // Don't remove breeding data, don't mark as despawned
+                                        return;
+                                    } else {
+                                        logVerbose("EntityRemoveEvent: no pending capture found for refIndex=" + refIndex);
+                                    }
+                                }
+                            } else {
+                                logVerbose("EntityRemoveEvent: entity ref is null");
+                            }
+                        } catch (Exception ex) {
+                            logVerbose("EntityRemoveEvent: error checking packet capture: " + ex.getMessage());
+                        }
+
                         // Get position before entity is fully removed
                         Vector3d pos = null;
                         try {
@@ -1222,6 +1312,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         if (breedingManager != null) {
             breedingManager.clearAll();
         }
+
+        // Clear coop storage tracking
+        CoopResidentTracker.clearStorage();
 
         // Clear static instance
         instance = null;

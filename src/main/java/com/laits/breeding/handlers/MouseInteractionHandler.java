@@ -12,9 +12,11 @@ import com.hypixel.hytale.server.core.event.events.player.PlayerMouseButtonEvent
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.laits.breeding.managers.BreedingManager;
+import com.laits.breeding.managers.TamingManager;
 import com.laits.breeding.util.ConfigManager;
 import com.laits.breeding.effects.EffectsManager;
 import com.laits.breeding.managers.InteractionSetupManager;
+import com.laits.breeding.listeners.CoopResidentTracker;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.util.EntityUtil;
@@ -32,6 +34,7 @@ public class MouseInteractionHandler {
     private final BreedingManager breedingManager;
     private final EffectsManager effectsManager;
     private final InteractionSetupManager interactionSetupManager;
+    private TamingManager tamingManager;
 
     private boolean verboseLogging = false;
     private Consumer<String> logger = msg -> {};
@@ -42,6 +45,10 @@ public class MouseInteractionHandler {
         this.breedingManager = breedingManager;
         this.effectsManager = effectsManager;
         this.interactionSetupManager = interactionSetupManager;
+    }
+
+    public void setTamingManager(TamingManager tamingManager) {
+        this.tamingManager = tamingManager;
     }
 
     public void setVerboseLogging(boolean verbose) {
@@ -72,6 +79,7 @@ public class MouseInteractionHandler {
     /**
      * Handle player interact events. Call from plugin's event handler.
      * Sets up interactions immediately when player interacts with an animal.
+     * Also detects capture crate usage on tamed animals.
      */
     public void onPlayerInteract(PlayerInteractEvent event) {
         try {
@@ -79,10 +87,38 @@ public class MouseInteractionHandler {
             if (targetEntity == null)
                 return;
 
-            // Skip if target is a Player (prevents attaching animal interactions to players
-            // with animal models)
+            // Skip if target is a Player
             if (targetEntity instanceof Player) {
                 return;
+            }
+
+            Player player = event.getPlayer();
+            UUID entityId = EntityUtil.getEntityUUID(targetEntity);
+
+            // Check for capture crate usage on tamed animal
+            if (player != null && entityId != null && tamingManager != null) {
+                if (tamingManager.isTamed(entityId)) {
+                    // Check if player is holding a capture crate
+                    try {
+                        var inventory = player.getInventory();
+                        if (inventory != null) {
+                            var heldItem = inventory.getActiveHotbarItem();
+                            if (heldItem != null) {
+                                String itemId = heldItem.getItemId();
+                                if (CoopResidentTracker.getCaptureCrateItemId().equals(itemId)) {
+                                    // Register pending capture - will be consumed in EntityRemoveEvent
+                                    UUID playerUuid = EntityUtil.getEntityUUID(player);
+                                    if (playerUuid != null) {
+                                        CoopResidentTracker.registerPendingCapture(entityId, playerUuid);
+                                        log("[CaptureCrate] Registered pending capture: animal=" + entityId + " player=" + playerUuid);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        // Silent - capture detection is best-effort
+                    }
+                }
             }
 
             String entityName = EntityUtil.getEntityModelId(targetEntity);

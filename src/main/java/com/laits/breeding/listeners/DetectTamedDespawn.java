@@ -76,13 +76,24 @@ public class DetectTamedDespawn extends EntityTickingSystem<EntityStore> {
             boolean isTamed = tamingManager.isTamed(entityId);
             log("Is entity tamed? " + isTamed);
             if (isTamed) {
+                // Check if animal is in coop - don't mark as despawned
+                // This prevents duplication when chickens enter coops at night
+                try {
+                    var coopComp = store.getComponent(ref, EcsReflectionUtil.COOP_RESIDENT_TYPE);
+                    if (coopComp != null) {
+                        log("Skipping despawn - animal in coop: " + entityId);
+                        return;
+                    }
+                } catch (Exception e) {
+                    // CoopResidentComponent may not exist on this entity - that's fine
+                }
+
                 // It's a tamed animal - ensure it's tracked
-                // tamingManager.trackTamedEntity(ref, entityId);
                 Vector3d position = transformComp.getPosition();
                 double x = position.getX();
                 double y = position.getY();
                 double z = position.getZ();
-                
+
                 tamingManager.onTamedAnimalDespawn(entityId, x, y, z);
             }
         } catch (Exception e) {

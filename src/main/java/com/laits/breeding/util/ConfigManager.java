@@ -44,6 +44,7 @@ public class ConfigManager {
     private boolean debugMode = false;
     private boolean growthEnabled = true;  // Can be disabled to freeze baby growth
     private String activePreset = "default_extended";
+    private int initializationGracePeriodSeconds = 15;  // Grace period after startup before respawning
 
     // Tameable animal groups (from tameable-animals integration)
     private Set<String> tameableAnimalGroups = new HashSet<>(Arrays.asList(
@@ -543,6 +544,7 @@ public class ConfigManager {
                 defaultGrowthTimeMinutes = safeGetDouble(defaults, "growthTimeMinutes", defaultGrowthTimeMinutes);
                 defaultBreedCooldownMinutes = safeGetDouble(defaults, "breedCooldownMinutes", defaultBreedCooldownMinutes);
                 growthEnabled = safeGetBoolean(defaults, "growthEnabled", growthEnabled);
+                initializationGracePeriodSeconds = (int) safeGetDouble(defaults, "initializationGracePeriodSeconds", initializationGracePeriodSeconds);
             }
 
             // Load animal configs (using safe extraction)
@@ -660,6 +662,7 @@ public class ConfigManager {
         defaults.addProperty("growthTimeMinutes", defaultGrowthTimeMinutes);
         defaults.addProperty("breedCooldownMinutes", defaultBreedCooldownMinutes);
         defaults.addProperty("growthEnabled", growthEnabled);
+        defaults.addProperty("initializationGracePeriodSeconds", initializationGracePeriodSeconds);
         root.add("defaults", defaults);
 
         // Animals (grouped by category)
@@ -2047,6 +2050,15 @@ public class ConfigManager {
      */
     public void setGrowthEnabled(boolean enabled) {
         this.growthEnabled = enabled;
+    }
+
+    /**
+     * Get the initialization grace period in seconds.
+     * During this period after startup, tamed animals won't be respawned
+     * to prevent duplication race conditions on slow servers.
+     */
+    public int getInitializationGracePeriodSeconds() {
+        return initializationGracePeriodSeconds;
     }
 
     // ===========================================

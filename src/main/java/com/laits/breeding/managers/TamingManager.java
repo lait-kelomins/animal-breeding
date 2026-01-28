@@ -40,7 +40,37 @@ public class TamingManager {
     // Logger
     private Consumer<String> logger;
 
+    // Grace period tracking for preventing duplication on slow servers
+    private volatile long initializationTime = 0;
+    private int gracePeriodMs = 15000;  // Default 15 seconds
+
     public TamingManager() {
+    }
+
+    /**
+     * Set the grace period in milliseconds.
+     * During this period after initialization, respawn checks are skipped.
+     */
+    public void setGracePeriodMs(int ms) {
+        this.gracePeriodMs = ms;
+    }
+
+    /**
+     * Mark the taming manager as initialized.
+     * Call this after initial entity scanning is complete.
+     */
+    public void markInitialized() {
+        this.initializationTime = System.currentTimeMillis();
+        log("TamingManager initialized - grace period of " + (gracePeriodMs / 1000) + "s started");
+    }
+
+    /**
+     * Check if we're still in the initialization grace period.
+     * During this period, respawn operations should be skipped.
+     */
+    public boolean isInGracePeriod() {
+        if (initializationTime == 0) return true;  // Not yet initialized
+        return (System.currentTimeMillis() - initializationTime) < gracePeriodMs;
     }
 
     /**
@@ -112,6 +142,7 @@ public class TamingManager {
         tamedAnimalsByUuid.clear();
         tamedByHytameId.clear();
         int migrated = 0;
+        int despawnedCount = 0;
 
         for (TamedAnimalData data : savedAnimals) {
             if (data != null && data.getAnimalUuid() != null) {
@@ -121,17 +152,25 @@ public class TamingManager {
                     migrated++;
                 }
 
-                // Reset despawned flag on load - the world save has the actual entities
-                // If they're truly gone, EntityRemoveEvent will set isDespawned = true
-                data.setDespawned(false);
+                // IMPORTANT: Keep the isDespawned state from the save file
+                // This prevents race conditions where:
+                // 1. World loads slowly
+                // 2. Plugin sees no entity and marks as despawned
+                // 3. World finishes loading and entity appears
+                // 4. RespawnManager respawns another copy = duplicate
+                // The entity scan will update isDespawned based on actual entity presence
                 data.setEntityRef(null); // Will be reattached by animal scan
+
+                if (data.isDespawned()) {
+                    despawnedCount++;
+                }
 
                 tamedAnimalsByUuid.put(data.getAnimalUuid(), data);
                 tamedByHytameId.put(data.getHytameId(), data);
             }
         }
 
-        log("Loaded " + tamedAnimalsByUuid.size() + " tamed animals from persistence (all marked as not despawned)");
+        log("Loaded " + tamedAnimalsByUuid.size() + " tamed animals from persistence (" + despawnedCount + " marked as despawned)");
         if (migrated > 0) {
             log("Migrated " + migrated + " animals to new hytameId system");
             markDirty(true); // Save migrated data immediately
@@ -626,6 +665,22 @@ public class TamingManager {
      */
     public TamedAnimalData findByHytameId(UUID hytameId) {
         return hytameId != null ? tamedByHytameId.get(hytameId) : null;
+    }
+
+    /**
+     * Find a captured animal by type (for restore after server restart).
+     * Returns the first animal that is marked as captured and matches the type.
+     */
+    public TamedAnimalData findCapturedByType(AnimalType type) {
+        if (type == null) return null;
+
+        for (TamedAnimalData data : tamedByHytameId.values()) {
+            if (data.isCaptured() && data.getAnimalType() == type) {
+                log("Found captured animal: hytameId=" + data.getHytameId() + " name=" + data.getCustomName());
+                return data;
+            }
+        }
+        return null;
     }
 
     /**

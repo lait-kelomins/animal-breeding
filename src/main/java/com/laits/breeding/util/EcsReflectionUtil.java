@@ -19,6 +19,8 @@ import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
+import com.hypixel.hytale.builtin.adventure.farming.component.CoopResidentComponent;
+import com.hypixel.hytale.server.core.modules.entity.tracker.NetworkId;
 
 import java.lang.reflect.Method;
 import java.util.UUID;
@@ -63,6 +65,12 @@ public final class EcsReflectionUtil {
     // Death/stat components (LOW frequency but good to cache)
     public static final ComponentType<EntityStore, DeathComponent> DEATH_TYPE = DeathComponent.getComponentType();
     public static final ComponentType<EntityStore, EntityStatMap> ENTITY_STAT_MAP_TYPE = EntityStatMap.getComponentType();
+
+    // Coop component (for chicken coop integration - prevents false despawn detection)
+    public static final ComponentType<EntityStore, CoopResidentComponent> COOP_RESIDENT_TYPE = CoopResidentComponent.getComponentType();
+
+    // Network ID component (for matching packet entityId to server entities)
+    public static final ComponentType<EntityStore, NetworkId> NETWORK_ID_TYPE = NetworkId.getComponentType();
 
     // Private constructor - utility class
     private EcsReflectionUtil() {

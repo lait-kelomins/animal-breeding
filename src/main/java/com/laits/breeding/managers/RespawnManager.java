@@ -15,6 +15,7 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 
+import com.laits.breeding.listeners.CoopResidentTracker;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.GrowthStage;
@@ -28,7 +29,9 @@ import it.unimi.dsi.fastutil.Pair;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -56,7 +59,18 @@ public class RespawnManager {
     // Respawn radius in blocks
     private static final double RESPAWN_RADIUS = 64.0;
 
+    // Track recently spawned hytameIds to prevent duplicate respawns
+    private final Set<UUID> recentlySpawnedHytameIds = ConcurrentHashMap.newKeySet();
+
     public RespawnManager() {
+    }
+
+    /**
+     * Clear the recently spawned tracking set.
+     * Called periodically to allow re-respawn if needed.
+     */
+    public void clearRecentlySpawned() {
+        recentlySpawnedHytameIds.clear();
     }
 
     // ========================================================================
@@ -224,6 +238,13 @@ public class RespawnManager {
     public void checkAndRespawnTamedAnimals() {
         if (tamingManager == null) {
             logVerbose("[RespawnCheck] tamingManager is null");
+            return;
+        }
+
+        // Skip respawn checks during initialization grace period
+        // This prevents duplication on slow servers where entities load after plugin init
+        if (tamingManager.isInGracePeriod()) {
+            logVerbose("[RespawnCheck] In initialization grace period - skipping respawn checks");
             return;
         }
 
@@ -410,6 +431,30 @@ public class RespawnManager {
         if (animalType == null)
             return;
 
+        // Check if animal is in coop/capture crate storage - don't respawn stored animals
+        UUID animalUuid = tamedData.getAnimalUuid();
+        if (CoopResidentTracker.isInStorage(animalUuid)) {
+            logVerbose("[Respawn] Skipping - animal is in coop storage: " + tamedData.getCustomName());
+            return;
+        }
+
+        // Check if animal is captured in a capture crate - don't respawn captured animals
+        if (tamedData.isCaptured()) {
+            logVerbose("[Respawn] Skipping - animal is in capture crate: " + tamedData.getCustomName());
+            return;
+        }
+
+        // Prevent duplicate respawns using hytameId tracking
+        UUID hytameId = tamedData.getHytameId();
+        if (hytameId != null) {
+            if (recentlySpawnedHytameIds.contains(hytameId)) {
+                logVerbose("[Respawn] Skipping duplicate respawn for hytameId: " + hytameId);
+                return;
+            }
+            // Add to tracking set before spawning
+            recentlySpawnedHytameIds.add(hytameId);
+        }
+
         Vector3d spawnPos = new Vector3d(
                 tamedData.getLastX(),
                 tamedData.getLastY() + 0.5,
@@ -465,7 +510,7 @@ public class RespawnManager {
                     // Set HyTameComponent on the respawned entity
                     UUID ownerUuid = finalTamedData.getOwnerUuid();
                     String ownerName = finalTamedData.getOwnerName();
-                    UUID hytameId = finalTamedData.getHytameId();
+                    // Note: hytameId is already defined at method start for duplicate tracking
                     if (ownerUuid != null && hyTameTypeSupplier != null) {
                         String effectiveOwnerName = (ownerName != null) ? ownerName : "Unknown";
 

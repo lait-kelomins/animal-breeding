@@ -404,6 +404,12 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     private void triggerFallbackInteraction(InteractionContext context, Ref<EntityStore> targetRef,
             AnimalType animalType) {
         try {
+            // Only allow fallback interaction for tamed animals
+            if (!TameHelper.isTamed(targetRef)) {
+                log("Skipping fallback - animal is not tamed");
+                return;
+            }
+
             // First try memory cache (fast lookup)
             String originalInteractionId = InteractionStateCache.getInstance().getOriginalInteractionId(targetRef,
                     animalType);

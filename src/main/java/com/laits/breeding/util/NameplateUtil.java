@@ -22,6 +22,12 @@ public class NameplateUtil {
      */
     public static boolean setEntityNameplate(Store<EntityStore> store, Ref<EntityStore> entityRef, String name) {
         try {
+            // Don't display reserved "_UNDEFINED" name - treat as no name
+            if (name != null && name.equalsIgnoreCase(UNDEFINED_NAME)) {
+                log("Skipping nameplate - reserved UNDEFINED_NAME");
+                return true;  // Return true since this is intentional, not a failure
+            }
+
             // Get or create the Nameplate component
             Nameplate nameplateComp = store.getComponent(entityRef, EcsReflectionUtil.NAMEPLATE_TYPE);
 

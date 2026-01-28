@@ -8,10 +8,13 @@ import com.hypixel.hytale.component.RemoveReason;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.RefSystem;
+import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.laits.breeding.LaitsBreedingPlugin;
+import com.laits.breeding.listeners.CaptureCratePacketListener;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.util.EcsReflectionUtil;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
@@ -123,6 +126,74 @@ public class NewAnimalSpawnDetector extends RefSystem<EntityStore> {
 
             // Skip if neither built-in nor custom animal
             if (animalType == null && !isCustomAnimal) return;
+
+            // Check if this is a tamed animal exiting a coop/crate or capture crate
+            // Try to restore from storage before normal processing
+            try {
+                // First, check for coop exit (has CoopResidentComponent with exact position)
+                if (CoopResidentTracker.getStorageCount() > 0) {
+                    var coopComp = store.getComponent(ref, EcsReflectionUtil.COOP_RESIDENT_TYPE);
+                    if (coopComp != null) {
+                        var coopPos = coopComp.getCoopLocation();
+                        if (coopPos != null) {
+                            log("Spawn has CoopResidentComponent! Coop at: " + coopPos.x + "," + coopPos.y + "," + coopPos.z);
+                            boolean restored = CoopResidentTracker.tryRestoreFromCoopByPosition(store, commandBuffer, ref, coopPos, modelAssetId);
+                            if (restored) {
+                                processedEntities.put(dedupeKey, System.currentTimeMillis());
+                                return;
+                            }
+                        }
+                    }
+
+                    // Fallback: try proximity matching for coops
+                    TransformComponent transformComp = store.getComponent(ref, EcsReflectionUtil.TRANSFORM_TYPE);
+                    if (transformComp != null) {
+                        Vector3d spawnPos = transformComp.getPosition();
+                        if (spawnPos != null) {
+                            boolean restored = CoopResidentTracker.tryRestoreFromCoop(store, commandBuffer, ref, spawnPos, modelAssetId);
+                            if (restored) {
+                                processedEntities.put(dedupeKey, System.currentTimeMillis());
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                // Check for capture crate release
+                // First try packet-based detection (more reliable)
+                TransformComponent transformComp = store.getComponent(ref, EcsReflectionUtil.TRANSFORM_TYPE);
+                if (transformComp != null) {
+                    Vector3d spawnPos = transformComp.getPosition();
+                    if (spawnPos != null) {
+                        // Check if there's a pending release from packet listener
+                        var pendingRelease = CaptureCratePacketListener.consumePendingRelease(
+                            spawnPos.getX(), spawnPos.getY(), spawnPos.getZ());
+                        if (pendingRelease != null) {
+                            log("Capture crate release detected via packet! Player=" + pendingRelease.playerUuid);
+                            // Try to restore from that player's captured animals
+                            boolean restored = CoopResidentTracker.tryRestoreFromCaptureCrateByPlayer(
+                                store, commandBuffer, ref, pendingRelease.playerUuid, modelAssetId);
+                            if (restored) {
+                                processedEntities.put(dedupeKey, System.currentTimeMillis());
+                                return;
+                            }
+                        }
+
+                        // Fallback: try the old method (match by animal type across all captures)
+                        if (!CoopResidentTracker.capturedByPlayerIsEmpty()) {
+                            boolean restored = CoopResidentTracker.tryRestoreFromCaptureCrate(
+                                store, commandBuffer, ref, spawnPos, modelAssetId);
+                            if (restored) {
+                                processedEntities.put(dedupeKey, System.currentTimeMillis());
+                                return;
+                            }
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                // Continue with normal processing
+                log("Exception in coop/capture restore check: " + e.getMessage());
+            }
 
             // Mark as processed
             processedEntities.put(dedupeKey, System.currentTimeMillis());
