@@ -85,6 +85,7 @@ import com.laits.breeding.effects.EffectsManager;
 import com.laits.breeding.components.HyTameInteractionComponent;
 
 import com.laits.breeding.commands.BreedCommand;
+import com.laits.breeding.commands.HytameCommand;
 import com.laits.breeding.commands.BreedingConfigCommand;
 import com.laits.breeding.commands.CustomAnimalCommand;
 import com.laits.breeding.commands.LegacyCommands;
@@ -583,7 +584,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // NOTE: NewAnimalSpawnDetector is registered in start() after world is ready
 
-        // Register unified /breed command (recommended)
+        // Register unified /hytame command (primary)
+        getCommandRegistry().registerCommand(new HytameCommand());
+
+        // Register deprecated /breed alias (for backwards compatibility)
         getCommandRegistry().registerCommand(new BreedCommand());
 
         // Register legacy commands (with deprecation warnings)
