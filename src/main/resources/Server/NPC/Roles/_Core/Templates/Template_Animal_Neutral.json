@@ -3339,6 +3339,10 @@
               "Type": "Alarm",
               "Name": "Harvest_Ready",
               "State": "Unset"
+            },
+            {
+              "Type": "Tamed",
+              "Set": true
             }
           ]
         },

@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.4.3 - Capture Crate Persistence
+
+### Added
+- **Capture crate persistence** - Tamed animals placed in capture crates now preserve their taming data (name, owner, hytameId) even after server restart or storing in chests
+- **NetworkIdCache** - O(1) entity lookup by network ID using RefSystem pattern
+- **CaptureCratePacketListener** - Detects capture/release via `SyncInteractionChains` packet interception
+- **Configurable grace period** - `initializationGracePeriodSeconds` config option (default 15s) to prevent race conditions on slow servers
+
+### Fixed
+- **Capture crate duplication** - Tamed animals no longer duplicate when captured (respawn system now checks `isCaptured` flag)
+- **Chicken coop duplication** - Animals entering coops at night no longer trigger respawn (checks `CoopResidentComponent`)
+- **_UNDEFINED name display** - Animals without custom names no longer show "_UNDEFINED" as their nameplate
+- **Fallback interaction for wild animals** - Only tamed animals can trigger fallback interactions (e.g., horse mounting)
+
+---
+
 ## v1.4.0 - Taming Integration
 
 ### Added
