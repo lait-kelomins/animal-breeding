@@ -1,12 +1,13 @@
 # Changelog
 
-## v1.4.4 - Command Rename & Permissions
+## v1.4.3 - Taming Improved, Command Rename & Permissions
 
 ### Changed
 - **Command renamed** - All commands renamed from `/breed` to `/hytame` (old `/breed` still works with deprecation warning)
 - **Separate breeding/taming control** - You can now enable/disable breeding and taming independently per animal with `/hytame config enabletaming` and `/hytame config disabletaming`
 
 ### Added
+- **Taming improved** - Horses need to be tamed in order to be mounted, animals are persisted in chicken coops and capture crates
 - **Quick food reference** - New `/hytame foods` command shows all animals and their breeding foods at a glance
 - **Permission system** - Admin commands now use permission nodes (`hytame.admin.*`). Creative mode also grants admin access.
 - **Informative commands for everyone** - `/hytame foods`, `/hytame config info`, and `/hytame config list` are available to all players without permissions
@@ -14,22 +15,7 @@
 ### Fixed
 - **Config format auto-migration** - Old config files with `enabled` field automatically migrate to new `breedingEnabled`/`tamingEnabled` format
 - **Reduced log spam** - Debug logs for CoopTracker and CaptureCrate are now verbose-only
-
----
-
-## v1.4.3 - Capture Crate Persistence
-
-### Added
-- **Capture crate persistence** - Tamed animals placed in capture crates now preserve their taming data (name, owner, hytameId) even after server restart or storing in chests
-- **NetworkIdCache** - O(1) entity lookup by network ID using RefSystem pattern
-- **CaptureCratePacketListener** - Detects capture/release via `SyncInteractionChains` packet interception
-- **Configurable grace period** - `initializationGracePeriodSeconds` config option (default 15s) to prevent race conditions on slow servers
-
-### Fixed
-- **Capture crate duplication** - Tamed animals no longer duplicate when captured (respawn system now checks `isCaptured` flag)
-- **Chicken coop duplication** - Animals entering coops at night no longer trigger respawn (checks `CoopResidentComponent`)
-- **_UNDEFINED name display** - Animals without custom names no longer show "_UNDEFINED" as their nameplate
-- **Fallback interaction for wild animals** - Only tamed animals can trigger fallback interactions (e.g., horse mounting)
+- **Animal duplication** - Fixed animal duplication when using chicken coops and capture crates
 
 ---
 
@@ -76,7 +62,7 @@ The following legacy commands still work but show deprecation warnings. Use the 
 - Various performance improvements
 - Various bug fixes
 - Horse feeding and mounting should now work (might still need to hit them once like in the base game)
-- Various bugs caused by changing the model of the player or spawning a model 
+- Various bugs caused by changing the model of the player or spawning a model
 
 ### New Features Preview (some features might not work)
 
