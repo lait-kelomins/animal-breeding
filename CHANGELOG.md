@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.4.4 - Command Rename & Permissions
+
+### Changed
+- **Command renamed** - All commands renamed from `/breed` to `/hytame` (old `/breed` still works with deprecation warning)
+- **Separate breeding/taming control** - You can now enable/disable breeding and taming independently per animal with `/hytame config enabletaming` and `/hytame config disabletaming`
+
+### Added
+- **Quick food reference** - New `/hytame foods` command shows all animals and their breeding foods at a glance
+- **Permission system** - Admin commands now use permission nodes (`hytame.admin.*`). Creative mode also grants admin access.
+- **Informative commands for everyone** - `/hytame foods`, `/hytame config info`, and `/hytame config list` are available to all players without permissions
+
+### Fixed
+- **Config format auto-migration** - Old config files with `enabled` field automatically migrate to new `breedingEnabled`/`tamingEnabled` format
+- **Reduced log spam** - Debug logs for CoopTracker and CaptureCrate are now verbose-only
+
+---
+
 ## v1.4.3 - Capture Crate Persistence
 
 ### Added
