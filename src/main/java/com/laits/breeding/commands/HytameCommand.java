@@ -1,15 +1,24 @@
 package com.laits.breeding.commands;
 
+import com.hypixel.hytale.component.ComponentType;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;
+import com.hypixel.hytale.server.core.asset.type.attitude.Attitude;
 import com.hypixel.hytale.server.core.command.system.AbstractCommand;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
+import com.hypixel.hytale.server.core.command.system.basecommands.AbstractTargetEntityCommand;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.npc.entities.NPCEntity;
+import com.hypixel.hytale.server.npc.role.Role;
+import com.hypixel.hytale.server.npc.role.support.WorldSupport;
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.listeners.DetectTamedDeath;
 import com.laits.breeding.managers.BreedingManager;
@@ -17,7 +26,10 @@ import com.laits.breeding.managers.PersistenceManager;
 import com.laits.breeding.managers.TamingManager;
 import com.laits.breeding.models.TamedAnimalData;
 import com.laits.breeding.util.ConfigManager;
+import com.tameableanimals.tame.HyTameComponent;
+import it.unimi.dsi.fastutil.objects.ObjectList;
 
+import javax.annotation.Nonnull;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -644,6 +656,7 @@ public class HytameCommand extends AbstractCommand {
             addSubCommand(new DebugFileSubCommand());
             addSubCommand(new DebugEventsSubCommand());
             addSubCommand(new DebugClearSubCommand());
+            addSubCommand(new DebugTameStatusCommand());
         }
 
         @Override
@@ -668,6 +681,8 @@ public class HytameCommand extends AbstractCommand {
                     .insert(Message.raw(" - Log last detected death/despawn UUIDs").color("#AAAAAA")));
             ctx.sendMessage(Message.raw("/hytame debug clear").color("#FFFFFF")
                     .insert(Message.raw(" - Clear tracked event UUIDs").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/hytame debug tameStatus").color("#FFFFFF")
+                    .insert(Message.raw(" - Get target npcs tame status").color("#AAAAAA")));
         }
 
         // --- Debug: memory ---
@@ -833,6 +848,47 @@ public class HytameCommand extends AbstractCommand {
 
                 ctx.sendMessage(Message.raw("Cleared tracked death and despawn UUIDs.").color("#55FF55"));
                 return CompletableFuture.completedFuture(null);
+            }
+        }
+
+        public class DebugTameStatusCommand extends AbstractTargetEntityCommand {
+
+            public DebugTameStatusCommand() {
+                super("TameStatus", "Displays NPC's tame status");
+            }
+
+            @Override
+            protected void execute(@Nonnull CommandContext context, @Nonnull ObjectList<Ref<EntityStore>> entities, @Nonnull World world, @Nonnull Store<EntityStore> store) {
+                Ref<EntityStore> playerRef = context.senderAsPlayerRef();
+                if (playerRef == null) return;
+
+                for (Ref<EntityStore> entityRef : entities) {
+                    ComponentType<EntityStore, NPCEntity> componentType = NPCEntity.getComponentType();
+                    if (componentType == null) continue;
+
+                    NPCEntity npcComponent = store.getComponent(entityRef, componentType);
+                    if (npcComponent == null) continue;
+
+                    Role role = npcComponent.getRole();
+                    if (role == null) continue;
+
+                    WorldSupport worldSupport = role.getWorldSupport();
+                    Attitude defaultAttitude = worldSupport.getDefaultPlayerAttitude();
+
+                    Attitude currentAttitude;
+                    try {
+                        currentAttitude = worldSupport.getAttitude(entityRef, playerRef, store);
+                    } catch (NullPointerException e) {
+                        context.sendMessage(Message.raw(role.getRoleName() +  " attitude not initialized"));
+                        continue;
+                    }
+
+                    HyTameComponent tameComponent = store.getComponent(entityRef, HyTameComponent.getComponentType());
+
+                    String attitudeStatus = "Attitude: Default(" + defaultAttitude + "), Current(" + currentAttitude + ")";
+                    String tameStatus = tameComponent != null ? "Tamed: Status(" + tameComponent.isTamed() + "), Owner(" + tameComponent.getTamerName() + ")" : "Cannot be tamed";
+                    context.sendMessage(Message.raw(npcComponent.getRoleName()).insert(attitudeStatus).insert(tameStatus));
+                }
             }
         }
     }
