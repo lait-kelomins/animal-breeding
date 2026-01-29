@@ -62,13 +62,13 @@ public class CaptureCratePacketListener {
     public void register() {
         if (registered) return;
 
-        logAlways("Attempting to register packet listener...");
+        log("Attempting to register packet listener...");
         try {
             PacketAdapters.registerInbound(this::onInboundPacket);
             registered = true;
-            logAlways("Capture crate packet listener registered successfully!");
+            log("Capture crate packet listener registered successfully!");
         } catch (Exception e) {
-            logAlways("Failed to register packet listener: " + e.getMessage());
+            log("Failed to register packet listener: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -84,17 +84,17 @@ public class CaptureCratePacketListener {
 
             // Only log interaction-related packets to avoid spam
             if (packetId == SYNC_INTERACTION_CHAINS_PACKET_ID || packetName.contains("Interaction")) {
-                logAlways("Received packet: " + packetName + " (id=" + packetId + ")");
+                log("Received packet: " + packetName + " (id=" + packetId + ")");
             }
 
             if (packetId != SYNC_INTERACTION_CHAINS_PACKET_ID) {
                 return false;
             }
 
-            logAlways("Processing SyncInteractionChains packet...");
+            log("Processing SyncInteractionChains packet...");
             processSyncInteractionChains(handler, packet);
         } catch (Exception e) {
-            logAlways("Error in onInboundPacket: " + e.getMessage());
+            log("Error in onInboundPacket: " + e.getMessage());
             e.printStackTrace();
         }
         return false; // Allow packet to propagate
@@ -109,30 +109,30 @@ public class CaptureCratePacketListener {
             Object updates = getFieldValue(packet, "updates", Object.class);
 
             if (updates == null) {
-                logAlways("Updates field is null");
+                log("Updates field is null");
                 return;
             }
 
             // Handle array type
             if (updates.getClass().isArray()) {
                 Object[] updatesArray = (Object[]) updates;
-                logAlways("Found " + updatesArray.length + " updates (array)");
+                log("Found " + updatesArray.length + " updates (array)");
 
                 for (Object update : updatesArray) {
                     processInteractionChainUpdate(handler, update);
                 }
             } else if (updates instanceof List) {
                 List<?> updatesList = (List<?>) updates;
-                logAlways("Found " + updatesList.size() + " updates (list)");
+                log("Found " + updatesList.size() + " updates (list)");
 
                 for (Object update : updatesList) {
                     processInteractionChainUpdate(handler, update);
                 }
             } else {
-                logAlways("Updates field is unexpected type: " + updates.getClass().getName());
+                log("Updates field is unexpected type: " + updates.getClass().getName());
             }
         } catch (Exception e) {
-            logAlways("Error in processSyncInteractionChains: " + e.getMessage());
+            log("Error in processSyncInteractionChains: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -143,19 +143,19 @@ public class CaptureCratePacketListener {
     private void processInteractionChainUpdate(PacketHandler handler, Object update) {
         try {
             // Debug: log update class and fields
-            logAlways("Update class: " + update.getClass().getSimpleName());
+            log("Update class: " + update.getClass().getSimpleName());
 
             // Check if this is initial=true (first packet of interaction)
             Boolean initial = getFieldValue(update, "initial", Boolean.class);
-            logAlways("  initial=" + initial);
+            log("  initial=" + initial);
             if (initial == null || !initial) return;
 
             // Check itemInHandId
             String itemInHandId = getFieldValue(update, "itemInHandId", String.class);
-            logAlways("  itemInHandId=" + itemInHandId);
+            log("  itemInHandId=" + itemInHandId);
             if (!CAPTURE_CRATE_ITEM_ID.equals(itemInHandId)) return;
 
-            logAlways("  -> Capture crate interaction detected!");
+            log("  -> Capture crate interaction detected!");
 
             // Get equipSlot for inventory access
             Integer equipSlot = getFieldValue(update, "equipSlot", Integer.class);
@@ -181,7 +181,7 @@ public class CaptureCratePacketListener {
             // Get player from handler
             Player player = getPlayerFromHandler(handler);
             if (player == null) {
-                logAlways("Could not get player from handler");
+                log("Could not get player from handler");
                 return;
             }
 
@@ -202,7 +202,7 @@ public class CaptureCratePacketListener {
                 }
             }
         } catch (Exception e) {
-            logAlways("Error processing interaction chain: " + e.getMessage());
+            log("Error processing interaction chain: " + e.getMessage());
         }
     }
 
@@ -213,7 +213,7 @@ public class CaptureCratePacketListener {
         try {
             var inventory = player.getInventory();
             if (inventory == null) {
-                logAlways("[ItemMetadata] Inventory is null");
+                log("[ItemMetadata] Inventory is null");
                 return;
             }
 
@@ -235,12 +235,12 @@ public class CaptureCratePacketListener {
             }
 
             if (item == null) {
-                logAlways("[ItemMetadata] Item is null");
+                log("[ItemMetadata] Item is null");
                 return;
             }
 
-            logAlways("[ItemMetadata] ItemId: " + item.getItemId());
-            logAlways("[ItemMetadata] Quantity: " + item.getQuantity());
+            log("[ItemMetadata] ItemId: " + item.getItemId());
+            log("[ItemMetadata] Quantity: " + item.getQuantity());
 
             // Try to get metadata field
             try {
@@ -248,41 +248,41 @@ public class CaptureCratePacketListener {
                 if (metadataField != null) {
                     metadataField.setAccessible(true);
                     Object metadata = metadataField.get(item);
-                    logAlways("[ItemMetadata] metadata field: " + metadata);
+                    log("[ItemMetadata] metadata field: " + metadata);
                 } else {
-                    logAlways("[ItemMetadata] No 'metadata' field found");
+                    log("[ItemMetadata] No 'metadata' field found");
                 }
             } catch (Exception e) {
-                logAlways("[ItemMetadata] Error getting metadata field: " + e.getMessage());
+                log("[ItemMetadata] Error getting metadata field: " + e.getMessage());
             }
 
             // Try getMetadata method
             try {
                 Method getMetadata = item.getClass().getMethod("getMetadata");
                 Object metadata = getMetadata.invoke(item);
-                logAlways("[ItemMetadata] getMetadata(): " + metadata);
+                log("[ItemMetadata] getMetadata(): " + metadata);
             } catch (NoSuchMethodException e) {
-                logAlways("[ItemMetadata] No getMetadata() method");
+                log("[ItemMetadata] No getMetadata() method");
             } catch (Exception e) {
-                logAlways("[ItemMetadata] Error calling getMetadata(): " + e.getMessage());
+                log("[ItemMetadata] Error calling getMetadata(): " + e.getMessage());
             }
 
             // List all fields for investigation
-            logAlways("[ItemMetadata] All fields in ItemStack:");
+            log("[ItemMetadata] All fields in ItemStack:");
             for (Field f : item.getClass().getDeclaredFields()) {
                 try {
                     f.setAccessible(true);
                     Object val = f.get(item);
                     String valStr = (val != null) ? val.toString() : "null";
                     if (valStr.length() > 100) valStr = valStr.substring(0, 100) + "...";
-                    logAlways("[ItemMetadata]   " + f.getName() + " (" + f.getType().getSimpleName() + "): " + valStr);
+                    log("[ItemMetadata]   " + f.getName() + " (" + f.getType().getSimpleName() + "): " + valStr);
                 } catch (Exception e) {
-                    logAlways("[ItemMetadata]   " + f.getName() + ": <error>");
+                    log("[ItemMetadata]   " + f.getName() + ": <error>");
                 }
             }
 
         } catch (Exception e) {
-            logAlways("[ItemMetadata] Error: " + e.getMessage());
+            log("[ItemMetadata] Error: " + e.getMessage());
         }
     }
 
@@ -291,7 +291,7 @@ public class CaptureCratePacketListener {
      * Schedules entity UUID lookup on WorldThread immediately, before entity is removed.
      */
     private void handleCapture(Player player, UUID playerUuid, int entityId, Integer slotIndex) {
-        logAlways("CAPTURE detected: player=" + playerUuid + " entityId(networkId)=" + entityId + " slot=" + slotIndex);
+        log("CAPTURE detected: player=" + playerUuid + " entityId(networkId)=" + entityId + " slot=" + slotIndex);
 
         // Store pending capture by entityId (network ID) as fallback
         pendingCaptures.put(entityId, new PendingCapture(playerUuid, slotIndex != null ? slotIndex : -1));
@@ -305,12 +305,12 @@ public class CaptureCratePacketListener {
 
                 world.execute(() -> {
                     try {
-                        logAlways("  [WorldThread] Looking up entity with networkId=" + targetNetworkId);
+                        log("  [WorldThread] Looking up entity with networkId=" + targetNetworkId);
                         final Ref<EntityStore>[] foundRef = new Ref[1];
                         UUID animalUuid = lookupEntityByNetworkId(world, targetNetworkId, foundRef);
 
                         if (animalUuid != null && foundRef[0] != null) {
-                            logAlways("  [WorldThread] Found entity UUID: " + animalUuid);
+                            log("  [WorldThread] Found entity UUID: " + animalUuid);
 
                             // Log the entity model to verify we found the right entity
                             try {
@@ -318,36 +318,36 @@ public class CaptureCratePacketListener {
                                 if (store != null) {
                                     var modelComp = store.getComponent(foundRef[0], EcsReflectionUtil.MODEL_TYPE);
                                     if (modelComp != null && modelComp.getModel() != null) {
-                                        logAlways("  [WorldThread] Entity model: " + modelComp.getModel().getModelAssetId());
+                                        log("  [WorldThread] Entity model: " + modelComp.getModel().getModelAssetId());
                                     }
                                 }
                             } catch (Exception e) {
-                                logAlways("  [WorldThread] Could not get model: " + e.getMessage());
+                                log("  [WorldThread] Could not get model: " + e.getMessage());
                             }
 
                             // Get HyTameComponent directly and log all its fields
                             var hyTameComp = TameHelper.getHyTameComponent(foundRef[0]);
                             if (hyTameComp != null) {
-                                logAlways("  [WorldThread] HyTameComponent EXISTS:");
-                                logAlways("    - isTamed(): " + hyTameComp.isTamed());
-                                logAlways("    - getHytameId(): " + hyTameComp.getHytameId());
-                                logAlways("    - getTamerUUID(): " + hyTameComp.getTamerUUID());
-                                logAlways("    - getTamerName(): " + hyTameComp.getTamerName());
+                                log("  [WorldThread] HyTameComponent EXISTS:");
+                                log("    - isTamed(): " + hyTameComp.isTamed());
+                                log("    - getHytameId(): " + hyTameComp.getHytameId());
+                                log("    - getTamerUUID(): " + hyTameComp.getTamerUUID());
+                                log("    - getTamerName(): " + hyTameComp.getTamerName());
                                 // Note: customName is stored in TamedAnimalData, not HyTameComponent
 
                                 UUID hytameId = hyTameComp.getHytameId();
                                 if (hytameId != null && hyTameComp.isTamed()) {
-                                    logAlways("  [WorldThread] Entity is tamed! Registering by hytameId=" + hytameId);
+                                    log("  [WorldThread] Entity is tamed! Registering by hytameId=" + hytameId);
                                     // Register by hytameId for more reliable matching
                                     CoopResidentTracker.registerPendingCaptureByHytameId(hytameId, capturingPlayer);
                                 } else if (hyTameComp.isTamed()) {
-                                    logAlways("  [WorldThread] Entity is tamed but no hytameId, using UUID");
+                                    log("  [WorldThread] Entity is tamed but no hytameId, using UUID");
                                     CoopResidentTracker.registerPendingCapture(animalUuid, capturingPlayer);
                                 } else {
-                                    logAlways("  [WorldThread] HyTameComponent exists but isTamed()=false");
+                                    log("  [WorldThread] HyTameComponent exists but isTamed()=false");
                                 }
                             } else {
-                                logAlways("  [WorldThread] HyTameComponent is NULL on this entity");
+                                log("  [WorldThread] HyTameComponent is NULL on this entity");
                             }
 
                             // Also log TamingManager state for comparison
@@ -355,22 +355,22 @@ public class CaptureCratePacketListener {
                             if (plugin != null) {
                                 TamingManager tamingManager = plugin.getTamingManager();
                                 if (tamingManager != null) {
-                                    logAlways("  [WorldThread] TamingManager has " + tamingManager.getTamedCount() + " total tamed animals");
+                                    log("  [WorldThread] TamingManager has " + tamingManager.getTamedCount() + " total tamed animals");
                                     // Try to find by UUID
                                     boolean managerTamed = tamingManager.isTamed(animalUuid);
-                                    logAlways("  [WorldThread] TamingManager.isTamed(entityUUID=" + animalUuid + ") = " + managerTamed);
+                                    log("  [WorldThread] TamingManager.isTamed(entityUUID=" + animalUuid + ") = " + managerTamed);
                                 }
                             }
                         } else {
-                            logAlways("  [WorldThread] Could not find entity with networkId=" + targetNetworkId);
+                            log("  [WorldThread] Could not find entity with networkId=" + targetNetworkId);
                         }
                     } catch (Exception e) {
-                        logAlways("  [WorldThread] Error: " + e.getMessage());
+                        log("  [WorldThread] Error: " + e.getMessage());
                     }
                 });
             }
         } catch (Exception e) {
-            logAlways("  Failed to schedule WorldThread lookup: " + e.getMessage());
+            log("  Failed to schedule WorldThread lookup: " + e.getMessage());
         }
 
         // Cleanup old entries
@@ -436,7 +436,7 @@ public class CaptureCratePacketListener {
 
             return foundUuid[0];
         } catch (Exception e) {
-            logAlways("  lookupEntityByNetworkId error: " + e.getMessage());
+            log("  lookupEntityByNetworkId error: " + e.getMessage());
             return null;
         }
     }
@@ -452,7 +452,7 @@ public class CaptureCratePacketListener {
 
             if (x == null || y == null || z == null) return;
 
-            logAlways("RELEASE detected: player=" + playerUuid + " pos=" + x + "," + y + "," + z + " slot=" + slotIndex);
+            log("RELEASE detected: player=" + playerUuid + " pos=" + x + "," + y + "," + z + " slot=" + slotIndex);
 
             // Store pending release for matching when animal spawns
             String posKey = x + "," + y + "," + z;
@@ -470,7 +470,7 @@ public class CaptureCratePacketListener {
             // Cleanup old entries
             cleanupExpired();
         } catch (Exception e) {
-            logAlways("Error handling release: " + e.getMessage());
+            log("Error handling release: " + e.getMessage());
         }
     }
 
@@ -515,27 +515,27 @@ public class CaptureCratePacketListener {
      */
     private Player getPlayerFromHandler(PacketHandler handler) {
         try {
-            logAlways("Handler class: " + handler.getClass().getName());
+            log("Handler class: " + handler.getClass().getName());
 
             // List all fields on handler
-            logAlways("Handler fields:");
+            log("Handler fields:");
             for (Field f : handler.getClass().getDeclaredFields()) {
                 try {
                     f.setAccessible(true);
                     Object val = f.get(handler);
                     String typeName = f.getType().getSimpleName();
                     String valStr = (val != null) ? val.getClass().getSimpleName() : "null";
-                    logAlways("  " + f.getName() + " (" + typeName + "): " + valStr);
+                    log("  " + f.getName() + " (" + typeName + "): " + valStr);
                 } catch (Exception e) {
-                    logAlways("  " + f.getName() + ": <error>");
+                    log("  " + f.getName() + ": <error>");
                 }
             }
 
             // List all methods on handler
-            logAlways("Handler methods:");
+            log("Handler methods:");
             for (var m : handler.getClass().getMethods()) {
                 if (m.getParameterCount() == 0 && m.getName().startsWith("get")) {
-                    logAlways("  " + m.getName() + "() -> " + m.getReturnType().getSimpleName());
+                    log("  " + m.getName() + "() -> " + m.getReturnType().getSimpleName());
                 }
             }
 
@@ -545,7 +545,7 @@ public class CaptureCratePacketListener {
                 if (field != null) {
                     field.setAccessible(true);
                     Object value = field.get(handler);
-                    logAlways("Found field '" + fieldName + "': " + (value != null ? value.getClass().getName() : "null"));
+                    log("Found field '" + fieldName + "': " + (value != null ? value.getClass().getName() : "null"));
                     if (value instanceof Player) {
                         return (Player) value;
                     }
@@ -574,7 +574,7 @@ public class CaptureCratePacketListener {
                 // Continue
             }
         } catch (Exception e) {
-            logAlways("Error getting player: " + e.getMessage());
+            log("Error getting player: " + e.getMessage());
         }
         return null;
     }
@@ -620,15 +620,15 @@ public class CaptureCratePacketListener {
         pendingReleases.entrySet().removeIf(entry -> entry.getValue().isExpired());
     }
 
-    private void logAlways(String message) {
-        if (logger != null) {
+    private void log(String message) {
+        if (logger != null && LaitsBreedingPlugin.isVerboseLogging()) {
             logger.atInfo().log("[CaptureCrate] " + message);
         }
     }
 
     private static void logStatic(String message) {
         LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-        if (plugin != null) {
+        if (plugin != null && LaitsBreedingPlugin.isVerboseLogging()) {
             plugin.getLogger().atInfo().log("[CaptureCrate] " + message);
         }
     }

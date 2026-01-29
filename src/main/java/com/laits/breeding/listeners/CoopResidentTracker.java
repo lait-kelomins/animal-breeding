@@ -108,21 +108,21 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
         //
         // For case 2, we need to match by coop position and restore taming data
 
-        logAlways("onEntityAdded triggered! reason=" + reason);
+        log("onEntityAdded triggered! reason=" + reason);
 
         try {
             UUIDComponent uuidComp = store.getComponent(ref, EcsReflectionUtil.UUID_TYPE);
             if (uuidComp == null || uuidComp.getUuid() == null) {
-                logAlways("  - No UUID component found");
+                log("  - No UUID component found");
                 return;
             }
 
             UUID newEntityUuid = uuidComp.getUuid();
-            logAlways("  - New entity UUID: " + newEntityUuid);
+            log("  - New entity UUID: " + newEntityUuid);
 
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null) {
-                logAlways("  - Plugin is null!");
+                log("  - Plugin is null!");
                 return;
             }
 
@@ -131,30 +131,30 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
             Vector3i coopPos = null;
             if (coopComp != null) {
                 coopPos = coopComp.getCoopLocation();
-                logAlways("  - Coop position: " + (coopPos != null ? coopPos.x + "," + coopPos.y + "," + coopPos.z : "null"));
+                log("  - Coop position: " + (coopPos != null ? coopPos.x + "," + coopPos.y + "," + coopPos.z : "null"));
             }
 
             // Check if we have a stored tamed animal at this coop position
             if (coopPos != null) {
                 String key = positionKey(coopPos);
                 List<UUID> storedAtCoop = animalsByCoopPosition.get(key);
-                logAlways("  - Animals stored at this coop: " + (storedAtCoop != null ? storedAtCoop.size() : 0));
+                log("  - Animals stored at this coop: " + (storedAtCoop != null ? storedAtCoop.size() : 0));
 
                 if (storedAtCoop != null && !storedAtCoop.isEmpty()) {
                     // Pop one stored animal and restore its data to this new entity
                     UUID oldUuid = popStoredAnimalAtPosition(coopPos);
                     if (oldUuid != null) {
-                        logAlways("  - Matching stored animal UUID: " + oldUuid);
+                        log("  - Matching stored animal UUID: " + oldUuid);
 
                         TamingManager tamingManager = plugin.getTamingManager();
                         if (tamingManager != null) {
                             TamedAnimalData tamedData = tamingManager.getTamedData(oldUuid);
                             if (tamedData != null) {
-                                logAlways("  - Found TamedAnimalData! Name: " + tamedData.getCustomName());
+                                log("  - Found TamedAnimalData! Name: " + tamedData.getCustomName());
 
                                 // Update with new entity reference
                                 tamingManager.markRespawned(oldUuid, newEntityUuid, ref);
-                                logAlways("  - Updated TamedAnimalData with new UUID");
+                                log("  - Updated TamedAnimalData with new UUID");
 
                                 // Restore HyTameComponent
                                 var hyTameType = plugin.getHyTameComponentType();
@@ -170,10 +170,10 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
                                             if (hytameId != null) {
                                                 hyTameComp.setHytameId(hytameId);
                                             }
-                                            logAlways("  - Restored HyTameComponent: owner=" + ownerName + ", hytameId=" + hytameId);
+                                            log("  - Restored HyTameComponent: owner=" + ownerName + ", hytameId=" + hytameId);
                                         }
                                     } catch (Exception e) {
-                                        logAlways("  - Failed to restore HyTameComponent: " + e.getMessage());
+                                        log("  - Failed to restore HyTameComponent: " + e.getMessage());
                                     }
                                 }
 
@@ -182,13 +182,13 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
                                 if (customName != null && !customName.isEmpty()) {
                                     try {
                                         NameplateUtil.setEntityNameplate(ref, customName);
-                                        logAlways("  - Restored nameplate: " + customName);
+                                        log("  - Restored nameplate: " + customName);
                                     } catch (Exception e) {
-                                        logAlways("  - Failed to restore nameplate: " + e.getMessage());
+                                        log("  - Failed to restore nameplate: " + e.getMessage());
                                     }
                                 }
 
-                                logAlways("  - SUCCESS: Chicken restored from coop!");
+                                log("  - SUCCESS: Chicken restored from coop!");
                                 return;
                             }
                         }
@@ -196,9 +196,9 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
                 }
             }
 
-            logAlways("  - No stored tamed animal to restore at this position");
+            log("  - No stored tamed animal to restore at this position");
         } catch (Exception e) {
-            logAlways("  - Exception: " + e.getMessage());
+            log("  - Exception: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -215,21 +215,21 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
         // If reason is UNLOAD, chunk is unloading
         // If reason is REMOVE, chicken is entering coop storage
 
-        logAlways("onEntityRemove triggered! reason=" + reason);
+        log("onEntityRemove triggered! reason=" + reason);
 
         try {
             UUIDComponent uuidComp = commandBuffer.getComponent(ref, EcsReflectionUtil.UUID_TYPE);
             if (uuidComp == null || uuidComp.getUuid() == null) {
-                logAlways("  - No UUID component found");
+                log("  - No UUID component found");
                 return;
             }
 
             UUID entityUuid = uuidComp.getUuid();
-            logAlways("  - Entity UUID: " + entityUuid);
+            log("  - Entity UUID: " + entityUuid);
 
             if (reason == RemoveReason.UNLOAD) {
                 // Chunk unloading - not entering coop
-                logAlways("  - UNLOAD reason, ignoring");
+                log("  - UNLOAD reason, ignoring");
                 return;
             }
 
@@ -239,32 +239,32 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
             Vector3i coopPos = null;
             if (coopComp != null) {
                 coopPos = coopComp.getCoopLocation();
-                logAlways("  - Coop position: " + (coopPos != null ? coopPos.x + "," + coopPos.y + "," + coopPos.z : "null"));
+                log("  - Coop position: " + (coopPos != null ? coopPos.x + "," + coopPos.y + "," + coopPos.z : "null"));
             }
 
             // Check if this is a tamed animal
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null) {
-                logAlways("  - Plugin is null!");
+                log("  - Plugin is null!");
                 return;
             }
 
             TamingManager tamingManager = plugin.getTamingManager();
             if (tamingManager == null) {
-                logAlways("  - TamingManager is null!");
+                log("  - TamingManager is null!");
                 return;
             }
 
             boolean isTamed = tamingManager.isTamed(entityUuid);
-            logAlways("  - Is tamed: " + isTamed);
+            log("  - Is tamed: " + isTamed);
 
             if (isTamed && coopPos != null) {
                 // Mark as in storage with position - prevents respawn and enables matching on exit
                 addToStorage(entityUuid, coopPos);
-                logAlways("  - ADDED to storage (chicken entering coop). Storage count: " + animalsInStorage.size());
+                log("  - ADDED to storage (chicken entering coop). Storage count: " + animalsInStorage.size());
             }
         } catch (Exception e) {
-            logAlways("  - Exception: " + e.getMessage());
+            log("  - Exception: " + e.getMessage());
             e.printStackTrace();
         }
     }
@@ -1107,7 +1107,7 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
 
     private static void logStatic(String message) {
         LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-        if (plugin != null) {
+        if (plugin != null && LaitsBreedingPlugin.isVerboseLogging()) {
             plugin.getLogger().atInfo().log("[CoopTracker] " + message);
         }
     }
@@ -1115,14 +1115,6 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
     private void log(String message) {
         LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
         if (plugin != null && LaitsBreedingPlugin.isVerboseLogging()) {
-            plugin.getLogger().atInfo().log("[CoopTracker] " + message);
-        }
-    }
-
-    // Always log - for debugging the system itself
-    private void logAlways(String message) {
-        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-        if (plugin != null) {
             plugin.getLogger().atInfo().log("[CoopTracker] " + message);
         }
     }

@@ -305,6 +305,8 @@ public class ConfigManager {
             String json = Files.readString(configPath);
             loadFromJson(json);
             log("Loaded config from: " + configPath);
+            // Save to persist any format migrations (e.g., enabled -> breedingEnabled/tamingEnabled)
+            saveToFile();
         } catch (Exception e) {
             log("Error loading config: " + e.getMessage() + ", using defaults");
             loadDefaults();
@@ -344,7 +346,9 @@ public class ConfigManager {
     }
 
     /**
-     * Update an existing preset file with any missing animals using the preset's default values.
+     * Update an existing preset file:
+     * 1. Migrate format (enabled -> breedingEnabled/tamingEnabled) without changing values
+     * 2. Add any missing animals using the preset's default values
      * @return number of animals added
      */
     private int updatePresetWithMissingAnimals(String presetName, Path presetFile) {
@@ -358,6 +362,8 @@ public class ConfigManager {
             Map<AnimalType, AnimalConfig> presetDefaults = getBuiltinPresetConfigs(presetName);
 
             int addedCount = 0;
+            boolean formatMigrated = false;
+
             for (AnimalType type : AnimalType.values()) {
                 String key = type.name();
                 if (!animals.has(key)) {
@@ -380,13 +386,27 @@ public class ConfigManager {
                         animals.add(key, animalJson);
                         addedCount++;
                     }
+                } else {
+                    // Animal exists - check if format migration is needed
+                    JsonObject animalJson = animals.getAsJsonObject(key);
+                    if (animalJson.has("enabled") && !animalJson.has("breedingEnabled")) {
+                        // Migrate: enabled -> breedingEnabled + tamingEnabled (same value, no data change)
+                        boolean enabledValue = animalJson.get("enabled").getAsBoolean();
+                        animalJson.remove("enabled");
+                        animalJson.addProperty("breedingEnabled", enabledValue);
+                        animalJson.addProperty("tamingEnabled", enabledValue);
+                        formatMigrated = true;
+                    }
                 }
             }
 
-            if (addedCount > 0) {
+            if (addedCount > 0 || formatMigrated) {
                 // Save updated preset
                 root.add("animals", animals);
                 Files.writeString(presetFile, GSON.toJson(root));
+                if (formatMigrated) {
+                    log("Migrated " + presetName + " preset to new format (breedingEnabled/tamingEnabled)");
+                }
             }
 
             return addedCount;
