@@ -1128,12 +1128,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             return;
         }
 
-        // Skip if breeding is disabled
-        if (animalType != null && !configManager.isAnimalEnabled(animalType)) {
+        // Skip if neither breeding nor taming is enabled
+        if (animalType != null && !configManager.isBreedingEnabled(animalType) && !configManager.isTamingEnabled(animalType)) {
             logVerbose("Skipping disabled animal: " + animalType);
             return;
         }
-        if (customAnimal != null && !customAnimal.isEnabled()) {
+        if (customAnimal != null && !customAnimal.isBreedingEnabled() && !customAnimal.isTamingEnabled()) {
             logVerbose("Skipping disabled custom animal: " + animal.getModelAssetId());
             return;
         }

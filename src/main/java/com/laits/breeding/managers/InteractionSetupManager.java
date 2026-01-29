@@ -114,7 +114,8 @@ public class InteractionSetupManager {
 
             logVerbose("Setting up animal: " + modelAssetId + " (" + animalType + ")");
 
-            if (!configManager.isAnimalEnabled(animalType))
+            // Skip if neither breeding nor taming is enabled
+            if (!configManager.isBreedingEnabled(animalType) && !configManager.isTamingEnabled(animalType))
                 return;
 
             boolean isBaby = AnimalType.isBabyVariant(modelAssetId);
@@ -159,11 +160,12 @@ public class InteractionSetupManager {
                 customAnimal = configManager.getCustomAnimal(modelAssetId);
             }
 
-            if (animalType != null && !configManager.isAnimalEnabled(animalType)) {
+            // Skip if neither breeding nor taming is enabled
+            if (animalType != null && !configManager.isBreedingEnabled(animalType) && !configManager.isTamingEnabled(animalType)) {
                 logVerbose("Skipping disabled animal: " + animalType);
                 return;
             }
-            if (customAnimal != null && !customAnimal.isEnabled()) {
+            if (customAnimal != null && !customAnimal.isBreedingEnabled() && !customAnimal.isTamingEnabled()) {
                 logVerbose("Skipping disabled custom animal: " + modelAssetId);
                 return;
             }

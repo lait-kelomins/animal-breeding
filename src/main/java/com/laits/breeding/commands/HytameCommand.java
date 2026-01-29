@@ -46,7 +46,8 @@ public class HytameCommand extends AbstractCommand {
         addSubCommand(new HytameUntameSubCommand());
         addSubCommand(new HytameSettingsSubCommand());
         addSubCommand(new HytameScanSubCommand());
-        // Admin commands (Creative mode required)
+        addSubCommand(new HytameFoodsSubCommand());
+        // Admin commands (require admin permissions)
         addSubCommand(new HytameConfigSubCommand());
         addSubCommand(new HytameGrowthSubCommand());
         addSubCommand(new HytameCustomSubCommand());
@@ -81,7 +82,7 @@ public class HytameCommand extends AbstractCommand {
     private static boolean checkAdminDenied(CommandContext ctx) {
         if (ctx.sender() instanceof Player player) {
             if (!HytamePermissions.hasAdminAccess(player)) {
-                ctx.sendMessage(Message.raw("This command requires Creative mode.").color("#FF5555"));
+                ctx.sendMessage(Message.raw("This command requires admin permissions (or Creative mode).").color("#FF5555"));
                 return true;
             }
         }
@@ -108,11 +109,15 @@ public class HytameCommand extends AbstractCommand {
                 .insert(Message.raw(" - Taming settings").color("#AAAAAA")));
         ctx.sendMessage(Message.raw("/hytame scan").color("#FFFFFF")
                 .insert(Message.raw(" - Scan for untracked babies").color("#AAAAAA")));
+        ctx.sendMessage(Message.raw("/hytame config info <animal>").color("#FFFFFF")
+                .insert(Message.raw(" - View animal details").color("#AAAAAA")));
+        ctx.sendMessage(Message.raw("/hytame config list").color("#FFFFFF")
+                .insert(Message.raw(" - List all animals").color("#AAAAAA")));
         ctx.sendMessage(Message.raw(""));
         ctx.sendMessage(Message.raw("Admin Commands ").color("#FFAA00")
-                .insert(Message.raw("(Creative mode required):").color("#888888")));
-        ctx.sendMessage(Message.raw("/hytame config ...").color("#FFFFFF")
-                .insert(Message.raw(" - Configuration commands").color("#AAAAAA")));
+                .insert(Message.raw("(admin):").color("#888888")));
+        ctx.sendMessage(Message.raw("/hytame config enable/disable").color("#FFFFFF")
+                .insert(Message.raw(" - Toggle breeding/taming").color("#AAAAAA")));
         ctx.sendMessage(Message.raw("/hytame growth").color("#FFFFFF")
                 .insert(Message.raw(" - Toggle baby growth").color("#AAAAAA")));
         ctx.sendMessage(Message.raw("/hytame custom ...").color("#FFFFFF")
@@ -121,6 +126,10 @@ public class HytameCommand extends AbstractCommand {
                 .insert(Message.raw(" - Debug commands").color("#AAAAAA")));
         ctx.sendMessage(Message.raw(""));
         ctx.sendMessage(Message.raw("Feed animals their favorite food to breed!").color("#55FF55"));
+        ctx.sendMessage(Message.raw(""));
+        ctx.sendMessage(Message.raw(">>> ").color("#FFFF55")
+                .insert(Message.raw("/hytame foods").color("#55FFFF"))
+                .insert(Message.raw(" - Quick guide to all animal foods!").color("#FFFF55")));
     }
 
     // =========================================================================
@@ -356,15 +365,135 @@ public class HytameCommand extends AbstractCommand {
         }
     }
 
+    // --- Subcommand: foods ---
+    public static class HytameFoodsSubCommand extends AbstractCommand {
+        public HytameFoodsSubCommand() {
+            super("foods", "Quick reference for animal foods");
+        }
+
+        @Override
+        protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkDeprecatedAlias(ctx);
+            executeFoodsLogic(ctx);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        /** Called from deprecated /breed command wrapper */
+        public void executeFromDeprecated(CommandContext ctx) {
+            executeFoodsLogic(ctx);
+        }
+
+        private static void executeFoodsLogic(CommandContext ctx) {
+            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+            ConfigManager config = plugin != null ? plugin.getConfigManager() : null;
+
+            ctx.sendMessage(Message.raw("=== Animal Food Reference ===").color("#FF9900"));
+            ctx.sendMessage(Message.raw(""));
+
+            if (config == null) {
+                ctx.sendMessage(Message.raw("Error: Could not load configuration.").color("#FF5555"));
+                return;
+            }
+
+            // Show enabled livestock with their configured foods
+            ctx.sendMessage(Message.raw("Enabled Animals:").color("#FFAA00"));
+            int count = 0;
+            for (com.laits.breeding.models.AnimalType type : com.laits.breeding.models.AnimalType.values()) {
+                if (config.isBreedingEnabled(type) || config.isTamingEnabled(type)) {
+                    List<String> foods = config.getBreedingFoods(type);
+                    String foodList = BreedingConfigCommand.getFoodDisplayList(foods);
+
+                    // Build status indicators
+                    String status = "";
+                    if (config.isBreedingEnabled(type) && config.isTamingEnabled(type)) {
+                        status = " [B+T]";
+                    } else if (config.isBreedingEnabled(type)) {
+                        status = " [B]";
+                    } else {
+                        status = " [T]";
+                    }
+
+                    ctx.sendMessage(Message.raw("  " + type.getId()).color("#FFFFFF")
+                            .insert(Message.raw(status).color("#888888"))
+                            .insert(Message.raw(" - ").color("#555555"))
+                            .insert(Message.raw(foodList).color("#55FF55")));
+                    count++;
+                }
+            }
+
+            // Show custom animals if any
+            var customAnimals = config.getCustomAnimals();
+            if (customAnimals != null && !customAnimals.isEmpty()) {
+                ctx.sendMessage(Message.raw(""));
+                ctx.sendMessage(Message.raw("Custom Animals:").color("#FFAA00"));
+                for (var entry : customAnimals.entrySet()) {
+                    var custom = entry.getValue();
+                    if (custom.isBreedingEnabled() || custom.isTamingEnabled()) {
+                        List<String> foods = custom.getBreedingFoods();
+                        String foodList = BreedingConfigCommand.getFoodDisplayList(foods);
+
+                        String status = "";
+                        if (custom.isBreedingEnabled() && custom.isTamingEnabled()) {
+                            status = " [B+T]";
+                        } else if (custom.isBreedingEnabled()) {
+                            status = " [B]";
+                        } else {
+                            status = " [T]";
+                        }
+
+                        ctx.sendMessage(Message.raw("  " + entry.getKey()).color("#FFFFFF")
+                                .insert(Message.raw(status).color("#888888"))
+                                .insert(Message.raw(" - ").color("#555555"))
+                                .insert(Message.raw(foodList).color("#55FF55")));
+                        count++;
+                    }
+                }
+            }
+
+            if (count == 0) {
+                ctx.sendMessage(Message.raw("  (no animals enabled)").color("#888888"));
+            }
+
+            ctx.sendMessage(Message.raw(""));
+            ctx.sendMessage(Message.raw("Legend: ").color("#888888")
+                    .insert(Message.raw("[B]").color("#AAAAAA"))
+                    .insert(Message.raw("=Breeding ").color("#666666"))
+                    .insert(Message.raw("[T]").color("#AAAAAA"))
+                    .insert(Message.raw("=Taming ").color("#666666"))
+                    .insert(Message.raw("[B+T]").color("#AAAAAA"))
+                    .insert(Message.raw("=Both").color("#666666")));
+            ctx.sendMessage(Message.raw(""));
+
+            // How to tame
+            ctx.sendMessage(Message.raw("How to Tame:").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("  1. Hold a ").color("#AAAAAA")
+                    .insert(Message.raw("Name Tag").color("#55FFFF"))
+                    .insert(Message.raw(" item").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("  2. Press ").color("#AAAAAA")
+                    .insert(Message.raw("F").color("#FFFF55"))
+                    .insert(Message.raw(" on an animal").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("  3. Enter a name in the UI").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw(""));
+
+            // Useful commands
+            ctx.sendMessage(Message.raw("Commands:").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("  /hytame config info <animal>").color("#FFFFFF")
+                    .insert(Message.raw(" - Full details").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("  /hytame config list").color("#FFFFFF")
+                    .insert(Message.raw(" - All animals").color("#AAAAAA")));
+        }
+    }
+
     // =========================================================================
-    // Admin Subcommands (Creative mode required)
+    // Admin Subcommands (admin)
     // =========================================================================
 
     // --- Subcommand: config (delegates to BreedingConfigCommand subcommands) ---
+    // Note: info/list are available to everyone, modifying commands require Creative
     public static class HytameConfigSubCommand extends AbstractCommand {
         public HytameConfigSubCommand() {
-            super("config", "Configuration commands (Creative mode required)");
-            setPermissionGroup(GameMode.Creative);
+            super("config", "Configuration commands (some require admin)");
+            // No permission group - individual subcommands check permissions
             // Add all config subcommands
             addSubCommand(new BreedingConfigCommand.ReloadSubCommand());
             addSubCommand(new BreedingConfigCommand.SaveSubCommand());
@@ -372,6 +501,8 @@ public class HytameCommand extends AbstractCommand {
             addSubCommand(new BreedingConfigCommand.InfoSubCommand());
             addSubCommand(new BreedingConfigCommand.EnableSubCommand());
             addSubCommand(new BreedingConfigCommand.DisableSubCommand());
+            addSubCommand(new BreedingConfigCommand.EnableTamingSubCommand());
+            addSubCommand(new BreedingConfigCommand.DisableTamingSubCommand());
             addSubCommand(new BreedingConfigCommand.SetSubCommand());
             addSubCommand(new BreedingConfigCommand.AddFoodSubCommand());
             addSubCommand(new BreedingConfigCommand.RemoveFoodSubCommand());
@@ -409,7 +540,7 @@ public class HytameCommand extends AbstractCommand {
     // --- Subcommand: growth ---
     public static class HytameGrowthSubCommand extends AbstractCommand {
         public HytameGrowthSubCommand() {
-            super("growth", "Toggle baby animal growth (Creative mode required)");
+            super("growth", "Toggle baby animal growth (admin)");
             setPermissionGroup(GameMode.Creative);
         }
 
@@ -451,7 +582,7 @@ public class HytameCommand extends AbstractCommand {
     // --- Subcommand: custom (delegates to CustomAnimalCommand subcommands) ---
     public static class HytameCustomSubCommand extends AbstractCommand {
         public HytameCustomSubCommand() {
-            super("custom", "Manage custom animals from other mods (Creative mode required)");
+            super("custom", "Manage custom animals from other mods (admin)");
             setPermissionGroup(GameMode.Creative);
             addSubCommand(new CustomAnimalCommand.CustomAnimalAddCommand());
             addSubCommand(new CustomAnimalCommand.CustomAnimalRemoveCommand());
@@ -507,7 +638,7 @@ public class HytameCommand extends AbstractCommand {
     // --- Subcommand: debug ---
     public static class HytameDebugSubCommand extends AbstractCommand {
         public HytameDebugSubCommand() {
-            super("debug", "Debug commands for taming system (Creative mode required)");
+            super("debug", "Debug commands for taming system (admin)");
             setPermissionGroup(GameMode.Creative);
             addSubCommand(new DebugMemorySubCommand());
             addSubCommand(new DebugFileSubCommand());

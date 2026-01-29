@@ -137,6 +137,18 @@ public class NameAnimalInteraction extends SimpleInteraction {
                     }
                 }
 
+                // Check if taming is enabled for this animal type
+                boolean tamingEnabled = false;
+                if (animalType != null) {
+                    tamingEnabled = plugin.getConfigManager().isTamingEnabled(animalType);
+                } else {
+                    tamingEnabled = plugin.getConfigManager().isCustomAnimalTamingEnabled(modelAssetId);
+                }
+                if (!tamingEnabled) {
+                    sendPlayerMessage(context, "Taming is disabled for this animal!", "#FF5555");
+                    shouldFail = true;
+                    return;
+                }
 
                 // Get player info
                 UUID playerUuid = getPlayerUuid(context);

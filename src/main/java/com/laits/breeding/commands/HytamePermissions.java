@@ -8,7 +8,11 @@ import com.hypixel.hytale.server.core.entity.entities.Player;
  *
  * Permission structure:
  * - hytame.*        = Base permission prefix for player commands
- * - hytame.admin.*  = Admin permission prefix (requires Creative mode)
+ * - hytame.admin.*  = Admin permission prefix
+ *
+ * Admin access is granted if:
+ * - Player is in Creative mode (automatic admin), OR
+ * - Player has the required permission node (via /perm)
  */
 public class HytamePermissions {
 
@@ -24,7 +28,7 @@ public class HytamePermissions {
     public static final String SCAN = BASE + "scan";
     public static final String SETTINGS = BASE + "settings";
 
-    // Admin permissions (require Creative mode)
+    // Admin permissions
     public static final String CONFIG = ADMIN + "config";
     public static final String GROWTH = ADMIN + "growth";
     public static final String CUSTOM = ADMIN + "custom";
@@ -32,14 +36,41 @@ public class HytamePermissions {
 
     /**
      * Check if a player has admin access.
-     * Admin access is granted if the player is in Creative mode.
+     * Admin access is granted if:
+     * - Player is in Creative mode, OR
+     * - Player has the "hytame.admin" permission
      *
      * @param player The player to check
      * @return true if player has admin access
      */
     public static boolean hasAdminAccess(Player player) {
         if (player == null) return false;
-        return player.getGameMode() == GameMode.Creative;
+        // Creative mode = automatic admin
+        if (player.getGameMode() == GameMode.Creative) {
+            return true;
+        }
+        // Check for admin permission node
+        return player.hasPermission(ADMIN + "*") || player.hasPermission("hytame.admin");
+    }
+
+    /**
+     * Check if a player has a specific admin permission.
+     * Access is granted if:
+     * - Player is in Creative mode, OR
+     * - Player has the specific permission node
+     *
+     * @param player The player to check
+     * @param permission The permission node to check (e.g., "hytame.admin.config")
+     * @return true if player has access
+     */
+    public static boolean hasPermission(Player player, String permission) {
+        if (player == null) return false;
+        // Creative mode = automatic admin for all hytame.admin.* permissions
+        if (permission.startsWith(ADMIN) && player.getGameMode() == GameMode.Creative) {
+            return true;
+        }
+        // Check for specific permission node
+        return player.hasPermission(permission);
     }
 
     /**

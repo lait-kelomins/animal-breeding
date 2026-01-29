@@ -30,6 +30,7 @@ public class BreedCommand extends AbstractCommand {
         addSubCommand(new DeprecatedUntameSubCommand());
         addSubCommand(new DeprecatedSettingsSubCommand());
         addSubCommand(new DeprecatedScanSubCommand());
+        addSubCommand(new DeprecatedFoodsSubCommand());
         addSubCommand(new DeprecatedConfigSubCommand());
         addSubCommand(new DeprecatedGrowthSubCommand());
         addSubCommand(new DeprecatedCustomSubCommand());
@@ -189,6 +190,18 @@ public class BreedCommand extends AbstractCommand {
         @Override
         protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
             new HytameCommand.HytameScanSubCommand().executeFromDeprecated(ctx);
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    private static class DeprecatedFoodsSubCommand extends DeprecatedSubCommand {
+        public DeprecatedFoodsSubCommand() {
+            super("foods", "Quick food reference");
+        }
+
+        @Override
+        protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
+            new HytameCommand.HytameFoodsSubCommand().executeFromDeprecated(ctx);
             return CompletableFuture.completedFuture(null);
         }
     }

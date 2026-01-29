@@ -262,7 +262,7 @@ public class BreedingManager {
      */
     public FeedResult tryFeed(UUID animalId, AnimalType animalType, String foodItemId, Ref<EntityStore> entityRef, String worldName) {
         // Check if this animal type is enabled for breeding
-        if (!config.isAnimalEnabled(animalType)) {
+        if (!config.isBreedingEnabled(animalType)) {
             return FeedResult.DISABLED;
         }
 

@@ -126,8 +126,8 @@ public class MouseInteractionHandler {
             if (animalType == null)
                 return;
 
-            // Check if enabled
-            if (!configManager.isAnimalEnabled(animalType))
+            // Check if either breeding or taming is enabled
+            if (!configManager.isBreedingEnabled(animalType) && !configManager.isTamingEnabled(animalType))
                 return;
 
             // Set up interaction for this animal

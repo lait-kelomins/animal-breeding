@@ -6,6 +6,7 @@ import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg;
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
+import com.hypixel.hytale.server.core.entity.entities.Player;
 
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.models.AnimalType;
@@ -80,6 +81,20 @@ public class BreedingConfigCommand extends AbstractCommand {
         return plugin != null ? plugin.getConfigManager() : null;
     }
 
+    /**
+     * Check if command sender has admin access.
+     * @return true if access is denied (should return early)
+     */
+    private static boolean checkAdminDenied(CommandContext ctx) {
+        if (ctx.sender() instanceof Player player) {
+            if (!HytamePermissions.hasAdminAccess(player)) {
+                ctx.sendMessage(Message.raw("This command requires admin permissions (or Creative mode).").color("#FF5555"));
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void showConfigSummary(CommandContext ctx, ConfigManager config) {
         // Test different color formats to find what works
         ctx.sendMessage(Message.raw("=== Breeding Config ===").color("#FF9900")); // Hex color
@@ -115,7 +130,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
     // ==================== Sub-Commands ====================
 
-    /** /breedconfig reload */
+    /** /breedconfig reload - Admin only */
     public static class ReloadSubCommand extends AbstractCommand {
         public ReloadSubCommand() {
             super("reload", "Reload configuration from file");
@@ -123,6 +138,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
             if (config == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -134,7 +150,7 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig save */
+    /** /breedconfig save - Admin only */
     public static class SaveSubCommand extends AbstractCommand {
         public SaveSubCommand() {
             super("save", "Save current configuration to file");
@@ -142,6 +158,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
             if (config == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -245,9 +262,12 @@ public class BreedingConfigCommand extends AbstractCommand {
                 ctx.sendMessage(Message.raw("=== " + type.name() + " ===").color("#FF9900"));
                 ctx.sendMessage(Message.raw("Category: ").color("#AAAAAA")
                         .insert(Message.raw(type.getCategory().name()).color("#FFFFFF")));
-                boolean enabled = config.isAnimalEnabled(type);
-                ctx.sendMessage(Message.raw("Enabled: ").color("#AAAAAA")
-                        .insert(Message.raw(enabled ? "Yes" : "No").color(enabled ? "#55FF55" : "#FF5555")));
+                boolean breedingEnabled = config.isBreedingEnabled(type);
+                boolean tamingEnabled = config.isTamingEnabled(type);
+                ctx.sendMessage(Message.raw("Breeding: ").color("#AAAAAA")
+                        .insert(Message.raw(breedingEnabled ? "Yes" : "No").color(breedingEnabled ? "#55FF55" : "#FF5555"))
+                        .insert(Message.raw("  Taming: ").color("#AAAAAA"))
+                        .insert(Message.raw(tamingEnabled ? "Yes" : "No").color(tamingEnabled ? "#55FF55" : "#FF5555")));
                 boolean hasBaby = type.hasBabyVariant();
                 Message babyMsg = Message.raw("Has Baby: ").color("#AAAAAA")
                         .insert(Message.raw(hasBaby ? "Yes" : "No").color(hasBaby ? "#55FF55" : "#FF5555"));
@@ -275,9 +295,12 @@ public class BreedingConfigCommand extends AbstractCommand {
                 ctx.sendMessage(Message.raw("=== " + custom.getDisplayName() + " (Custom) ===").color("#FF9900"));
                 ctx.sendMessage(Message.raw("Model ID: ").color("#AAAAAA")
                         .insert(Message.raw(custom.getModelAssetId()).color("#FFFFFF")));
-                boolean enabled = custom.isEnabled();
-                ctx.sendMessage(Message.raw("Enabled: ").color("#AAAAAA")
-                        .insert(Message.raw(enabled ? "Yes" : "No").color(enabled ? "#55FF55" : "#FF5555")));
+                boolean breedingEnabled = custom.isBreedingEnabled();
+                boolean tamingEnabled = custom.isTamingEnabled();
+                ctx.sendMessage(Message.raw("Breeding: ").color("#AAAAAA")
+                        .insert(Message.raw(breedingEnabled ? "Yes" : "No").color(breedingEnabled ? "#55FF55" : "#FF5555"))
+                        .insert(Message.raw("  Taming: ").color("#AAAAAA"))
+                        .insert(Message.raw(tamingEnabled ? "Yes" : "No").color(tamingEnabled ? "#55FF55" : "#FF5555")));
                 ctx.sendMessage(Message.raw("NPC Role: ").color("#AAAAAA")
                         .insert(Message.raw(custom.getAdultNpcRoleId()).color("#FFFFFF")));
                 ctx.sendMessage(Message.raw("Growth Time: ").color("#AAAAAA")
@@ -298,7 +321,7 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig enable <target> */
+    /** /breedconfig enable <target> - Admin only */
     public static class EnableSubCommand extends AbstractCommand {
         private final RequiredArg<String> targetArg;
 
@@ -310,6 +333,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
             if (config == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -322,7 +346,7 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig disable <target> */
+    /** /breedconfig disable <target> - Admin only */
     public static class DisableSubCommand extends AbstractCommand {
         private final RequiredArg<String> targetArg;
 
@@ -334,6 +358,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
             if (config == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -398,7 +423,109 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig set <animal> <property> <value> */
+    /** /breedconfig enabletaming <target> - Admin only */
+    public static class EnableTamingSubCommand extends AbstractCommand {
+        private final RequiredArg<String> targetArg;
+
+        public EnableTamingSubCommand() {
+            super("enabletaming", "Enable taming for animal, category, or ALL");
+            targetArg = withRequiredArg("target", "Animal name, category (LIVESTOCK, MAMMAL, etc.), or ALL",
+                    ArgTypes.STRING);
+        }
+
+        @Override
+        protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
+            ConfigManager config = getConfig();
+            if (config == null) {
+                ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                return CompletableFuture.completedFuture(null);
+            }
+
+            String target = ctx.get(targetArg).toUpperCase();
+            handleTamingToggle(ctx, config, target, true);
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    /** /breedconfig disabletaming <target> - Admin only */
+    public static class DisableTamingSubCommand extends AbstractCommand {
+        private final RequiredArg<String> targetArg;
+
+        public DisableTamingSubCommand() {
+            super("disabletaming", "Disable taming for animal, category, or ALL");
+            targetArg = withRequiredArg("target", "Animal name, category (LIVESTOCK, MAMMAL, etc.), or ALL",
+                    ArgTypes.STRING);
+        }
+
+        @Override
+        protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
+            ConfigManager config = getConfig();
+            if (config == null) {
+                ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
+                return CompletableFuture.completedFuture(null);
+            }
+
+            String target = ctx.get(targetArg).toUpperCase();
+            handleTamingToggle(ctx, config, target, false);
+            return CompletableFuture.completedFuture(null);
+        }
+    }
+
+    /** Shared toggle logic for taming enable/disable */
+    private static void handleTamingToggle(CommandContext ctx, ConfigManager config, String target, boolean enable) {
+        String statusColor = enable ? "#55FF55" : "#FF5555";
+        String statusWord = enable ? "Enabled" : "Disabled";
+
+        // Check if it's ALL
+        if (target.equalsIgnoreCase("ALL")) {
+            for (AnimalType type : AnimalType.values()) {
+                config.setTamingEnabled(type, enable);
+            }
+            // Also enable/disable all custom animals
+            for (String customId : config.getCustomAnimals().keySet()) {
+                config.setCustomAnimalTamingEnabled(customId, enable);
+            }
+            ctx.sendMessage(Message.raw(statusWord).color(statusColor)
+                    .insert(Message.raw(" taming for ALL animals (including custom).").color("#AAAAAA")));
+            return;
+        }
+
+        // Check if it's a category
+        try {
+            AnimalType.Category cat = AnimalType.Category.valueOf(target.toUpperCase());
+            int count = 0;
+            for (AnimalType type : AnimalType.values()) {
+                if (type.getCategory() == cat) {
+                    config.setTamingEnabled(type, enable);
+                    count++;
+                }
+            }
+            ctx.sendMessage(Message.raw(statusWord).color(statusColor)
+                    .insert(Message.raw(" taming for " + count + " " + cat.name() + " animals.")
+                            .color("#AAAAAA")));
+            return;
+        } catch (IllegalArgumentException ignored) {
+        }
+
+        // Use unified lookup for individual animal (built-in or custom)
+        ConfigManager.AnimalLookupResult lookup = config.lookupAnimal(target);
+        if (lookup != null) {
+            config.setAnyAnimalTamingEnabled(target, enable);
+            ctx.sendMessage(Message.raw(statusWord).color(statusColor)
+                    .insert(Message.raw(" taming for ").color("#AAAAAA"))
+                    .insert(Message.raw(lookup.getDisplayName()).color("#FFFFFF")));
+        } else {
+            ctx.sendMessage(Message.raw("Unknown animal or category: ").color("#FF5555")
+                    .insert(Message.raw(target).color("#FFFFFF")));
+            ctx.sendMessage(Message.raw("Animals: COW, PIG, CHICKEN, or custom animal names").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw("Categories: ").color("#AAAAAA")
+                    .insert(Message.raw(Arrays.toString(AnimalType.Category.values())).color("#FFFFFF")));
+        }
+    }
+
+    /** /breedconfig set <animal> <property> <value> - Admin only */
     public static class SetSubCommand extends AbstractCommand {
         private final RequiredArg<String> animalArg;
         private final RequiredArg<String> propertyArg;
@@ -416,6 +543,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
             if (config == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -488,7 +616,7 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig addfood <animal> <item> */
+    /** /breedconfig addfood <animal> <item> - Admin only */
     public static class AddFoodSubCommand extends AbstractCommand {
         private final RequiredArg<String> animalArg;
         private final RequiredArg<String> foodArg;
@@ -503,6 +631,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
             if (config == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -538,7 +667,7 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig removefood <animal> <item> */
+    /** /breedconfig removefood <animal> <item> - Admin only */
     public static class RemoveFoodSubCommand extends AbstractCommand {
         private final RequiredArg<String> animalArg;
         private final RequiredArg<String> foodArg;
@@ -553,6 +682,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
             if (config == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -673,7 +803,7 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig preset apply <name> */
+    /** /breedconfig preset apply <name> - Admin only */
     public static class PresetApplySubCommand extends AbstractCommand {
         private final RequiredArg<String> presetArg;
 
@@ -685,6 +815,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
             if (config == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -708,7 +839,7 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig preset save <name> */
+    /** /breedconfig preset save <name> - Admin only */
     public static class PresetSaveSubCommand extends AbstractCommand {
         private final RequiredArg<String> presetArg;
 
@@ -720,6 +851,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
             if (config == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -741,7 +873,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
     /**
      * /breedconfig preset restore <name> - Reset a built-in preset to default
-     * values
+     * values - Admin only
      */
     public static class PresetRestoreSubCommand extends AbstractCommand {
         private final RequiredArg<String> presetArg;
@@ -754,6 +886,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
             if (config == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -845,5 +978,107 @@ public class BreedingConfigCommand extends AbstractCommand {
             return null;
         String resolved = FOOD_SHORTCUTS.get(input.toLowerCase());
         return resolved != null ? resolved : input;
+    }
+
+    // ==================== Food Display Names (Reverse Mapping) ====================
+
+    /**
+     * Maps item IDs to human-readable display names.
+     */
+    private static final Map<String, String> FOOD_DISPLAY_NAMES = new HashMap<>();
+    static {
+        // Crops
+        FOOD_DISPLAY_NAMES.put("Plant_Crop_Carrot_Item", "Carrot");
+        FOOD_DISPLAY_NAMES.put("Plant_Crop_Wheat_Item", "Wheat");
+        FOOD_DISPLAY_NAMES.put("Plant_Crop_Corn_Item", "Corn");
+        FOOD_DISPLAY_NAMES.put("Plant_Crop_Potato_Item", "Potato");
+        FOOD_DISPLAY_NAMES.put("Plant_Crop_Lettuce_Item", "Lettuce");
+        FOOD_DISPLAY_NAMES.put("Plant_Crop_Cauliflower_Item", "Cauliflower");
+        FOOD_DISPLAY_NAMES.put("Plant_Crop_Rice_Item", "Rice");
+        FOOD_DISPLAY_NAMES.put("Plant_Crop_Beetroot_Item", "Beetroot");
+
+        // Mushrooms
+        FOOD_DISPLAY_NAMES.put("Plant_Crop_Mushroom_Cap_Brown", "Brown Mushroom");
+        FOOD_DISPLAY_NAMES.put("Plant_Crop_Mushroom_Cap_Red", "Red Mushroom");
+
+        // Fruits
+        FOOD_DISPLAY_NAMES.put("Plant_Fruit_Apple", "Apple");
+        FOOD_DISPLAY_NAMES.put("Plant_Fruit_Berries_Red", "Red Berries");
+        FOOD_DISPLAY_NAMES.put("Plant_Cactus_Flower", "Cactus Flower");
+
+        // Meat
+        FOOD_DISPLAY_NAMES.put("Food_Wildmeat_Raw", "Raw Meat");
+        FOOD_DISPLAY_NAMES.put("Food_Wildmeat_Cooked", "Cooked Meat");
+        FOOD_DISPLAY_NAMES.put("Food_Beef_Raw", "Raw Beef");
+        FOOD_DISPLAY_NAMES.put("Food_Beef_Cooked", "Cooked Beef");
+        FOOD_DISPLAY_NAMES.put("Food_Pork_Raw", "Raw Pork");
+        FOOD_DISPLAY_NAMES.put("Food_Pork_Cooked", "Cooked Pork");
+        FOOD_DISPLAY_NAMES.put("Food_Chicken_Raw", "Raw Chicken");
+        FOOD_DISPLAY_NAMES.put("Food_Chicken_Cooked", "Cooked Chicken");
+
+        // Fish
+        FOOD_DISPLAY_NAMES.put("Food_Fish_Raw", "Raw Fish");
+        FOOD_DISPLAY_NAMES.put("Food_Fish_Grilled", "Grilled Fish");
+
+        // Seeds
+        FOOD_DISPLAY_NAMES.put("Plant_Seed_Wheat", "Wheat Seeds");
+        FOOD_DISPLAY_NAMES.put("Plant_Seed_Corn", "Corn Seeds");
+        FOOD_DISPLAY_NAMES.put("Plant_Seed_Carrot", "Carrot Seeds");
+        FOOD_DISPLAY_NAMES.put("Seeds", "Seeds");
+    }
+
+    /**
+     * Get a human-readable display name for a food item ID.
+     * If no display name is found, attempts to generate one from the item ID.
+     */
+    public static String getFoodDisplayName(String itemId) {
+        if (itemId == null) return "Unknown";
+
+        // Check for known display name
+        String displayName = FOOD_DISPLAY_NAMES.get(itemId);
+        if (displayName != null) return displayName;
+
+        // Auto-generate from item ID: "Plant_Crop_Carrot_Item" -> "Carrot"
+        String name = itemId;
+
+        // Remove common prefixes
+        if (name.startsWith("Plant_Crop_")) name = name.substring(11);
+        else if (name.startsWith("Plant_Fruit_")) name = name.substring(12);
+        else if (name.startsWith("Plant_Seed_")) name = name.substring(11);
+        else if (name.startsWith("Plant_")) name = name.substring(6);
+        else if (name.startsWith("Food_")) name = name.substring(5);
+
+        // Remove common suffixes
+        if (name.endsWith("_Item")) name = name.substring(0, name.length() - 5);
+
+        // Replace underscores with spaces and capitalize
+        name = name.replace("_", " ");
+
+        // Title case
+        StringBuilder result = new StringBuilder();
+        boolean capitalizeNext = true;
+        for (char c : name.toCharArray()) {
+            if (c == ' ') {
+                result.append(c);
+                capitalizeNext = true;
+            } else if (capitalizeNext) {
+                result.append(Character.toUpperCase(c));
+                capitalizeNext = false;
+            } else {
+                result.append(Character.toLowerCase(c));
+            }
+        }
+
+        return result.toString();
+    }
+
+    /**
+     * Convert a list of food item IDs to human-readable display names.
+     */
+    public static String getFoodDisplayList(List<String> foods) {
+        if (foods == null || foods.isEmpty()) return "(none)";
+        return foods.stream()
+                .map(BreedingConfigCommand::getFoodDisplayName)
+                .collect(java.util.stream.Collectors.joining(", "));
     }
 }
