@@ -40,6 +40,14 @@ public class InteractionSetupManager {
     private boolean useEntityBasedInteractions = true;
     private boolean useLegacyFeedInteraction = true;
     private boolean showAbility2HintsOnEntities = true;
+    private boolean modifyInteractionHints = true; // If true, sets custom hints (requires cleanup on mod disable)
+
+    // Cached InteractionTypes (avoid enum iteration every call)
+    private static InteractionType cachedUseType = null;
+    private static InteractionType cachedAbility2Type = null;
+    private static boolean interactionTypesCached = false;
+
+    private static final String FEED_INTERACTION_ID = "Root_FeedAnimal";
 
     // Logging
     private boolean verboseLogging = false;
@@ -68,6 +76,10 @@ public class InteractionSetupManager {
         this.showAbility2HintsOnEntities = show;
     }
 
+    public void setModifyInteractionHints(boolean modify) {
+        this.modifyInteractionHints = modify;
+    }
+
     public void setVerboseLogging(boolean verbose) {
         this.verboseLogging = verbose;
     }
@@ -90,6 +102,22 @@ public class InteractionSetupManager {
         if (warningLogger != null) {
             warningLogger.accept(message);
         }
+    }
+
+    /**
+     * Cache InteractionType enum values to avoid iteration on every call.
+     */
+    private static void ensureInteractionTypesCached() {
+        if (interactionTypesCached) return;
+        for (InteractionType enumConst : InteractionType.class.getEnumConstants()) {
+            String name = enumConst.toString();
+            if ("Use".equals(name)) {
+                cachedUseType = enumConst;
+            } else if ("Ability2".equals(name)) {
+                cachedAbility2Type = enumConst;
+            }
+        }
+        interactionTypesCached = true;
     }
 
     private ComponentType<EntityStore, HyTameInteractionComponent> getHyTameInteractionType() {
@@ -181,7 +209,8 @@ public class InteractionSetupManager {
                 }
             }
 
-            // Set up interactions for adults - must be deferred
+            // Set up interactions for adults
+            // Must use world.execute() because store is processing during onEntityAdded callback
             if (!isBaby && world != null) {
                 final Ref<EntityStore> finalEntityRef = entityRef;
                 final AnimalType finalAnimalType = animalType;
@@ -203,11 +232,9 @@ public class InteractionSetupManager {
                                 logVerbose("[CustomAnimal] Interactions set up for: " + finalModelAssetId);
                             }
                         } else if (showAbility2HintsOnEntities) {
-                            String hintKey = "animalbreeding.interactionHints.feed";
+                            String hintKey = "server.interactionHints.feed";
                             setupAbility2HintOnly(worldStore, finalEntityRef, hintKey);
                             logVerbose("Ability2 hint set up for: " + finalModelAssetId);
-                        } else {
-                            logVerbose("New adult animal detected: " + finalModelAssetId + " (no hints)");
                         }
                     } catch (Exception e) {
                         logVerbose("Deferred interaction setup error: " + e.getMessage());
@@ -258,26 +285,27 @@ public class InteractionSetupManager {
                 return;
             }
 
-            String feedInteractionId = "Root_FeedAnimal";
-
-            InteractionType useType = null;
-            for (InteractionType enumConst : InteractionType.class.getEnumConstants()) {
-                if (enumConst.toString().equals("Use")) {
-                    useType = enumConst;
-                    break;
-                }
-            }
+            // Use cached InteractionType to avoid enum iteration every call
+            ensureInteractionTypesCached();
+            InteractionType useType = cachedUseType;
 
             String currentUse = interactions.getInteractionId(useType);
-            String currentHint = interactions.getInteractionHint();
 
+            // Early exit: if already set up, skip all the work
             ComponentType<EntityStore, HyTameInteractionComponent> hyTameType = getHyTameInteractionType();
             HyTameInteractionComponent origComp = hyTameType != null
                     ? store.getComponent(entityRef, hyTameType)
                     : null;
 
+            if (origComp != null && origComp.isCaptured() && FEED_INTERACTION_ID.equals(currentUse)) {
+                // Already fully set up - nothing to do
+                return;
+            }
+
+            String currentHint = interactions.getInteractionHint();
+
             if (origComp == null || !origComp.isCaptured()) {
-                if (currentUse == null || !currentUse.equals(feedInteractionId)) {
+                if (currentUse == null || !currentUse.equals(FEED_INTERACTION_ID)) {
                     if (hyTameType != null) {
                         origComp = store.ensureAndGetComponent(entityRef, hyTameType);
                         origComp.setOriginalInteractionId(currentUse);
@@ -293,16 +321,21 @@ public class InteractionSetupManager {
                 logVerbose("[BuiltIn] " + animalType + ": restored original from ECS: interaction=" + origComp.getOriginalInteractionId());
             }
 
-            if (currentUse == null || !currentUse.equals(feedInteractionId)) {
-                interactions.setInteractionId(useType, feedInteractionId);
-                logVerbose("[BuiltIn] " + animalType + ": set interaction to " + feedInteractionId);
+            if (currentUse == null || !currentUse.equals(FEED_INTERACTION_ID)) {
+                interactions.setInteractionId(useType, FEED_INTERACTION_ID);
+                logVerbose("[BuiltIn] " + animalType + ": set interaction to " + FEED_INTERACTION_ID);
             }
 
-            String hintKey = animalType.isMountable()
-                    ? "animalbreeding.interactionHints.legacyFeedOrMount"
-                    : "animalbreeding.interactionHints.legacyFeed";
-            interactions.setInteractionHint(hintKey);
-            logVerbose("[SetupInteraction] SUCCESS for " + animalType + ": interactionId=" + feedInteractionId + ", hint=" + hintKey);
+            // Only modify hints if flag is enabled (requires cleanup on mod disable)
+            if (modifyInteractionHints) {
+                String hintKey = animalType.isMountable()
+                        ? "server.interactionHints.legacyFeedOrMount"
+                        : "server.interactionHints.legacyFeed";
+                interactions.setInteractionHint(hintKey);
+                logVerbose("[SetupInteraction] SUCCESS for " + animalType + ": interactionId=" + FEED_INTERACTION_ID + ", hint=" + hintKey);
+            } else {
+                logVerbose("[SetupInteraction] SUCCESS for " + animalType + ": interactionId=" + FEED_INTERACTION_ID);
+            }
 
         } catch (Exception e) {
             logWarning("[SetupInteraction] ERROR for " + animalType + ": " + e.getMessage());
@@ -345,27 +378,28 @@ public class InteractionSetupManager {
                 return;
             }
 
-            String feedInteractionId = "Root_FeedAnimal";
-
-            InteractionType useType = null;
-            for (InteractionType enumConst : InteractionType.class.getEnumConstants()) {
-                if (enumConst.toString().equals("Use")) {
-                    useType = enumConst;
-                    break;
-                }
-            }
+            // Use cached InteractionType to avoid enum iteration every call
+            ensureInteractionTypesCached();
+            InteractionType useType = cachedUseType;
 
             String currentUse = interactions.getInteractionId(useType);
-            String currentHint = interactions.getInteractionHint();
-            logVerbose("[CustomAnimal] " + animalName + ": currentUse='" + currentUse + "', currentHint='" + currentHint + "'");
 
+            // Early exit: if already set up, skip all the work
             ComponentType<EntityStore, HyTameInteractionComponent> hyTameType = getHyTameInteractionType();
             HyTameInteractionComponent origComp = hyTameType != null
                     ? store.getComponent(entityRef, hyTameType)
                     : null;
 
+            if (origComp != null && origComp.isCaptured() && FEED_INTERACTION_ID.equals(currentUse)) {
+                // Already fully set up - nothing to do
+                return;
+            }
+
+            String currentHint = interactions.getInteractionHint();
+            logVerbose("[CustomAnimal] " + animalName + ": currentUse='" + currentUse + "', currentHint='" + currentHint + "'");
+
             if (origComp == null || !origComp.isCaptured()) {
-                if (currentUse == null || !currentUse.equals(feedInteractionId)) {
+                if (currentUse == null || !currentUse.equals(FEED_INTERACTION_ID)) {
                     if (hyTameType != null) {
                         origComp = store.ensureAndGetComponent(entityRef, hyTameType);
                         origComp.setOriginalInteractionId(currentUse);
@@ -381,16 +415,19 @@ public class InteractionSetupManager {
                 logVerbose("[CustomAnimal] " + animalName + ": restored original from ECS");
             }
 
-            if (currentUse == null || !currentUse.equals(feedInteractionId)) {
+            if (currentUse == null || !currentUse.equals(FEED_INTERACTION_ID)) {
                 if (currentUse != null && currentUse.startsWith("*")) {
                     interactions.setInteractionId(useType, null);
                     logVerbose("[CustomAnimal] " + animalName + ": cleared special interaction '" + currentUse + "' to null");
                 }
-                interactions.setInteractionId(useType, feedInteractionId);
-                logVerbose("[CustomAnimal] " + animalName + ": set interaction to " + feedInteractionId);
+                interactions.setInteractionId(useType, FEED_INTERACTION_ID);
+                logVerbose("[CustomAnimal] " + animalName + ": set interaction to " + FEED_INTERACTION_ID);
             }
 
-            interactions.setInteractionHint("animalbreeding.interactionHints.legacyFeed");
+            // Only modify hints if flag is enabled (requires cleanup on mod disable)
+            if (modifyInteractionHints) {
+                interactions.setInteractionHint("server.interactionHints.legacyFeed");
+            }
             logVerbose("[CustomAnimal] " + animalName + ": setup complete");
 
         } catch (Exception e) {
@@ -431,28 +468,31 @@ public class InteractionSetupManager {
             if (interactions == null)
                 return;
 
-            InteractionType useType = null;
-            for (InteractionType enumConst : InteractionType.class.getEnumConstants()) {
-                if (enumConst.toString().equals("Use")) {
-                    useType = enumConst;
-                    break;
-                }
-            }
+            // Use cached InteractionType
+            ensureInteractionTypesCached();
+            InteractionType useType = cachedUseType;
 
             if (shouldShowFeed) {
-                interactions.setInteractionId(useType, "Root_FeedAnimal");
-                String hintKey = animalType.isMountable()
-                        ? "animalbreeding.interactionHints.legacyFeedOrMount"
-                        : "animalbreeding.interactionHints.legacyFeed";
-                interactions.setInteractionHint(hintKey);
+                interactions.setInteractionId(useType, FEED_INTERACTION_ID);
+                // Only modify hints if flag is enabled (requires cleanup on mod disable)
+                if (modifyInteractionHints) {
+                    String hintKey = animalType.isMountable()
+                            ? "server.interactionHints.legacyFeedOrMount"
+                            : "server.interactionHints.legacyFeed";
+                    interactions.setInteractionHint(hintKey);
+                }
             } else {
+                // Restore original interaction (e.g., for mounting)
                 OriginalInteractionState original = InteractionStateCache.getInstance().getOriginalState(entityRef);
                 if (original != null) {
                     interactions.setInteractionId(useType, original.getInteractionId());
-                    if (original.hasHint()) {
-                        interactions.setInteractionHint(original.getHint());
-                    } else {
-                        interactions.setInteractionHint((String) null);
+                    // Only restore hints if flag is enabled
+                    if (modifyInteractionHints) {
+                        if (original.hasHint()) {
+                            interactions.setInteractionHint(original.getHint());
+                        } else {
+                            interactions.setInteractionHint((String) null);
+                        }
                     }
                 }
             }
@@ -475,9 +515,18 @@ public class InteractionSetupManager {
             return;
         }
 
+        // Collect data to process - skip if empty to avoid unnecessary world.execute() scheduling
         List<BreedingData> dataToProcess = new ArrayList<>();
         for (BreedingData data : breedingManager.getAllBreedingData()) {
-            dataToProcess.add(data);
+            // Only include animals that have entity refs (others can't be updated)
+            if (data.getEntityRef() != null) {
+                dataToProcess.add(data);
+            }
+        }
+
+        // Skip world.execute() entirely if nothing to process
+        if (dataToProcess.isEmpty()) {
+            return;
         }
 
         world.execute(() -> {
@@ -522,22 +571,23 @@ public class InteractionSetupManager {
                 return;
             }
 
-            InteractionType ability2Type = null;
-            for (InteractionType enumConst : InteractionType.class.getEnumConstants()) {
-                if (enumConst.toString().equals("Ability2")) {
-                    ability2Type = enumConst;
-                    break;
-                }
-            }
+            // Use cached InteractionType
+            ensureInteractionTypesCached();
+            InteractionType ability2Type = cachedAbility2Type;
 
             if (ability2Type == null) {
                 logVerbose("Could not find Ability2 InteractionType");
                 return;
             }
 
-            interactions.setInteractionId(ability2Type, "Root_FeedAnimal");
-            interactions.setInteractionHint(hintKey);
-            logVerbose("Set up Ability2 hint: " + hintKey);
+            interactions.setInteractionId(ability2Type, FEED_INTERACTION_ID);
+            // Only modify hints if flag is enabled (requires cleanup on mod disable)
+            if (modifyInteractionHints) {
+                interactions.setInteractionHint(hintKey);
+                logVerbose("Set up Ability2 hint: " + hintKey);
+            } else {
+                logVerbose("Set up Ability2 interaction (no custom hint)");
+            }
 
         } catch (Exception e) {
             logVerbose("setupAbility2HintOnly error: " + e.getMessage());

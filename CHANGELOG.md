@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.4.3-hotfix - Capture Crate Fix
+
+### Fixed
+- **Capture crate name swapping** - Fixed bug where releasing animals from capture crates would restore the wrong animal's name (e.g., releasing ChickenB would show "ChickenA")
+- **Chicken coop/capture crate conflict** - Fixed chicken coop system incorrectly tracking chickens captured by capture crates, which caused name restoration to fail
+- **Capture crate restore order** - Capture crate releases are now processed before chicken coop restores to prevent system conflicts
+
+---
+
 ## v1.4.3 - Taming Improved, Command Rename & Permissions
 
 ### Changed

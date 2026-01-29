@@ -1,0 +1,10 @@
+# Lait's Animal Breeding - Language File
+
+# Kept for backwards compatibility after disabling the interaction hints, will be moved to asset files
+
+# Interaction hints
+interactionHints.feed=Press [E] (or Ability 2) to Feed
+interactionHints.legacyFeed=Press [{key}] to Feed
+interactionHints.legacyFeedOrMount=Press [{key}] to Feed / Mount
+items.AB_Name_Tag.name=Name Tag
+items.AB_Name_Tag.description=Use to tame an animal

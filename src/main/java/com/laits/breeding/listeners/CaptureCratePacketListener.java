@@ -487,6 +487,15 @@ public class CaptureCratePacketListener {
     }
 
     /**
+     * Check if there's a pending capture for an entity ID (without consuming it).
+     * Used by CoopResidentTracker to avoid adding captured animals to coop storage.
+     */
+    public static boolean hasPendingCapture(int entityId) {
+        PendingCapture pending = pendingCaptures.get(entityId);
+        return pending != null && !pending.isExpired();
+    }
+
+    /**
      * Check if there's a pending release near a position.
      * Called by NewAnimalSpawnDetector when a new animal spawns.
      */

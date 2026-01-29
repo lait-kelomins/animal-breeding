@@ -259,6 +259,32 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
             log("  - Is tamed: " + isTamed);
 
             if (isTamed && coopPos != null) {
+                // Check if this animal is being captured by a capture crate
+                // If so, don't add to coop storage - the capture crate system will handle it
+
+                // First check: is there a pending capture by network ID?
+                // This catches the case where capture was detected but world.execute() hasn't run yet
+                try {
+                    var networkIdComp = commandBuffer.getComponent(ref, EcsReflectionUtil.NETWORK_ID_TYPE);
+                    if (networkIdComp != null) {
+                        int networkId = networkIdComp.getId();
+                        if (CaptureCratePacketListener.hasPendingCapture(networkId)) {
+                            log("  - Pending capture detected by networkId=" + networkId + " - NOT adding to coop storage");
+                            return;
+                        }
+                    }
+                } catch (Exception e) {
+                    // Continue with other checks
+                }
+
+                // Second check: is the animal already marked as captured?
+                // This catches the case where world.execute() has already run
+                TamedAnimalData tamedData = tamingManager.getTamedData(entityUuid);
+                if (tamedData != null && tamedData.isCaptured()) {
+                    log("  - Animal is marked as CAPTURED (capture crate) - NOT adding to coop storage");
+                    return;
+                }
+
                 // Mark as in storage with position - prevents respawn and enables matching on exit
                 addToStorage(entityUuid, coopPos);
                 log("  - ADDED to storage (chicken entering coop). Storage count: " + animalsInStorage.size());
@@ -518,27 +544,49 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
                 " (player has " + capturedList.size() + " captured animals in memory)");
 
             // Find first matching animal type in player's captured list
-            for (int i = 0; i < capturedList.size(); i++) {
-                UUID hytameId = capturedList.get(i);
+            // Use iterator to safely remove stale entries while iterating
+            java.util.Iterator<UUID> iterator = capturedList.iterator();
+            while (iterator.hasNext()) {
+                UUID hytameId = iterator.next();
                 TamedAnimalData tamedData = tamingManager.findByHytameId(hytameId);
 
-                if (tamedData != null) {
-                    com.laits.breeding.models.AnimalType capturedType = tamedData.getAnimalType();
-
-                    if (capturedType != null && capturedType == spawnedType) {
-                        logStatic("  - Found matching captured animal! hytameId=" + hytameId +
-                            " type=" + capturedType + " name=" + tamedData.getCustomName());
-
-                        // Remove from captured list
-                        capturedList.remove(i);
-                        if (capturedList.isEmpty()) {
-                            capturedByPlayer.remove(playerUuid);
-                        }
-
-                        // Restore the animal using hytameId
-                        return restoreCapturedAnimalByHytameId(store, commandBuffer, ref, hytameId, tamedData, plugin);
-                    }
+                if (tamedData == null) {
+                    // Entry has no data - remove stale entry
+                    logStatic("  - Removing stale entry (no data): hytameId=" + hytameId);
+                    iterator.remove();
+                    continue;
                 }
+
+                // CRITICAL FIX: Verify the animal is actually captured
+                // This prevents race conditions where world.execute() adds to the list
+                // AFTER the animal was already released via the fallback path
+                if (!tamedData.isCaptured()) {
+                    logStatic("  - Removing stale entry (not captured): hytameId=" + hytameId +
+                        " name=" + tamedData.getCustomName());
+                    iterator.remove();
+                    continue;
+                }
+
+                com.laits.breeding.models.AnimalType capturedType = tamedData.getAnimalType();
+
+                if (capturedType != null && capturedType == spawnedType) {
+                    logStatic("  - Found matching captured animal! hytameId=" + hytameId +
+                        " type=" + capturedType + " name=" + tamedData.getCustomName());
+
+                    // Remove from captured list
+                    iterator.remove();
+                    if (capturedList.isEmpty()) {
+                        capturedByPlayer.remove(playerUuid);
+                    }
+
+                    // Restore the animal using hytameId
+                    return restoreCapturedAnimalByHytameId(store, commandBuffer, ref, hytameId, tamedData, plugin);
+                }
+            }
+
+            // Clean up empty list if all entries were stale
+            if (capturedList.isEmpty()) {
+                capturedByPlayer.remove(playerUuid);
             }
         }
 

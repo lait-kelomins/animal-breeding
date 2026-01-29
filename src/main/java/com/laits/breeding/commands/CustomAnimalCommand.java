@@ -8,6 +8,7 @@ import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.AbstractCommand;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg;
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
@@ -86,6 +87,20 @@ public class CustomAnimalCommand extends AbstractCommand {
         return CompletableFuture.completedFuture(null);
     }
 
+    /**
+     * Check admin permission and send error message if denied.
+     * @return true if access is denied (command should return early)
+     */
+    private static boolean checkAdminDenied(CommandContext ctx) {
+        if (ctx.sender() instanceof Player player) {
+            if (!HytamePermissions.hasAdminAccess(player)) {
+                ctx.sendMessage(Message.raw("This command requires admin permissions (or Creative mode).").color("#FF5555"));
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** /customanimal add <npcRole> <food1> [food2] [food3] */
     public static class CustomAnimalAddCommand extends AbstractCommand {
         private final RequiredArg<String> roleArg;
@@ -103,6 +118,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -364,6 +380,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -390,6 +407,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -426,6 +444,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -470,6 +489,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -501,6 +521,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -533,6 +554,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -567,6 +589,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -599,6 +622,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -708,6 +732,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -746,6 +771,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -794,6 +820,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -839,6 +866,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));

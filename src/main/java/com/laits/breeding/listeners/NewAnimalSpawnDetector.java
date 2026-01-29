@@ -130,37 +130,8 @@ public class NewAnimalSpawnDetector extends RefSystem<EntityStore> {
             // Check if this is a tamed animal exiting a coop/crate or capture crate
             // Try to restore from storage before normal processing
             try {
-                // First, check for coop exit (has CoopResidentComponent with exact position)
-                if (CoopResidentTracker.getStorageCount() > 0) {
-                    var coopComp = store.getComponent(ref, EcsReflectionUtil.COOP_RESIDENT_TYPE);
-                    if (coopComp != null) {
-                        var coopPos = coopComp.getCoopLocation();
-                        if (coopPos != null) {
-                            log("Spawn has CoopResidentComponent! Coop at: " + coopPos.x + "," + coopPos.y + "," + coopPos.z);
-                            boolean restored = CoopResidentTracker.tryRestoreFromCoopByPosition(store, commandBuffer, ref, coopPos, modelAssetId);
-                            if (restored) {
-                                processedEntities.put(dedupeKey, System.currentTimeMillis());
-                                return;
-                            }
-                        }
-                    }
-
-                    // Fallback: try proximity matching for coops
-                    TransformComponent transformComp = store.getComponent(ref, EcsReflectionUtil.TRANSFORM_TYPE);
-                    if (transformComp != null) {
-                        Vector3d spawnPos = transformComp.getPosition();
-                        if (spawnPos != null) {
-                            boolean restored = CoopResidentTracker.tryRestoreFromCoop(store, commandBuffer, ref, spawnPos, modelAssetId);
-                            if (restored) {
-                                processedEntities.put(dedupeKey, System.currentTimeMillis());
-                                return;
-                            }
-                        }
-                    }
-                }
-
-                // Check for capture crate release
-                // First try packet-based detection (more reliable)
+                // IMPORTANT: Check capture crate release FIRST (higher priority than coop)
+                // This prevents the coop system from interfering with capture crate releases
                 TransformComponent transformComp = store.getComponent(ref, EcsReflectionUtil.TRANSFORM_TYPE);
                 if (transformComp != null) {
                     Vector3d spawnPos = transformComp.getPosition();
@@ -183,6 +154,34 @@ public class NewAnimalSpawnDetector extends RefSystem<EntityStore> {
                         if (!CoopResidentTracker.capturedByPlayerIsEmpty()) {
                             boolean restored = CoopResidentTracker.tryRestoreFromCaptureCrate(
                                 store, commandBuffer, ref, spawnPos, modelAssetId);
+                            if (restored) {
+                                processedEntities.put(dedupeKey, System.currentTimeMillis());
+                                return;
+                            }
+                        }
+                    }
+                }
+
+                // Second, check for coop exit (has CoopResidentComponent with exact position)
+                if (CoopResidentTracker.getStorageCount() > 0) {
+                    var coopComp = store.getComponent(ref, EcsReflectionUtil.COOP_RESIDENT_TYPE);
+                    if (coopComp != null) {
+                        var coopPos = coopComp.getCoopLocation();
+                        if (coopPos != null) {
+                            log("Spawn has CoopResidentComponent! Coop at: " + coopPos.x + "," + coopPos.y + "," + coopPos.z);
+                            boolean restored = CoopResidentTracker.tryRestoreFromCoopByPosition(store, commandBuffer, ref, coopPos, modelAssetId);
+                            if (restored) {
+                                processedEntities.put(dedupeKey, System.currentTimeMillis());
+                                return;
+                            }
+                        }
+                    }
+
+                    // Fallback: try proximity matching for coops
+                    if (transformComp != null) {
+                        Vector3d spawnPos = transformComp.getPosition();
+                        if (spawnPos != null) {
+                            boolean restored = CoopResidentTracker.tryRestoreFromCoop(store, commandBuffer, ref, spawnPos, modelAssetId);
                             if (restored) {
                                 processedEntities.put(dedupeKey, System.currentTimeMillis());
                                 return;

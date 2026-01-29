@@ -119,7 +119,7 @@ import java.util.function.BiConsumer;
  */
 public class LaitsBreedingPlugin extends JavaPlugin {
 
-    public static final String VERSION = "1.4.3";
+    public static final String VERSION = "1.4.3-hotfix";
 
     private static LaitsBreedingPlugin instance;
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClassFull();
@@ -801,43 +801,19 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             return;
         }
 
-        // Scan when a player connects (entities spawn when chunks load around players)
-        // Multiple scans to catch animals as they load
-        getEventRegistry().register(PlayerConnectEvent.class, event -> {
-            // Quick scan after 1 second
-            tickScheduler.schedule(() -> {
-                try {
-                    autoSetupNearbyAnimals();
-                } catch (Exception e) {
-                }
-            }, 1, TimeUnit.SECONDS);
-            // Follow-up scan after 3 seconds (more entities loaded)
-            tickScheduler.schedule(() -> {
-                try {
-                    autoSetupNearbyAnimals();
-                } catch (Exception e) {
-                }
-            }, 3, TimeUnit.SECONDS);
-            // Final scan after 5 seconds
-            tickScheduler.schedule(() -> {
-                try {
-                    autoSetupNearbyAnimals();
-                } catch (Exception e) {
-                }
-            }, 5, TimeUnit.SECONDS);
-        });
-
-        // Safety net: Periodic scan every 5 minutes (primary detection via
-        // NewAnimalSpawnDetector)
-        // Reduced from 30s - real-time detection handles spawns, this is just a
-        // fallback
-        scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
-            try {
-                autoSetupNearbyAnimals();
-            } catch (Exception e) {
-                // Silent
-            }
-        }, 5, 5, TimeUnit.MINUTES));
+        // DISABLED: AnimalFinder scans cause 5+ second world thread blocks
+        // NewAnimalSpawnDetector (RefSystem) now handles real-time spawn detection
+        // Keep autoSetupNearbyAnimals() method for manual use via commands if needed
+        //
+        // getEventRegistry().register(PlayerConnectEvent.class, event -> {
+        //     tickScheduler.schedule(() -> autoSetupNearbyAnimals(), 1, TimeUnit.SECONDS);
+        //     tickScheduler.schedule(() -> autoSetupNearbyAnimals(), 3, TimeUnit.SECONDS);
+        //     tickScheduler.schedule(() -> autoSetupNearbyAnimals(), 5, TimeUnit.SECONDS);
+        // });
+        //
+        // scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+        //     autoSetupNearbyAnimals();
+        // }, 5, 5, TimeUnit.MINUTES));
     }
 
     // NOTE: setupSingleEntity() moved to InteractionSetupManager
@@ -1169,8 +1145,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
                     // Item-based with hints: Show Ability2 hint on animals
                     String hintKey = (animalType != null && animalType.isMountable())
-                            ? "animalbreeding.interactionHints.feed"
-                            : "animalbreeding.interactionHints.feed";
+                            ? "server.interactionHints.feed"
+                            : "server.interactionHints.feed";
                     interactionSetupManager.setupAbility2HintOnly(refStore, ref, hintKey);
                 }
             } else {

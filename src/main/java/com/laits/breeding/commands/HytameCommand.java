@@ -558,6 +558,7 @@ public class HytameCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             checkDeprecatedAlias(ctx);
             executeGrowthLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -565,6 +566,7 @@ public class HytameCommand extends AbstractCommand {
 
         /** Called from deprecated /breed command wrapper */
         public void executeFromDeprecated(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return;
             executeGrowthLogic(ctx);
         }
 
@@ -613,6 +615,7 @@ public class HytameCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             checkDeprecatedAlias(ctx);
             executeCustomLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -620,6 +623,7 @@ public class HytameCommand extends AbstractCommand {
 
         /** Called from deprecated /breed command wrapper */
         public void executeFromDeprecated(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return;
             executeCustomLogic(ctx);
         }
 
@@ -661,6 +665,7 @@ public class HytameCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             checkDeprecatedAlias(ctx);
             executeDebugLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -668,6 +673,7 @@ public class HytameCommand extends AbstractCommand {
 
         /** Called from deprecated /breed command wrapper */
         public void executeFromDeprecated(CommandContext ctx) {
+            if (checkAdminDenied(ctx)) return;
             executeDebugLogic(ctx);
         }
 
@@ -693,6 +699,7 @@ public class HytameCommand extends AbstractCommand {
 
             @Override
             protected CompletableFuture<Void> execute(CommandContext ctx) {
+                if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
                 checkDeprecatedAlias(ctx);
 
                 LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
@@ -745,6 +752,7 @@ public class HytameCommand extends AbstractCommand {
 
             @Override
             protected CompletableFuture<Void> execute(CommandContext ctx) {
+                if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
                 checkDeprecatedAlias(ctx);
 
                 LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
@@ -799,6 +807,7 @@ public class HytameCommand extends AbstractCommand {
 
             @Override
             protected CompletableFuture<Void> execute(CommandContext ctx) {
+                if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
                 checkDeprecatedAlias(ctx);
 
                 ctx.sendMessage(Message.raw("=== Last Detected Events ===").color("#FF9900"));
@@ -841,6 +850,7 @@ public class HytameCommand extends AbstractCommand {
 
             @Override
             protected CompletableFuture<Void> execute(CommandContext ctx) {
+                if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
                 checkDeprecatedAlias(ctx);
 
                 DetectTamedDeath.clearTrackedDeaths();
@@ -859,6 +869,7 @@ public class HytameCommand extends AbstractCommand {
 
             @Override
             protected void execute(@Nonnull CommandContext context, @Nonnull ObjectList<Ref<EntityStore>> entities, @Nonnull World world, @Nonnull Store<EntityStore> store) {
+                if (checkAdminDenied(context)) return;
                 Ref<EntityStore> playerRef = context.senderAsPlayerRef();
                 if (playerRef == null) return;
 

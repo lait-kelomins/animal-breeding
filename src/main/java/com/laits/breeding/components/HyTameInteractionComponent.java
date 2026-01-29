@@ -16,7 +16,7 @@ import javax.annotation.Nullable;
  * Solves the restart persistence problem: when server restarts, the game loads
  * entities with their already-modified interactions. Without this component,
  * the plugin would capture the modified interaction as the "original", leading
- * to warnings like "Missing root interaction animalbreeding.interactionHints.legacyFeedOrMount".
+ * to warnings like "Missing root interaction server.interactionHints.legacyFeedOrMount".
  *
  * This component persists with the entity in world save data, storing the true
  * original interaction before we override it with Root_FeedAnimal.

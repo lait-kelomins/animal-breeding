@@ -386,7 +386,7 @@ public class LegacyCommands {
     }
 
     // Different hint formats to test - will cycle through these
-    // Found: game uses localization keys like "animalbreeding.interactionHints.xxx"
+    // Found: game uses localization keys like "server.interactionHints.xxx"
     // Language file has: interactionHints.generic = Press [{key}] to interact
     // Note: Localization keys only work when loaded from JSON assets, not runtime
     // For runtime, we need to use resolved text or a special format
@@ -396,9 +396,9 @@ public class LegacyCommands {
             "Press [Use] to Feed", // 2: With interaction type name
             "[F] Feed", // 3: Key prefix
             "§ePress §f[F]§e to Feed", // 4: With color codes
-            "animalbreeding.interactionHints.generic", // 5: Localization key (may not work)
+            "server.interactionHints.generic", // 5: Localization key (may not work)
             "Press [{key}] to Feed", // 6: Raw format placeholder
-            "@animalbreeding.interactionHints.generic", // 7: Try @ prefix
+            "@server.interactionHints.generic", // 7: Try @ prefix
     };
 
     private static int currentHintFormatIndex = 0;
