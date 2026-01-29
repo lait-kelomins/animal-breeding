@@ -2,7 +2,9 @@
 
 # **HyTame**
 
-[![X Twitter profile](https://img.shields.io/badge/@lait__kelomins-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins) [![Personal discord](https://img.shields.io/badge/Join%20our%20Discord-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/uSKWDCq8e) [![Mod%20Community%20Discord](https://img.shields.io/discord/1461295822137327673?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Mod%20Community)](https://discord.gg/UKQCgN5SJ)
+[![Personal discord](https://img.shields.io/badge/Join%20our%20Discord-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/uSKWDCq8e) [![X Twitter profile](https://img.shields.io/badge/Follow%20@lait__kelomins%20On%20X-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins)</br></br>
+
+[![Mod%20Community%20Discord](https://img.shields.io/discord/1461295822137327673?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Mod%20Community)](https://discord.gg/UKQCgN5SJ)
 
 This mod is actively being developed. For issues or suggestions, click on one of the links above.
 
@@ -19,22 +21,24 @@ This mod is actively being developed. For issues or suggestions, click on one of
 *   All creatures in the base game supported
 *   Fully configurable via commands or JSON
 *   Add custom animals from other mods
+*   Name animals and persist them through game restarts
 
 **What It Can't Do (Yet)**
 
 *   Define which foods attract animals (uses base game foods)
-*   Name animals and persist them through game restarts
 *   Make animals follow you (taming planned)
 *   Feed babies to speed up growth (planned)
 *   Interrupt animals that are fleeing or sleeping (the mod doesn't change animal behavior)
 
 **Quick Start:** Find two animals → feed each one their favorite food → they breed → baby grows up.
 
-**Useful commands:** `/breed config info Cow` (check foods).
+**Useful commands:** `/hytame foods` (see all foods) or `/hytame config info Cow` (detailed info).
 
 ![HyTame with a family of sheeps and a family of cows in an animal pen](https://media.forgecdn.net/attachments/description/1431060/description_b17e3b9e-9d37-4560-8f53-24355750c7a0.png)
 
 ***
+
+# Releasing 1.4.0 on Beta channel for feedback. Always make backups and install at your own risk.
 
 **Known mod incompatibility:**
 
@@ -42,14 +46,19 @@ This mod is actively being developed. For issues or suggestions, click on one of
 
 ***
 
-## What's New in v1.4.0 - Taming Integration
+## What's New in v1.4.0
 
-- **Taming** - Merged with TheBrandolorian's "Tameable Animals" to add taming to the mod. Now animals need to be tamed before you can breed and name them.
-- **Animal Persistence** - All tamed animals are now persisted and should be restored if they are removed for some reason. Only dead animals won't respawn.
-- **Food-based Taming & Healing** - Feed taming food to wild animals to tame them. The configuration now defines base food which can be overridden by taming food, healing food and breeding food.
-- **Attitude Field** - Tamed animals now have REVERED attitude (won't attack owner)
+*   **Command Rename** - All commands renamed from `/breed` to `/hytame` (old `/breed` still works with deprecation warning but will be removed in future updates)
+*   **Quick Food Reference** - New `/hytame foods` command shows all animals and their breeding foods at a glance
+*   **Separate Breeding/Taming Control** - You can now enable/disable breeding and taming independently per animal
+*   **Permission System** - Admin commands now use permission nodes (`hytame.admin.*`) - Creative mode also grants admin access
+*   **Informative Commands for Everyone** - `/hytame foods`, `/hytame config info`, and `/hytame config list` are available to all players
+*   **Taming** - Merged with TheBrandolorian's "Tameable Animals" to add taming to the mod. Now animals need to be tamed before you can breed and name them.
+*   **Animal Persistence** - All tamed animals are now persisted and should be restored if they are removed for some reason. Only deceased animals won't respawn.
+*   **Food-based Taming** - Feed taming food to wild animals to tame them. The configuration now defines base food which can be overridden by taming food, healing food (WIP) and breeding food.
+*   **(WIP for Release) Peaceful tamed animals** - Animals will stop being scared or agressive once tamed
 
-## What's New in v1.3.x
+## What's New in v1.3.x (doesn't work in solo, enable alpha files for server)
 
 *   Fixed a bug with animals disappearing on game restart after using name tags (data may be recoverable in next update but no)
 *   Fixed a bug that made the mod break in solo games
@@ -117,7 +126,7 @@ The following legacy commands still work but show deprecation warnings. Use the 
 
 *   Place the JAR file in your server's `mods` folder
 *   Restart the server
-*   (Optional) Configure via `/breedconfig` commands or edit the JSON file
+*   (Optional) Configure via `/hytame config` commands or edit the JSON file
 *   Feed animals to start breeding!
 
 ***
@@ -125,7 +134,7 @@ The following legacy commands still work but show deprecation warnings. Use the 
 ## How It Works
 
 *   Find two animals of the same type
-*   Feed each one their favorite food (use `/breedconfig info <animal>` to check)
+*   Feed each one their favorite food (use `/hytame config info <animal>` to check)
 *   Both animals enter "love mode"
 *   If close enough, they breed and a baby spawns
 *   The baby grows into an adult based on the configured growth time
@@ -163,10 +172,10 @@ Presets are editable JSON files stored in `%AppData%/Roaming/Hytale/UserData/Sav
 ### Preset Commands
 
 ```
-/breedconfig preset list              Show available presets
-/breedconfig preset apply <name>      Apply a preset
-/breedconfig preset save <name>       Save current config as preset ⚠️ _This will override the previous preset values if the name was already in use and they can't be recovered_
-/breedconfig preset restore <name>    Reset built-in preset to defaults
+/hytame config preset list              Show available presets
+/hytame config preset apply <name>      Apply a preset
+/hytame config preset save <name>       Save current config as preset ⚠️ _This will override the previous preset values if the name was already in use and they can't be recovered_
+/hytame config preset restore <name>    Reset built-in preset to defaults
 ```
 
 **Note:** Built-in presets (default, default\_extended, lait\_curated, zoo, all) are automatically updated with new animals on startup. Use `restore` to reset a preset to factory defaults if you've modified it.
@@ -175,52 +184,56 @@ Presets are editable JSON files stored in `%AppData%/Roaming/Hytale/UserData/Sav
 
 **If the game tells you you don't have the permissions to use this command, run `/op self` first**
 
-**To apply a preset to your world:**  
-Copy an existing preset in `mods/presets/`, rename it, edit the values, then apply with `/breedconfig preset apply my_preset`
+**To apply a preset to your world:**
+Copy an existing preset in `mods/presets/`, rename it, edit the values, then apply with `/hytame config preset apply my_preset`
 
-**To create a new preset from the current world config**  
-⚠️ _This will override the previous preset values if the name was already in use and they can't be recovered_  
-Configure animals with `/breedconfig` commands, then run `/breedconfig preset save my_preset`
+**To create a new preset from the current world config**
+⚠️ _This will override the previous preset values if the name was already in use and they can't be recovered_
+Configure animals with `/hytame config` commands, then run `/hytame config preset save my_preset`
 
 ***
 
 ## Commands
 
-All commands use the unified `/breed` prefix for easy discovery.
+All commands use the unified `/hytame` prefix for easy discovery.
 
-### Main Commands
+### Player Commands (Available to Everyone)
 
 ```
-/breed                                Show help
-/breed help                           Show help
-/breed status                         View tracked animals and stats
-/breed growth                         Toggle baby growth on/off
+/hytame                               Show help
+/hytame help                          Show help
+/hytame foods                         Quick reference for all animal foods
+/hytame status                        View tracked animals and stats
+/hytame config info <animal>          Show detailed animal info
+/hytame config list [category]        List animals by category
 ```
 
 ### Taming
 
 ```
-/breed tame <name>                    Prepare to tame and name an animal
-/breed untame                         Release a tamed animal
-/breed info                           Show taming information
-/breed settings                       Taming settings
+/hytame tame <name>                   Prepare to tame and name an animal
+/hytame untame                        Release a tamed animal
+/hytame info                          Show taming information
+/hytame settings                      Taming settings
 ```
 
-### Configuration
+### Admin Commands (Require Permission)
+
+These commands require admin permissions (Creative mode or `hytame.admin.*` permission node).
 
 ```
-/breed config                         Show config summary
-/breed config list [category]         List animals by category
-/breed config info <animal>           Show detailed animal info
-/breed config reload                  Reload config from file
-/breed config save                    Save current config to file
-/breed config enable <animal|ALL>     Enable breeding
-/breed config disable <animal|ALL>    Disable breeding
-/breed config set <animal> food <item>      Set primary food
-/breed config set <animal> growth <min>     Set growth time
-/breed config set <animal> cooldown <min>   Set cooldown
-/breed config addfood <animal> <item>       Add breeding food
-/breed config removefood <animal> <item>    Remove breeding food
+/hytame growth                        Toggle baby growth on/off
+/hytame config reload                 Reload config from file
+/hytame config save                   Save current config to file
+/hytame config enable <animal|ALL>    Enable breeding
+/hytame config disable <animal|ALL>   Disable breeding
+/hytame config enabletaming <animal>  Enable taming (independent of breeding)
+/hytame config disabletaming <animal> Disable taming (independent of breeding)
+/hytame config set <animal> food <item>      Set primary food
+/hytame config set <animal> growth <min>     Set growth time
+/hytame config set <animal> cooldown <min>   Set cooldown
+/hytame config addfood <animal> <item>       Add breeding food
+/hytame config removefood <animal> <item>    Remove breeding food
 ```
 
 ### Custom Animals (Other Mods)
@@ -228,27 +241,27 @@ All commands use the unified `/breed` prefix for easy discovery.
 Add creatures from other mods to the breeding system. Simply provide the NPC role name and the plugin will auto-discover the model.
 
 ```
-/breed custom add <npcRole> <food> [food2] [food3]   Add by NPC role (auto-discovers model)
-/breed custom setbaby <model> <babyRole>             Set baby NPC role for dedicated baby spawning
-/breed custom remove <model>                         Remove a custom animal
-/breed custom list                                   List all custom animals
-/breed custom info <model>                           Show custom animal details
-/breed custom enable <model>                         Enable a custom animal
-/breed custom disable <model>                        Disable a custom animal
-/breed custom addfood <model> <food>                 Add a breeding food
-/breed custom removefood <model> <food>              Remove a breeding food
-/breed custom scan                                   Scan world for creatures
+/hytame custom add <npcRole> <food> [food2] [food3]   Add by NPC role (auto-discovers model)
+/hytame custom setbaby <model> <babyRole>             Set baby NPC role for dedicated baby spawning
+/hytame custom remove <model>                         Remove a custom animal
+/hytame custom list                                   List all custom animals
+/hytame custom info <model>                           Show custom animal details
+/hytame custom enable <model>                         Enable a custom animal
+/hytame custom disable <model>                        Disable a custom animal
+/hytame custom addfood <model> <food>                 Add a breeding food
+/hytame custom removefood <model> <food>              Remove a breeding food
+/hytame custom scan                                   Scan world for creatures
 ```
 
 **Example:** To add a creature with NPC role "VgSlime\_Npc\_Guumi\_Green":
 
 ```
-/breed custom add VgSlime_Npc_Guumi_Green apple
+/hytame custom add VgSlime_Npc_Guumi_Green apple
 ```
 
 The plugin validates the NPC role exists, spawns a temp entity to discover the model, and registers both for detection and spawning.
 
-**Baby spawning:** If you know the baby NPC role, set it with `/breed custom setbaby`. Otherwise, babies spawn as scaled-down adults (40% size).
+**Baby spawning:** If you know the baby NPC role, set it with `/hytame custom setbaby`. Otherwise, babies spawn as scaled-down adults (40% size).
 
 Custom animals are automatically detected when they spawn and saved to config.
 
@@ -256,10 +269,39 @@ Custom animals are automatically detected when they spawn and saved to config.
 
 The following commands still work but show deprecation warnings:
 
-*   `/laitsbreeding` → `/breed`
-*   `/breedstatus` → `/breed status`
-*   `/breedgrowth` → `/breed growth`
-*   `/breedconfig` → `/breed config`
+*   `/breed` → `/hytame`
+*   `/laitsbreeding` → `/hytame`
+*   `/breedstatus` → `/hytame status`
+*   `/breedgrowth` → `/hytame growth`
+*   `/breedconfig` → `/hytame config`
+
+***
+
+## Permissions
+
+HyTame uses a permission system for admin commands. Players can access admin commands through:
+
+1. **Creative Mode** - Automatically grants all admin permissions
+2. **Permission Nodes** - Grant specific permissions via `/perm` command
+
+### Permission Nodes
+
+| Permission | Description |
+|------------|-------------|
+| `hytame.admin` | All admin commands |
+| `hytame.admin.config` | Configuration commands (enable, disable, reload, save) |
+| `hytame.admin.growth` | Toggle baby growth |
+| `hytame.admin.custom` | Manage custom animals |
+| `hytame.admin.debug` | Debug commands |
+
+### Granting Permissions
+
+```
+/perm player <name> add hytame.admin           Grant all admin permissions
+/perm player <name> add hytame.admin.config    Grant only config permissions
+```
+
+**Note:** Informative commands like `/hytame foods`, `/hytame config info`, and `/hytame config list` are available to all players without any permissions.
 
 ***
 
@@ -294,11 +336,26 @@ Config file: `mods/laits-breeding-config.json`
 
 **Planned:**
 
+**Taming & Breeding Extended**
+
 *   Taming to make domesticated animals follow you
 *   Feed babies to make them grow faster
+
+**Better customization**
+
 *   Advanced config (custom scales per growth stage, baby models/NPCs, offsprings count)
+
+**Animal Wellness & Bonding**
+
 *   Animal wellness (pet your animals, build trust, mood affects breeding)
-*   Genetics system (babies inherit traits and appearance from parents)
+
+**Inheritance**
+
+*   Genetics system (babies inherit traits, stats and appearance from parents)
+
+**Modding**
+
+*   Breeding & Taming library to allow other modders to integrate such mechanics as standalones in their own mods
 *   Cross-compatibility testing with other mods
 
 ***
@@ -316,6 +373,8 @@ Config file: `mods/laits-breeding-config.json`
 
 This mod is actively being developed. For issues or suggestions, click on one of the links below.
 
-[![X Twitter profile](https://img.shields.io/badge/@lait__kelomins-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins) [![Personal discord](https://img.shields.io/badge/Join%20our%20Discord-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/uSKWDCq8e) [![Mod%20Community%20Discord](https://img.shields.io/discord/1461295822137327673?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Mod%20Community)](https://discord.gg/UKQCgN5SJ)
+[![Personal discord](https://img.shields.io/badge/Join%20our%20Discord-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/uSKWDCq8e) [![X Twitter profile](https://img.shields.io/badge/Follow%20@lait__kelomins%20On%20X-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins)</br></br>
+
+[![Mod%20Community%20Discord](https://img.shields.io/discord/1461295822137327673?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Mod%20Community)](https://discord.gg/UKQCgN5SJ)
 
 [![BisectHosting partnership program, code lait for 25% discount on a gaming server](https://www.bisecthosting.com/partners/custom-banners/2aa6078b-c5d0-416b-89a6-347d410d20cb.webp)](https://bisecthosting.com/lait)

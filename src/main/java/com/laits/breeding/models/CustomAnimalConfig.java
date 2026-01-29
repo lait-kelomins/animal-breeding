@@ -20,8 +20,40 @@ public class CustomAnimalConfig {
     private final String babyNpcRoleId;      // Optional: NPC role for spawning babies
     private final String adultNpcRoleId;     // Optional: NPC role for spawning adults (defaults to modelAssetId)
     private final boolean mountable;
-    private final boolean enabled;
+    private final boolean breedingEnabled;   // Can this animal breed
+    private final boolean tamingEnabled;     // Can this animal be tamed/named
 
+    /**
+     * Full constructor with separate breeding/taming flags.
+     */
+    public CustomAnimalConfig(
+            String modelAssetId,
+            String displayName,
+            List<String> breedingFoods,
+            double growthTimeMinutes,
+            double breedCooldownMinutes,
+            String babyNpcRoleId,
+            String adultNpcRoleId,
+            boolean mountable,
+            boolean breedingEnabled,
+            boolean tamingEnabled
+    ) {
+        this.modelAssetId = modelAssetId;
+        this.displayName = displayName != null ? displayName : modelAssetId;
+        this.breedingFoods = breedingFoods != null ? new ArrayList<>(breedingFoods) : new ArrayList<>();
+        this.growthTimeMinutes = growthTimeMinutes > 0 ? growthTimeMinutes : 30.0;
+        this.breedCooldownMinutes = breedCooldownMinutes > 0 ? breedCooldownMinutes : 5.0;
+        this.babyNpcRoleId = babyNpcRoleId;
+        this.adultNpcRoleId = adultNpcRoleId != null ? adultNpcRoleId : modelAssetId;
+        this.mountable = mountable;
+        this.breedingEnabled = breedingEnabled;
+        this.tamingEnabled = tamingEnabled;
+    }
+
+    /**
+     * Legacy constructor with single 'enabled' flag (for backwards compatibility).
+     * Sets both breedingEnabled and tamingEnabled to the same value.
+     */
     public CustomAnimalConfig(
             String modelAssetId,
             String displayName,
@@ -33,15 +65,8 @@ public class CustomAnimalConfig {
             boolean mountable,
             boolean enabled
     ) {
-        this.modelAssetId = modelAssetId;
-        this.displayName = displayName != null ? displayName : modelAssetId;
-        this.breedingFoods = breedingFoods != null ? new ArrayList<>(breedingFoods) : new ArrayList<>();
-        this.growthTimeMinutes = growthTimeMinutes > 0 ? growthTimeMinutes : 30.0;
-        this.breedCooldownMinutes = breedCooldownMinutes > 0 ? breedCooldownMinutes : 5.0;
-        this.babyNpcRoleId = babyNpcRoleId;
-        this.adultNpcRoleId = adultNpcRoleId != null ? adultNpcRoleId : modelAssetId;
-        this.mountable = mountable;
-        this.enabled = enabled;
+        this(modelAssetId, displayName, breedingFoods, growthTimeMinutes, breedCooldownMinutes,
+             babyNpcRoleId, adultNpcRoleId, mountable, enabled, enabled);
     }
 
     public String getModelAssetId() {
@@ -84,8 +109,27 @@ public class CustomAnimalConfig {
         return mountable;
     }
 
+    /**
+     * Check if breeding is enabled for this animal.
+     */
+    public boolean isBreedingEnabled() {
+        return breedingEnabled;
+    }
+
+    /**
+     * Check if taming is enabled for this animal.
+     */
+    public boolean isTamingEnabled() {
+        return tamingEnabled;
+    }
+
+    /**
+     * Legacy method - returns breedingEnabled for backwards compatibility.
+     * @deprecated Use {@link #isBreedingEnabled()} instead.
+     */
+    @Deprecated
     public boolean isEnabled() {
-        return enabled;
+        return breedingEnabled;
     }
 
     /**

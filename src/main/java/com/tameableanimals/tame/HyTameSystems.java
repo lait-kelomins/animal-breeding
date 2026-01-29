@@ -90,7 +90,6 @@ public class HyTameSystems {
 
             // Setup taming - ensure HyTameComponent exists
             HyTameComponent hyTameComponent = holder.ensureAndGetComponent(this.hyTameComponentType);
-            Debug.log("Added HyTameComponent to entity " + npcEntity.getRoleName(), Level.INFO);
             if (hyTameComponent.isTamed()) {
                 try {
                     LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);

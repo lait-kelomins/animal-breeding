@@ -10,6 +10,7 @@ import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 
 import com.laits.breeding.LaitsBreedingPlugin;
+import com.laits.breeding.interactions.InteractionStateCache;
 import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.GrowthManager;
 import com.laits.breeding.managers.TamingManager;
@@ -474,7 +475,7 @@ public class LegacyCommands {
             }
 
             // Original interactions cache
-            int interactionsCacheSize = LaitsBreedingPlugin.getOriginalInteractionsCacheSize();
+            int interactionsCacheSize = InteractionStateCache.getInstance().getCacheSize();
             ctx.sendMessage(Message.raw("  originalStates: ").color("#AAAAAA")
                     .insert(Message.raw(String.valueOf(interactionsCacheSize)).color("#FFFFFF")));
 

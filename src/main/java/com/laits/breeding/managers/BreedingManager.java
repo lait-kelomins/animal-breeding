@@ -248,8 +248,21 @@ public class BreedingManager {
      * @return Result of the feeding attempt
      */
     public FeedResult tryFeed(UUID animalId, AnimalType animalType, String foodItemId, Ref<EntityStore> entityRef) {
+        return tryFeed(animalId, animalType, foodItemId, entityRef, (String) null);
+    }
+
+    /**
+     * Try to put an animal in "love mode" after feeding, storing the entity ref and world name.
+     * @param animalId The animal's UUID
+     * @param animalType The type of animal
+     * @param foodItemId The item used to feed
+     * @param entityRef The entity reference (for heart particles while in love)
+     * @param worldName The world name where this animal is located (for multi-world support)
+     * @return Result of the feeding attempt
+     */
+    public FeedResult tryFeed(UUID animalId, AnimalType animalType, String foodItemId, Ref<EntityStore> entityRef, String worldName) {
         // Check if this animal type is enabled for breeding
-        if (!config.isAnimalEnabled(animalType)) {
+        if (!config.isBreedingEnabled(animalType)) {
             return FeedResult.DISABLED;
         }
 
@@ -266,6 +279,14 @@ public class BreedingManager {
             debug("Stored entityRef for " + animalId + " (" + animalType + "): " + entityRef);
         } else {
             debug("WARNING: entityRef is null for " + animalId + " (" + animalType + ")");
+        }
+
+        // Store world name for multi-world support
+        if (worldName != null) {
+            data.setWorldName(worldName);
+            debug("[MultiWorld] Stored worldName for " + animalId + ": " + worldName);
+        } else {
+            debug("[MultiWorld] WARNING: worldName is null for " + animalId + " - will use default world");
         }
 
         // Check if adult
@@ -286,7 +307,10 @@ public class BreedingManager {
 
         // Put in love mode
         data.setInLove(true);
-        debug("Animal " + animalId + " (" + animalType + ") is now in love!");
+        // ALWAYS log for debugging
+        if (debugLogger != null) {
+            debugLogger.accept("[Breeding] Animal " + animalId + " (" + animalType + ") is now in love! entityRef=" + (entityRef != null ? "present" : "NULL"));
+        }
         return FeedResult.SUCCESS;
     }
 
@@ -495,6 +519,18 @@ public class BreedingManager {
      * @return Result of the feeding attempt
      */
     public FeedResult tryFeedCustomAnimal(UUID animalId, String modelAssetId, Ref<EntityStore> entityRef) {
+        return tryFeedCustomAnimal(animalId, modelAssetId, entityRef, (String) null);
+    }
+
+    /**
+     * Try to feed a custom animal (put it in love mode).
+     * @param animalId The animal's UUID
+     * @param modelAssetId The custom animal's model asset ID
+     * @param entityRef The entity reference (for heart particles)
+     * @param worldName The world name where this animal is located (for multi-world support)
+     * @return Result of the feeding attempt
+     */
+    public FeedResult tryFeedCustomAnimal(UUID animalId, String modelAssetId, Ref<EntityStore> entityRef, String worldName) {
         // Check if already in love
         CustomAnimalLoveData existing = customAnimalsInLove.get(animalId);
         if (existing != null && existing.isInLove()) {
@@ -509,6 +545,9 @@ public class BreedingManager {
         // Put in love mode
         CustomAnimalLoveData loveData = new CustomAnimalLoveData(animalId, modelAssetId, entityRef);
         loveData.setInLove(true);
+        if (worldName != null) {
+            loveData.setWorldName(worldName);
+        }
         customAnimalsInLove.put(animalId, loveData);
 
         debug("Custom animal " + animalId + " (" + modelAssetId + ") is now in love!");
@@ -609,6 +648,7 @@ public class BreedingManager {
         private final UUID animalId;
         private final String modelAssetId;
         private Ref<EntityStore> entityRef;
+        private String worldName;
         private boolean inLove;
         private long loveStartTime;
         private long lastBreedTime;
@@ -626,6 +666,8 @@ public class BreedingManager {
         public String getModelAssetId() { return modelAssetId; }
         public Ref<EntityStore> getEntityRef() { return entityRef; }
         public void setEntityRef(Ref<EntityStore> ref) { this.entityRef = ref; }
+        public String getWorldName() { return worldName; }
+        public void setWorldName(String worldName) { this.worldName = worldName; }
 
         public boolean isInLove() { return inLove; }
         public long getLoveStartTime() { return loveStartTime; }

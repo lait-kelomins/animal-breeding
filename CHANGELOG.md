@@ -1,12 +1,27 @@
 # Changelog
 
+## v1.4.3 - Capture Crate Persistence
+
+### Added
+- **Capture crate persistence** - Tamed animals placed in capture crates now preserve their taming data (name, owner, hytameId) even after server restart or storing in chests
+- **NetworkIdCache** - O(1) entity lookup by network ID using RefSystem pattern
+- **CaptureCratePacketListener** - Detects capture/release via `SyncInteractionChains` packet interception
+- **Configurable grace period** - `initializationGracePeriodSeconds` config option (default 15s) to prevent race conditions on slow servers
+
+### Fixed
+- **Capture crate duplication** - Tamed animals no longer duplicate when captured (respawn system now checks `isCaptured` flag)
+- **Chicken coop duplication** - Animals entering coops at night no longer trigger respawn (checks `CoopResidentComponent`)
+- **_UNDEFINED name display** - Animals without custom names no longer show "_UNDEFINED" as their nameplate
+- **Fallback interaction for wild animals** - Only tamed animals can trigger fallback interactions (e.g., horse mounting)
+
+---
+
 ## v1.4.0 - Taming Integration
 
 ### Added
 - **Taming** - Merged with TheBrandolorian's "Tameable Animals" to add taming to the mod. Now animals need to be tamed before you can breed and name them.
-- **Animal Persistence** - All tamed animals are now persisted and should be restored if they are removed for some reason. Only dead animals won't respawn.
-- **Food-based Taming & Healing** - Feed taming food to wild animals to tame them. The configuration now defines base food which can be overridden by taming food, healing food and breeding food.
-- **Attitude Field** - Tamed animals now have REVERED attitude (won't attack owner)
+- **Animal Persistence** - All tamed animals are now persisted and should be restored if they are removed for some reason. Only deceased animals won't respawn.
+- **Food-based Taming** - Feed taming food to wild animals to tame them. The configuration now defines base food which can be overridden by taming food, healing food (WIP) and breeding food.
 
 ---
 

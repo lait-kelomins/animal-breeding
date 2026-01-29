@@ -1,8 +1,11 @@
 package com.laits.breeding.managers;
 
+import com.hypixel.hytale.component.ArchetypeChunk;
+import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.math.vector.Vector3d;
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
@@ -11,11 +14,13 @@ import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.CustomAnimalConfig;
 import com.laits.breeding.util.ConfigManager;
+import com.laits.breeding.util.EcsReflectionUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
@@ -44,6 +49,7 @@ public class BreedingTickManager {
     private BiConsumer<AnimalType, BreedingData[]> onBreedingComplete;
     private BiConsumer<String, BreedingManager.CustomAnimalLoveData[]> onCustomBreedingComplete;
     private Consumer<Object> heartParticleSpawner;
+    private BiConsumer<Vector3d, Store<EntityStore>> heartParticlePositionSpawner;
 
     // Logging
     private boolean verboseLogging = false;
@@ -76,6 +82,14 @@ public class BreedingTickManager {
      */
     public void setHeartParticleSpawner(Consumer<Object> spawner) {
         this.heartParticleSpawner = spawner;
+    }
+
+    /**
+     * Set the callback for spawning heart particles at a position.
+     * This is more reliable as it uses the position directly without ref lookup.
+     */
+    public void setHeartParticlePositionSpawner(BiConsumer<Vector3d, Store<EntityStore>> spawner) {
+        this.heartParticlePositionSpawner = spawner;
     }
 
     /**
@@ -123,8 +137,7 @@ public class BreedingTickManager {
         tickLoveEntityRefs.clear();
 
         int inLoveCount = 0;
-        int inLoveWithRef = 0;
-        int inLoveNoRef = 0;
+        List<BreedingData> animalsInLove = new ArrayList<>();
 
         // Single pass: expire love AND collect eligible animals AND group by type
         for (BreedingData data : breedingManager.getAllBreedingData()) {
@@ -135,13 +148,8 @@ public class BreedingTickManager {
                     continue;
                 }
 
-                // Collect entity ref for heart particles
-                if (data.getEntityRef() != null) {
-                    tickLoveEntityRefs.add(data.getEntityRef());
-                    inLoveWithRef++;
-                } else {
-                    inLoveNoRef++;
-                }
+                // Collect for heart particles (will use UUID lookup)
+                animalsInLove.add(data);
 
                 // Collect if eligible for breeding
                 if (!data.isPregnant() && data.getGrowthStage().canBreed()) {
@@ -156,20 +164,55 @@ public class BreedingTickManager {
         for (BreedingManager.CustomAnimalLoveData customData : breedingManager.getCustomAnimalsInLove()) {
             if (customData.getEntityRef() != null) {
                 tickLoveEntityRefs.add(customData.getEntityRef());
-                inLoveWithRef++;
-            } else {
-                inLoveNoRef++;
             }
         }
 
-        // Debug logging
-        if ((inLoveWithRef > 0 || inLoveNoRef > 0) && verboseLogging && logger != null) {
-            logger.accept("[Hearts] Tracked: " + trackedCount +
-                    ", InLove w/ref: " + inLoveWithRef +
-                    ", InLove no ref: " + inLoveNoRef);
+        // Group animals by world for multi-world support
+        Map<String, List<BreedingData>> animalsByWorld = new HashMap<>();
+        for (BreedingData data : animalsInLove) {
+            String worldName = data.getWorldName();
+            if (worldName == null) {
+                worldName = "__default__";
+            }
+            animalsByWorld.computeIfAbsent(worldName, k -> new ArrayList<>()).add(data);
         }
 
-        // Spawn heart particles
+        // Spawn heart particles per world using UUID lookup for fresh positions
+        if (!animalsInLove.isEmpty() && heartParticlePositionSpawner != null) {
+            for (Map.Entry<String, List<BreedingData>> worldEntry : animalsByWorld.entrySet()) {
+                String worldName = worldEntry.getKey();
+                List<BreedingData> worldAnimals = worldEntry.getValue();
+
+                World world = "__default__".equals(worldName) ?
+                    Universe.get().getDefaultWorld() :
+                    Universe.get().getWorld(worldName);
+                if (world == null) {
+                    world = Universe.get().getDefaultWorld();
+                }
+                if (world == null) continue;
+
+                final World finalWorld = world;
+                final List<BreedingData> finalWorldAnimals = worldAnimals;
+
+                world.execute(() -> {
+                    try {
+                        Store<EntityStore> store = finalWorld.getEntityStore().getStore();
+                        for (BreedingData data : finalWorldAnimals) {
+                            // Use UUID lookup to get fresh position
+                            Vector3d pos = findEntityPositionByUuid(store, data);
+                            if (pos != null) {
+                                // Spawn particles directly at the position
+                                heartParticlePositionSpawner.accept(pos, store);
+                            }
+                        }
+                    } catch (Exception e) {
+                        // Silent
+                    }
+                });
+            }
+        }
+
+        // Also spawn for custom animals (they use the old ref approach for now)
         if (!tickLoveEntityRefs.isEmpty() && heartParticleSpawner != null) {
             for (Object entityRef : tickLoveEntityRefs) {
                 heartParticleSpawner.accept(entityRef);
@@ -180,28 +223,44 @@ public class BreedingTickManager {
         if (inLoveCount < 2)
             return;
 
-        // Check breeding for each type with 2+ animals in love
-        World world = Universe.get().getDefaultWorld();
-        if (world == null)
-            return;
-
+        // Check breeding for each type with 2+ animals in love, grouped by world
         for (Map.Entry<AnimalType, List<BreedingData>> entry : tickLoveByType.entrySet()) {
             List<BreedingData> animalsOfType = entry.getValue();
             if (animalsOfType.size() < 2)
                 continue;
 
-            BreedingData animal1 = animalsOfType.get(0);
-            BreedingData animal2 = animalsOfType.get(1);
-
-            if (animal1.getEntityRef() == null || animal2.getEntityRef() == null) {
-                continue;
+            // Group by world within this animal type
+            Map<String, List<BreedingData>> typeByWorld = new HashMap<>();
+            for (BreedingData data : animalsOfType) {
+                if (data.getEntityRef() == null) continue;
+                String worldName = data.getWorldName();
+                if (worldName == null) worldName = "__default__";
+                typeByWorld.computeIfAbsent(worldName, k -> new ArrayList<>()).add(data);
             }
 
-            checkBreedingDistance(world, entry.getKey(), animal1, animal2);
+            // Check breeding only within the same world
+            for (Map.Entry<String, List<BreedingData>> worldEntry : typeByWorld.entrySet()) {
+                List<BreedingData> worldAnimals = worldEntry.getValue();
+                if (worldAnimals.size() < 2) continue;
+
+                String worldName = worldEntry.getKey();
+                World world = "__default__".equals(worldName) ?
+                    Universe.get().getDefaultWorld() :
+                    Universe.get().getWorld(worldName);
+                if (world == null) {
+                    world = Universe.get().getDefaultWorld();
+                }
+                if (world == null) continue;
+
+                BreedingData animal1 = worldAnimals.get(0);
+                BreedingData animal2 = worldAnimals.get(1);
+
+                checkBreedingDistance(world, entry.getKey(), animal1, animal2);
+            }
         }
 
-        // Also check custom animal breeding
-        checkCustomAnimalBreeding(world);
+        // Also check custom animal breeding (handles multi-world internally)
+        checkCustomAnimalBreeding();
     }
 
     /**
@@ -217,11 +276,16 @@ public class BreedingTickManager {
             try {
                 Store<EntityStore> store = world.getEntityStore().getStore();
 
-                Vector3d pos1 = getPositionFromRef(store, finalAnimal1.getEntityRef());
-                Vector3d pos2 = getPositionFromRef(store, finalAnimal2.getEntityRef());
+                // Use UUID-based lookup which is more reliable than stored refs
+                Vector3d pos1 = findEntityPositionByUuid(store, finalAnimal1);
+                Vector3d pos2 = findEntityPositionByUuid(store, finalAnimal2);
 
-                if (pos1 == null || pos2 == null)
+                if (pos1 == null || pos2 == null) {
+                    if (verboseLogging && logger != null) {
+                        logger.accept("[Breeding] Position lookup failed - pos1: " + (pos1 != null) + ", pos2: " + (pos2 != null));
+                    }
                     return;
+                }
 
                 double distance = calculateDistance(pos1, pos2);
 
@@ -238,18 +302,23 @@ public class BreedingTickManager {
 
     /**
      * Check for custom animals in love that are close enough to breed.
+     * Groups by world and model asset ID for multi-world support.
      */
-    private void checkCustomAnimalBreeding(World world) {
-        // Group custom animals in love by modelAssetId
-        Map<String, List<BreedingManager.CustomAnimalLoveData>> byType = new HashMap<>();
+    private void checkCustomAnimalBreeding() {
+        // Group custom animals in love by modelAssetId AND world
+        // Key: "worldName:modelAssetId"
+        Map<String, List<BreedingManager.CustomAnimalLoveData>> byTypeAndWorld = new HashMap<>();
         for (BreedingManager.CustomAnimalLoveData data : breedingManager.getCustomAnimalsInLove()) {
             if (data.isInLove() && data.getEntityRef() != null) {
-                byType.computeIfAbsent(data.getModelAssetId(), k -> new ArrayList<>()).add(data);
+                String worldName = data.getWorldName();
+                if (worldName == null) worldName = "__default__";
+                String key = worldName + ":" + data.getModelAssetId();
+                byTypeAndWorld.computeIfAbsent(key, k -> new ArrayList<>()).add(data);
             }
         }
 
-        // For each type with 2+ animals in love, check distance
-        for (Map.Entry<String, List<BreedingManager.CustomAnimalLoveData>> entry : byType.entrySet()) {
+        // For each type+world with 2+ animals in love, check distance
+        for (Map.Entry<String, List<BreedingManager.CustomAnimalLoveData>> entry : byTypeAndWorld.entrySet()) {
             List<BreedingManager.CustomAnimalLoveData> animalsOfType = entry.getValue();
             if (animalsOfType.size() < 2)
                 continue;
@@ -260,13 +329,24 @@ public class BreedingTickManager {
             if (animal1.getEntityRef() == null || animal2.getEntityRef() == null)
                 continue;
 
+            // Get world from animal data
+            String worldName = animal1.getWorldName();
+            World world = (worldName == null || "__default__".equals(worldName)) ?
+                Universe.get().getDefaultWorld() :
+                Universe.get().getWorld(worldName);
+            if (world == null) {
+                world = Universe.get().getDefaultWorld();
+            }
+            if (world == null) continue;
+
+            final World finalWorld = world;
             final BreedingManager.CustomAnimalLoveData finalAnimal1 = animal1;
             final BreedingManager.CustomAnimalLoveData finalAnimal2 = animal2;
-            final String modelAssetId = entry.getKey();
+            final String modelAssetId = animal1.getModelAssetId();
 
             world.execute(() -> {
                 try {
-                    Store<EntityStore> store = world.getEntityStore().getStore();
+                    Store<EntityStore> store = finalWorld.getEntityStore().getStore();
 
                     Vector3d pos1 = getPositionFromRef(store, finalAnimal1.getEntityRef());
                     Vector3d pos2 = getPositionFromRef(store, finalAnimal2.getEntityRef());
@@ -331,6 +411,62 @@ public class BreedingTickManager {
         double dy = pos2.getY() - pos1.getY();
         double dz = pos2.getZ() - pos1.getZ();
         return Math.sqrt(dx * dx + dy * dy + dz * dz);
+    }
+
+    /**
+     * Find an entity by UUID and get its position.
+     * This is more reliable than using stored refs which become stale.
+     * Also updates the entityRef in BreedingData for future use.
+     *
+     * @param store The entity store
+     * @param data The breeding data containing the animal UUID
+     * @return The entity's position, or null if not found
+     */
+    @SuppressWarnings("unchecked")
+    private Vector3d findEntityPositionByUuid(Store<EntityStore> store, BreedingData data) {
+        UUID animalId = data.getAnimalId();
+        if (animalId == null || store == null) {
+            return null;
+        }
+
+        final Ref<EntityStore>[] foundRef = new Ref[1];
+        final Vector3d[] foundPos = new Vector3d[1];
+
+        try {
+            store.forEachChunk((ArchetypeChunk<EntityStore> chunk, CommandBuffer<EntityStore> buffer) -> {
+                if (foundRef[0] != null) return; // Already found
+
+                int chunkSize = chunk.size();
+                for (int i = 0; i < chunkSize; i++) {
+                    try {
+                        UUIDComponent uuidComp = chunk.getComponent(i, EcsReflectionUtil.UUID_TYPE);
+                        if (uuidComp != null && animalId.equals(uuidComp.getUuid())) {
+                            Ref<EntityStore> ref = chunk.getReferenceTo(i);
+                            if (ref != null && ref.isValid()) {
+                                TransformComponent transform = chunk.getComponent(i, EcsReflectionUtil.TRANSFORM_TYPE);
+                                if (transform != null) {
+                                    foundRef[0] = ref;
+                                    foundPos[0] = transform.getPosition();
+                                }
+                            }
+                            return; // Found the entity
+                        }
+                    } catch (Exception e) {
+                        // Skip invalid entries
+                    }
+                }
+            });
+
+            if (foundRef[0] != null && foundPos[0] != null) {
+                // Update the stored ref for heart particles
+                data.setEntityRef(foundRef[0]);
+                return foundPos[0];
+            }
+        } catch (Exception e) {
+            // Scan failed
+        }
+
+        return null;
     }
 
     /**

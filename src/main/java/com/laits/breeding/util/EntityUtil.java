@@ -26,6 +26,7 @@ public final class EntityUtil {
     /**
      * Check if an entity ref corresponds to a player.
      * Used to prevent treating players with animal models as animals.
+     * Searches all worlds for multi-world support.
      *
      * @param ref The entity reference to check
      * @return true if the entity is a player, false otherwise
@@ -36,14 +37,16 @@ public final class EntityUtil {
             if (entityUuid == null)
                 return false;
 
-            World world = Universe.get().getDefaultWorld();
-            if (world == null)
-                return false;
+            // Search all worlds for multi-world support
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null) continue;
 
-            for (Player player : world.getPlayers()) {
-                UUID playerUuid = getPlayerUuidFromPlayer(player);
-                if (entityUuid.equals(playerUuid)) {
-                    return true;
+                for (Player player : world.getPlayers()) {
+                    UUID playerUuid = getPlayerUuidFromPlayer(player);
+                    if (entityUuid.equals(playerUuid)) {
+                        return true;
+                    }
                 }
             }
         } catch (Exception e) {
@@ -149,7 +152,7 @@ public final class EntityUtil {
             if (store == null)
                 return null;
 
-            TransformComponent transform = store.getComponent(entityRef, TransformComponent.getComponentType());
+            TransformComponent transform = store.getComponent(entityRef, EcsReflectionUtil.TRANSFORM_TYPE);
             if (transform != null) {
                 return transform.getPosition();
             }

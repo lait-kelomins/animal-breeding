@@ -30,6 +30,7 @@ import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.TamedAnimalData;
 import com.laits.breeding.ui.NametagUIPage;
+import com.laits.breeding.util.EcsReflectionUtil;
 import com.laits.breeding.util.TameHelper;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 
@@ -47,10 +48,10 @@ public class NameAnimalInteraction extends SimpleInteraction {
         BuilderCodec.builder(NameAnimalInteraction.class, NameAnimalInteraction::new, SimpleInteraction.CODEC)
             .build();
 
-    // Cached component types
-    private static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE = TransformComponent.getComponentType();
-    private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = ModelComponent.getComponentType();
-    private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = UUIDComponent.getComponentType();
+    // Component types use centralized cache from EcsReflectionUtil
+    private static final ComponentType<EntityStore, TransformComponent> TRANSFORM_TYPE = EcsReflectionUtil.TRANSFORM_TYPE;
+    private static final ComponentType<EntityStore, ModelComponent> MODEL_TYPE = EcsReflectionUtil.MODEL_TYPE;
+    private static final ComponentType<EntityStore, UUIDComponent> UUID_TYPE = EcsReflectionUtil.UUID_TYPE;
 
     // Random names for animals without a pending name
     private static final String[] RANDOM_NAMES = {
@@ -136,6 +137,18 @@ public class NameAnimalInteraction extends SimpleInteraction {
                     }
                 }
 
+                // Check if taming is enabled for this animal type
+                boolean tamingEnabled = false;
+                if (animalType != null) {
+                    tamingEnabled = plugin.getConfigManager().isTamingEnabled(animalType);
+                } else {
+                    tamingEnabled = plugin.getConfigManager().isCustomAnimalTamingEnabled(modelAssetId);
+                }
+                if (!tamingEnabled) {
+                    sendPlayerMessage(context, "Taming is disabled for this animal!", "#FF5555");
+                    shouldFail = true;
+                    return;
+                }
 
                 // Get player info
                 UUID playerUuid = getPlayerUuid(context);
@@ -179,6 +192,9 @@ public class NameAnimalInteraction extends SimpleInteraction {
                         TameHelper.getHyTameComponent(targetRef).getTamerName() : playerName;
                     String defaultName = (animalType != null ? animalType.name() : modelAssetId) + "_" + animalUuid.toString().substring(0, 4);
 
+                    // Get world name for multi-world support
+                    String worldName = getWorldNameFromRef(targetRef);
+
                     tamingManager.tameAnimal(
                         hytameId,
                         animalUuid,
@@ -187,9 +203,10 @@ public class NameAnimalInteraction extends SimpleInteraction {
                         animalType,
                         targetRef,
                         0, 0, 0, // Position will be updated later
-                        com.laits.breeding.models.GrowthStage.ADULT
+                        com.laits.breeding.models.GrowthStage.ADULT,
+                        worldName
                     );
-                    log("Synced ECS tame state to TamingManager for " + animalUuid);
+                    log("Synced ECS tame state to TamingManager for " + animalUuid + " in world " + worldName);
                     existingTamed = tamingManager.getTamedData(animalUuid);
                 }
 
@@ -244,7 +261,10 @@ public class NameAnimalInteraction extends SimpleInteraction {
                     double y = pos != null ? pos.getY() : 0;
                     double z = pos != null ? pos.getZ() : 0;
 
-                    TamedAnimalData tamedData = tamingManager.tameAnimal(animalUuid, playerUuid, name, animalType, targetRef, x, y, z, growthStage);
+                    // Get world name for multi-world support
+                    String worldName = getWorldNameFromRef(targetRef);
+
+                    TamedAnimalData tamedData = tamingManager.tameAnimal(animalUuid, playerUuid, name, animalType, targetRef, x, y, z, growthStage, worldName);
                     if (tamedData != null) {
                         consumePlayerHeldItem(context);
                         sendPlayerMessage(context, name + " is now yours!", "#55FF55");
@@ -280,13 +300,16 @@ public class NameAnimalInteraction extends SimpleInteraction {
             UUID entityUuid = getUuidFromRef(ref);
             if (entityUuid == null) return false;
 
-            World world = Universe.get().getDefaultWorld();
-            if (world == null) return false;
+            // Search all worlds for multi-world support
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null) continue;
 
-            for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
-                UUID playerUuid = getPlayerUuidFromPlayer(player);
-                if (entityUuid.equals(playerUuid)) {
-                    return true;
+                for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
+                    UUID playerUuid = getPlayerUuidFromPlayer(player);
+                    if (entityUuid.equals(playerUuid)) {
+                        return true;
+                    }
                 }
             }
         } catch (Exception e) {
@@ -360,14 +383,17 @@ public class NameAnimalInteraction extends SimpleInteraction {
             Ref<EntityStore> entityRef = context.getEntity();
             if (entityRef == null) return null;
 
-            World world = Universe.get().getDefaultWorld();
-            if (world == null) return null;
-
             UUID playerUuid = getUuidFromRef(entityRef);
-            for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
-                UUID pUuid = getPlayerUuidFromPlayer(player);
-                if (playerUuid != null && playerUuid.equals(pUuid)) {
-                    return player.getDisplayName();
+            // Search all worlds for multi-world support
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null) continue;
+
+                for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
+                    UUID pUuid = getPlayerUuidFromPlayer(player);
+                    if (playerUuid != null && playerUuid.equals(pUuid)) {
+                        return player.getDisplayName();
+                    }
                 }
             }
         } catch (Exception e) {
@@ -381,14 +407,17 @@ public class NameAnimalInteraction extends SimpleInteraction {
             Ref<EntityStore> entityRef = context.getEntity();
             if (entityRef == null) return null;
 
-            World world = Universe.get().getDefaultWorld();
-            if (world == null) return null;
-
             UUID playerUuid = getUuidFromRef(entityRef);
-            for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
-                UUID pUuid = getPlayerUuidFromPlayer(player);
-                if (playerUuid != null && playerUuid.equals(pUuid)) {
-                    return player;
+            // Search all worlds for multi-world support
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null) continue;
+
+                for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
+                    UUID pUuid = getPlayerUuidFromPlayer(player);
+                    if (playerUuid != null && playerUuid.equals(pUuid)) {
+                        return player;
+                    }
                 }
             }
         } catch (Exception e) {
@@ -417,15 +446,18 @@ public class NameAnimalInteraction extends SimpleInteraction {
             Ref<EntityStore> entityRef = context.getEntity();
             if (entityRef == null) return;
 
-            World world = Universe.get().getDefaultWorld();
-            if (world == null) return;
-
             UUID playerUuid = getUuidFromRef(entityRef);
-            for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
-                UUID pUuid = getPlayerUuidFromPlayer(player);
-                if (playerUuid != null && playerUuid.equals(pUuid)) {
-                    player.sendMessage(Message.raw(message).color(color));
-                    return;
+            // Search all worlds for multi-world support
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null) continue;
+
+                for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
+                    UUID pUuid = getPlayerUuidFromPlayer(player);
+                    if (playerUuid != null && playerUuid.equals(pUuid)) {
+                        player.sendMessage(Message.raw(message).color(color));
+                        return;
+                    }
                 }
             }
         } catch (Exception e) {
@@ -441,21 +473,24 @@ public class NameAnimalInteraction extends SimpleInteraction {
             Ref<EntityStore> entityRef = context.getEntity();
             if (entityRef == null) return;
 
-            World world = Universe.get().getDefaultWorld();
-            if (world == null) return;
-
             UUID playerUuid = getUuidFromRef(entityRef);
-            for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
-                UUID pUuid = getPlayerUuidFromPlayer(player);
-                if (playerUuid != null && playerUuid.equals(pUuid)) {
-                    var inventory = ((com.hypixel.hytale.server.core.entity.LivingEntity) player).getInventory();
-                    if (inventory != null) {
-                        byte activeSlot = inventory.getActiveHotbarSlot();
-                        inventory.getHotbar().removeItemStackFromSlot((short) activeSlot, 1);
-                        inventory.markChanged();
-                        player.sendInventory();
+            // Search all worlds for multi-world support
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null) continue;
+
+                for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
+                    UUID pUuid = getPlayerUuidFromPlayer(player);
+                    if (playerUuid != null && playerUuid.equals(pUuid)) {
+                        var inventory = ((com.hypixel.hytale.server.core.entity.LivingEntity) player).getInventory();
+                        if (inventory != null) {
+                            byte activeSlot = inventory.getActiveHotbarSlot();
+                            inventory.getHotbar().removeItemStackFromSlot((short) activeSlot, 1);
+                            inventory.markChanged();
+                            player.sendInventory();
+                        }
+                        return;
                     }
-                    return;
                 }
             }
         } catch (Exception e) {
@@ -494,10 +529,38 @@ public class NameAnimalInteraction extends SimpleInteraction {
             if (store == null) return;
 
             Vector3d heartsPos = new Vector3d(x, y, z);
-            
+
             ParticleUtil.spawnParticleEffect("BreedingHearts", heartsPos, store);
         } catch (Exception e) {
             // Silent
         }
+    }
+
+    /**
+     * Get the world name for an entity reference by comparing stores.
+     * @return World name or null if not found
+     */
+    private String getWorldNameFromRef(Ref<EntityStore> ref) {
+        if (ref == null) return null;
+        try {
+            Store<EntityStore> entityStore = ref.getStore();
+            if (entityStore == null) return null;
+
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null) continue;
+                try {
+                    Store<EntityStore> worldStore = world.getEntityStore().getStore();
+                    if (worldStore == entityStore) {
+                        return entry.getKey();
+                    }
+                } catch (Exception e) {
+                    // Skip if we can't access this world's store
+                }
+            }
+        } catch (Exception e) {
+            // Silent
+        }
+        return null;
     }
 }

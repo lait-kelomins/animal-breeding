@@ -40,7 +40,37 @@ public class TamingManager {
     // Logger
     private Consumer<String> logger;
 
+    // Grace period tracking for preventing duplication on slow servers
+    private volatile long initializationTime = 0;
+    private int gracePeriodMs = 15000;  // Default 15 seconds
+
     public TamingManager() {
+    }
+
+    /**
+     * Set the grace period in milliseconds.
+     * During this period after initialization, respawn checks are skipped.
+     */
+    public void setGracePeriodMs(int ms) {
+        this.gracePeriodMs = ms;
+    }
+
+    /**
+     * Mark the taming manager as initialized.
+     * Call this after initial entity scanning is complete.
+     */
+    public void markInitialized() {
+        this.initializationTime = System.currentTimeMillis();
+        log("TamingManager initialized - grace period of " + (gracePeriodMs / 1000) + "s started");
+    }
+
+    /**
+     * Check if we're still in the initialization grace period.
+     * During this period, respawn operations should be skipped.
+     */
+    public boolean isInGracePeriod() {
+        if (initializationTime == 0) return true;  // Not yet initialized
+        return (System.currentTimeMillis() - initializationTime) < gracePeriodMs;
     }
 
     /**
@@ -112,6 +142,7 @@ public class TamingManager {
         tamedAnimalsByUuid.clear();
         tamedByHytameId.clear();
         int migrated = 0;
+        int despawnedCount = 0;
 
         for (TamedAnimalData data : savedAnimals) {
             if (data != null && data.getAnimalUuid() != null) {
@@ -121,17 +152,25 @@ public class TamingManager {
                     migrated++;
                 }
 
-                // Reset despawned flag on load - the world save has the actual entities
-                // If they're truly gone, EntityRemoveEvent will set isDespawned = true
-                data.setDespawned(false);
+                // IMPORTANT: Keep the isDespawned state from the save file
+                // This prevents race conditions where:
+                // 1. World loads slowly
+                // 2. Plugin sees no entity and marks as despawned
+                // 3. World finishes loading and entity appears
+                // 4. RespawnManager respawns another copy = duplicate
+                // The entity scan will update isDespawned based on actual entity presence
                 data.setEntityRef(null); // Will be reattached by animal scan
+
+                if (data.isDespawned()) {
+                    despawnedCount++;
+                }
 
                 tamedAnimalsByUuid.put(data.getAnimalUuid(), data);
                 tamedByHytameId.put(data.getHytameId(), data);
             }
         }
 
-        log("Loaded " + tamedAnimalsByUuid.size() + " tamed animals from persistence (all marked as not despawned)");
+        log("Loaded " + tamedAnimalsByUuid.size() + " tamed animals from persistence (" + despawnedCount + " marked as despawned)");
         if (migrated > 0) {
             log("Migrated " + migrated + " animals to new hytameId system");
             markDirty(true); // Save migrated data immediately
@@ -195,7 +234,15 @@ public class TamingManager {
      * Use this when taming babies to ensure correct growth stage is saved.
      */
     public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type, Ref<EntityStore> entityRef, double x, double y, double z, GrowthStage growthStage) {
-        return tameAnimal(null, animalId, ownerUuid, name, type, entityRef, x, y, z, growthStage);
+        return tameAnimal(null, animalId, ownerUuid, name, type, entityRef, x, y, z, growthStage, null);
+    }
+
+    /**
+     * Tame an animal with entity reference, initial position, growth stage, and world name.
+     * Use this overload for multi-world support.
+     */
+    public TamedAnimalData tameAnimal(UUID animalId, UUID ownerUuid, String name, AnimalType type, Ref<EntityStore> entityRef, double x, double y, double z, GrowthStage growthStage, String worldName) {
+        return tameAnimal(null, animalId, ownerUuid, name, type, entityRef, x, y, z, growthStage, worldName);
     }
 
     /**
@@ -203,8 +250,9 @@ public class TamingManager {
      * This is the core taming method that all others delegate to.
      *
      * @param hytameId Stable ID from ECS TameComponent (null to generate new)
+     * @param worldName World name for multi-world support (null uses "default")
      */
-    public TamedAnimalData tameAnimal(UUID hytameId, UUID animalId, UUID ownerUuid, String name, AnimalType type, Ref<EntityStore> entityRef, double x, double y, double z, GrowthStage growthStage) {
+    public TamedAnimalData tameAnimal(UUID hytameId, UUID animalId, UUID ownerUuid, String name, AnimalType type, Ref<EntityStore> entityRef, double x, double y, double z, GrowthStage growthStage, String worldName) {
         if (animalId == null || ownerUuid == null || name == null) {
             return null;
         }
@@ -225,6 +273,10 @@ public class TamingManager {
             if (growthStage != null && existing.getGrowthStage() != growthStage) {
                 existing.setGrowthStage(growthStage);
             }
+            // Update world ID if provided and different
+            if (worldName != null && !worldName.isEmpty() && !worldName.equals(existing.getWorldId())) {
+                existing.setWorldId(worldName);
+            }
             return existing;
         }
 
@@ -243,6 +295,10 @@ public class TamingManager {
             }
             if (x != 0 || y != 0 || z != 0) {
                 existing.setLastPosition(x, y, z);
+            }
+            // Update world ID if provided
+            if (worldName != null && !worldName.isEmpty()) {
+                existing.setWorldId(worldName);
             }
             tamedAnimalsByUuid.put(animalId, existing);
             markDirty(true);
@@ -270,12 +326,16 @@ public class TamingManager {
         if (growthStage == GrowthStage.BABY) {
             data.setBirthTime(System.currentTimeMillis());
         }
+        // Set world ID for multi-world support
+        if (worldName != null && !worldName.isEmpty()) {
+            data.setWorldId(worldName);
+        }
 
         tamedAnimalsByUuid.put(animalId, data);
         tamedByHytameId.put(data.getHytameId(), data);
         markDirty(true); // Save immediately - user action
 
-        log("Tamed animal: " + name + " (" + type + ", " + growthStage + ") at (" +
+        log("Tamed animal: " + name + " (" + type + ", " + growthStage + ") in world=" + (worldName != null ? worldName : "default") + " at (" +
             String.format("%.1f, %.1f, %.1f", x, y, z) + ") hytameId=" + data.getHytameId() + " owned by " + ownerUuid);
         return data;
     }
@@ -608,6 +668,22 @@ public class TamingManager {
     }
 
     /**
+     * Find a captured animal by type (for restore after server restart).
+     * Returns the first animal that is marked as captured and matches the type.
+     */
+    public TamedAnimalData findCapturedByType(AnimalType type) {
+        if (type == null) return null;
+
+        for (TamedAnimalData data : tamedByHytameId.values()) {
+            if (data.isCaptured() && data.getAnimalType() == type) {
+                log("Found captured animal: hytameId=" + data.getHytameId() + " name=" + data.getCustomName());
+                return data;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Get all tamed animals indexed by hytameId.
      * Useful for bulk ECS sync operations.
      */
@@ -687,7 +763,7 @@ public class TamingManager {
         // No JSON entry - create one (entity was tamed but we lost the JSON data)
         // This is a recovery scenario or first-time setup
         TamedAnimalData newData = tameAnimal(hytameId, entityUuid, tamerUuid,
-            "Unknown", null, entityRef, x, y, z, GrowthStage.ADULT);
+            "Unknown", null, entityRef, x, y, z, GrowthStage.ADULT, null);
         if (newData != null) {
             log("Created JSON entry for existing tamed entity hytameId=" + hytameId);
             return SyncResult.CREATED;

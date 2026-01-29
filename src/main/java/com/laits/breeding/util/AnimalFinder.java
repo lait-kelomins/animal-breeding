@@ -11,10 +11,8 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.laits.breeding.models.AnimalType;
 
-import java.lang.reflect.Field;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
@@ -25,8 +23,8 @@ import java.util.function.Consumer;
  */
 public class AnimalFinder {
 
-    // Cache the ModelComponent type for performance
-    private static final ComponentType<EntityStore, ModelComponent> MODEL_COMPONENT_TYPE = ModelComponent.getComponentType();
+    // Component type uses centralized cache from EcsReflectionUtil
+    private static final ComponentType<EntityStore, ModelComponent> MODEL_COMPONENT_TYPE = EcsReflectionUtil.MODEL_TYPE;
 
     /**
      * Result of finding an animal in the world.

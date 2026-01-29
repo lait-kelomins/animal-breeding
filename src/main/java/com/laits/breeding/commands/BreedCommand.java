@@ -3,541 +3,254 @@ package com.laits.breeding.commands;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.AbstractCommand;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
-import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
-import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
-import com.hypixel.hytale.server.core.entity.entities.Player;
-import com.hypixel.hytale.server.core.universe.Universe;
-import com.hypixel.hytale.server.core.universe.world.World;
 
-import com.laits.breeding.LaitsBreedingPlugin;
-import com.laits.breeding.listeners.DetectTamedDeath;
-import com.laits.breeding.managers.BreedingManager;
-import com.laits.breeding.managers.PersistenceManager;
-import com.laits.breeding.managers.TamingManager;
-import com.laits.breeding.models.TamedAnimalData;
-import com.laits.breeding.util.ConfigManager;
-
-import java.util.Collection;
-import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
- * Unified command for all breeding functionality.
- * Usage: /breed [subcommand]
- * Subcommands: help, status, config, growth, tame, untame, info, settings, custom
+ * DEPRECATED: Use /hytame instead.
+ *
+ * This command is kept for backwards compatibility and shows a deprecation warning
+ * before delegating to the corresponding /hytame command.
+ *
+ * Will be removed in a future version.
  */
 public class BreedCommand extends AbstractCommand {
+
+    private static final Message DEPRECATION_WARNING = Message.raw(
+            "[Deprecated] Use /hytame instead. /breed will be removed in a future version."
+    ).color("#FFAA00");
+
     public BreedCommand() {
-        super("breed", "Main command for Lait's Animal Breeding");
-        addSubCommand(new BreedHelpSubCommand());
-        addSubCommand(new BreedStatusSubCommand());
-        addSubCommand(new BreedConfigSubCommand());
-        addSubCommand(new BreedGrowthSubCommand());
-        addSubCommand(new BreedTameSubCommand());
-        addSubCommand(new BreedUntameSubCommand());
-        addSubCommand(new BreedInfoSubCommand());
-        addSubCommand(new BreedSettingsSubCommand());
-        addSubCommand(new BreedCustomSubCommand());
-        addSubCommand(new BreedScanSubCommand());
-        addSubCommand(new BreedDebugSubCommand());
+        super("breed", "[Deprecated] Use /hytame - Animal Breeding & Taming");
+        // Mirror all subcommands from HytameCommand with deprecation wrapper
+        addSubCommand(new DeprecatedHelpSubCommand());
+        addSubCommand(new DeprecatedStatusSubCommand());
+        addSubCommand(new DeprecatedInfoSubCommand());
+        addSubCommand(new DeprecatedTameSubCommand());
+        addSubCommand(new DeprecatedUntameSubCommand());
+        addSubCommand(new DeprecatedSettingsSubCommand());
+        addSubCommand(new DeprecatedScanSubCommand());
+        addSubCommand(new DeprecatedFoodsSubCommand());
+        addSubCommand(new DeprecatedConfigSubCommand());
+        addSubCommand(new DeprecatedGrowthSubCommand());
+        addSubCommand(new DeprecatedCustomSubCommand());
+        addSubCommand(new DeprecatedDebugSubCommand());
     }
 
     @Override
     protected CompletableFuture<Void> execute(CommandContext ctx) {
-        // Default action: show help
-        showHelp(ctx);
+        // Show deprecation warning then help
+        ctx.sendMessage(DEPRECATION_WARNING);
+        ctx.sendMessage(Message.raw(""));
+        // Show help from HytameCommand
+        showDeprecatedHelp(ctx);
         return CompletableFuture.completedFuture(null);
     }
 
-    private static void showHelp(CommandContext ctx) {
-        ctx.sendMessage(Message.raw("=== Lait's Animal Breeding ===").color("#FF9900"));
-        ctx.sendMessage(Message.raw("Version: ").color("#AAAAAA")
-                .insert(Message.raw(LaitsBreedingPlugin.VERSION).color("#FFFFFF")));
+    private static void showDeprecatedHelp(CommandContext ctx) {
+        ctx.sendMessage(Message.raw("=== /breed is deprecated - Use /hytame ===").color("#FFAA00"));
         ctx.sendMessage(Message.raw(""));
-        ctx.sendMessage(Message.raw("Commands:").color("#FFAA00"));
-        ctx.sendMessage(Message.raw("/breed help").color("#FFFFFF")
-                .insert(Message.raw(" - Show this help").color("#AAAAAA")));
-        ctx.sendMessage(Message.raw("/breed status").color("#FFFFFF")
-                .insert(Message.raw(" - View tracked animals").color("#AAAAAA")));
-        ctx.sendMessage(Message.raw("/breed config ...").color("#FFFFFF")
-                .insert(Message.raw(" - Configuration commands").color("#AAAAAA")));
-        ctx.sendMessage(Message.raw("/breed growth").color("#FFFFFF")
-                .insert(Message.raw(" - Toggle baby growth").color("#AAAAAA")));
-        ctx.sendMessage(Message.raw("/breed tame <name>").color("#FFFFFF")
-                .insert(Message.raw(" - Prepare to tame an animal").color("#AAAAAA")));
-        ctx.sendMessage(Message.raw("/breed untame").color("#FFFFFF")
-                .insert(Message.raw(" - Release a tamed animal").color("#AAAAAA")));
-        ctx.sendMessage(Message.raw("/breed info").color("#FFFFFF")
-                .insert(Message.raw(" - Show taming info").color("#AAAAAA")));
-        ctx.sendMessage(Message.raw("/breed settings").color("#FFFFFF")
-                .insert(Message.raw(" - Taming settings").color("#AAAAAA")));
-        ctx.sendMessage(Message.raw("/breed custom ...").color("#FFFFFF")
-                .insert(Message.raw(" - Manage custom animals").color("#AAAAAA")));
-        ctx.sendMessage(Message.raw("/breed scan").color("#FFFFFF")
-                .insert(Message.raw(" - Scan for untracked babies").color("#AAAAAA")));
-        ctx.sendMessage(Message.raw("/breed debug ...").color("#FFFFFF")
-                .insert(Message.raw(" - Debug commands").color("#AAAAAA")));
+        ctx.sendMessage(Message.raw("The following commands have been renamed:").color("#AAAAAA"));
+        ctx.sendMessage(Message.raw("  /breed help    ").color("#888888")
+                .insert(Message.raw("->").color("#555555"))
+                .insert(Message.raw(" /hytame help").color("#FFFFFF")));
+        ctx.sendMessage(Message.raw("  /breed status  ").color("#888888")
+                .insert(Message.raw("->").color("#555555"))
+                .insert(Message.raw(" /hytame status").color("#FFFFFF")));
+        ctx.sendMessage(Message.raw("  /breed config  ").color("#888888")
+                .insert(Message.raw("->").color("#555555"))
+                .insert(Message.raw(" /hytame config").color("#FFFFFF")));
+        ctx.sendMessage(Message.raw("  /breed growth  ").color("#888888")
+                .insert(Message.raw("->").color("#555555"))
+                .insert(Message.raw(" /hytame growth").color("#FFFFFF")));
+        ctx.sendMessage(Message.raw("  /breed tame    ").color("#888888")
+                .insert(Message.raw("->").color("#555555"))
+                .insert(Message.raw(" /hytame tame").color("#FFFFFF")));
+        ctx.sendMessage(Message.raw("  /breed untame  ").color("#888888")
+                .insert(Message.raw("->").color("#555555"))
+                .insert(Message.raw(" /hytame untame").color("#FFFFFF")));
+        ctx.sendMessage(Message.raw("  /breed info    ").color("#888888")
+                .insert(Message.raw("->").color("#555555"))
+                .insert(Message.raw(" /hytame info").color("#FFFFFF")));
+        ctx.sendMessage(Message.raw("  /breed settings").color("#888888")
+                .insert(Message.raw("->").color("#555555"))
+                .insert(Message.raw(" /hytame settings").color("#FFFFFF")));
+        ctx.sendMessage(Message.raw("  /breed custom  ").color("#888888")
+                .insert(Message.raw("->").color("#555555"))
+                .insert(Message.raw(" /hytame custom").color("#FFFFFF")));
+        ctx.sendMessage(Message.raw("  /breed scan    ").color("#888888")
+                .insert(Message.raw("->").color("#555555"))
+                .insert(Message.raw(" /hytame scan").color("#FFFFFF")));
+        ctx.sendMessage(Message.raw("  /breed debug   ").color("#888888")
+                .insert(Message.raw("->").color("#555555"))
+                .insert(Message.raw(" /hytame debug").color("#FFFFFF")));
         ctx.sendMessage(Message.raw(""));
-        ctx.sendMessage(Message.raw("Feed animals their favorite food to breed!").color("#55FF55"));
+        ctx.sendMessage(Message.raw("For full help, run: ").color("#AAAAAA")
+                .insert(Message.raw("/hytame help").color("#55FF55")));
     }
 
-    // --- Subcommand: help ---
-    public static class BreedHelpSubCommand extends AbstractCommand {
-        public BreedHelpSubCommand() {
+    /**
+     * Base class for deprecated subcommands that shows warning before executing.
+     */
+    private static abstract class DeprecatedSubCommand extends AbstractCommand {
+        public DeprecatedSubCommand(String name, String description) {
+            super(name, "[Deprecated] " + description);
+        }
+
+        @Override
+        protected final CompletableFuture<Void> execute(CommandContext ctx) {
+            ctx.sendMessage(DEPRECATION_WARNING);
+            ctx.sendMessage(Message.raw(""));
+            return executeDeprecated(ctx);
+        }
+
+        protected abstract CompletableFuture<Void> executeDeprecated(CommandContext ctx);
+    }
+
+    // --- Deprecated subcommand implementations ---
+    // Each delegates to the corresponding HytameCommand subcommand logic
+
+    private static class DeprecatedHelpSubCommand extends DeprecatedSubCommand {
+        public DeprecatedHelpSubCommand() {
             super("help", "Show help information");
         }
 
         @Override
-        protected CompletableFuture<Void> execute(CommandContext ctx) {
-            showHelp(ctx);
+        protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
+            new HytameCommand.HytameHelpSubCommand().executeFromDeprecated(ctx);
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    // --- Subcommand: status ---
-    public static class BreedStatusSubCommand extends AbstractCommand {
-        public BreedStatusSubCommand() {
-            super("status", "View tracked animals and breeding stats");
+    private static class DeprecatedStatusSubCommand extends DeprecatedSubCommand {
+        public DeprecatedStatusSubCommand() {
+            super("status", "View tracked animals");
         }
 
         @Override
-        protected CompletableFuture<Void> execute(CommandContext ctx) {
-            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-            if (plugin == null) {
-                ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
-                return CompletableFuture.completedFuture(null);
-            }
-
-            BreedingManager breeding = plugin.getBreedingManager();
-            TamingManager taming = plugin.getTamingManager();
-
-            ctx.sendMessage(Message.raw("=== Breeding Status ===").color("#FF9900"));
-            ctx.sendMessage(Message.raw("Animals tracked: ").color("#AAAAAA")
-                    .insert(Message.raw(String.valueOf(breeding.getTrackedCount())).color("#FFFFFF")));
-            ctx.sendMessage(Message.raw("In love mode: ").color("#AAAAAA")
-                    .insert(Message.raw(String.valueOf(breeding.getInLoveCount())).color("#FF69B4")));
-            ctx.sendMessage(Message.raw("Pregnant: ").color("#AAAAAA")
-                    .insert(Message.raw(String.valueOf(breeding.getPregnantCount())).color("#FFFF55")));
-
-            if (taming != null) {
-                ctx.sendMessage(Message.raw("Tamed animals: ").color("#AAAAAA")
-                        .insert(Message.raw(String.valueOf(taming.getTamedCount())).color("#55FF55")));
-            }
-
+        protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
+            new HytameCommand.HytameStatusSubCommand().executeFromDeprecated(ctx);
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    // --- Subcommand: config (delegates to BreedingConfigCommand subcommands) ---
-    public static class BreedConfigSubCommand extends AbstractCommand {
-        public BreedConfigSubCommand() {
-            super("config", "Configuration commands");
-            // Add all config subcommands
-            addSubCommand(new BreedingConfigCommand.ReloadSubCommand());
-            addSubCommand(new BreedingConfigCommand.SaveSubCommand());
-            addSubCommand(new BreedingConfigCommand.ListSubCommand());
-            addSubCommand(new BreedingConfigCommand.InfoSubCommand());
-            addSubCommand(new BreedingConfigCommand.EnableSubCommand());
-            addSubCommand(new BreedingConfigCommand.DisableSubCommand());
-            addSubCommand(new BreedingConfigCommand.SetSubCommand());
-            addSubCommand(new BreedingConfigCommand.AddFoodSubCommand());
-            addSubCommand(new BreedingConfigCommand.RemoveFoodSubCommand());
-            addSubCommand(new BreedingConfigCommand.PresetSubCommand());
+    private static class DeprecatedInfoSubCommand extends DeprecatedSubCommand {
+        public DeprecatedInfoSubCommand() {
+            super("info", "Show taming info");
         }
 
         @Override
-        protected CompletableFuture<Void> execute(CommandContext ctx) {
-            // Show config summary
-            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-            if (plugin == null || plugin.getConfigManager() == null) {
-                ctx.sendMessage(Message.raw("Config not loaded!").color("#FF5555"));
-                return CompletableFuture.completedFuture(null);
-            }
-            ctx.sendMessage(Message.raw("=== Breeding Config ===").color("#FF9900"));
-            ctx.sendMessage(Message.raw("Active Preset: ").color("#AAAAAA")
-                    .insert(Message.raw(plugin.getConfigManager().getActivePreset()).color("#FFFFFF")));
-            ctx.sendMessage(Message.raw("Type ").color("#AAAAAA")
-                    .insert(Message.raw("/breed config").color("#FFFFFF"))
-                    .insert(Message.raw(" and press TAB for subcommands").color("#AAAAAA")));
+        protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
+            new HytameCommand.HytameInfoSubCommand().executeFromDeprecated(ctx);
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    // --- Subcommand: growth ---
-    public static class BreedGrowthSubCommand extends AbstractCommand {
-        public BreedGrowthSubCommand() {
-            super("growth", "Toggle baby animal growth");
+    private static class DeprecatedTameSubCommand extends DeprecatedSubCommand {
+        public DeprecatedTameSubCommand() {
+            super("tame", "Tame an animal");
         }
 
         @Override
-        protected CompletableFuture<Void> execute(CommandContext ctx) {
-            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-            if (plugin == null || plugin.getConfigManager() == null) {
-                ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
-                return CompletableFuture.completedFuture(null);
-            }
-
-            ConfigManager config = plugin.getConfigManager();
-            boolean current = config.isGrowthEnabled();
-            config.setGrowthEnabled(!current);
-
-            if (config.isGrowthEnabled()) {
-                ctx.sendMessage(Message.raw("Baby growth: ").color("#AAAAAA")
-                        .insert(Message.raw("ENABLED").color("#55FF55")));
-                ctx.sendMessage(Message.raw("Babies will grow into adults over time.").color("#AAAAAA"));
-            } else {
-                ctx.sendMessage(Message.raw("Baby growth: ").color("#AAAAAA")
-                        .insert(Message.raw("DISABLED").color("#FF5555")));
-                ctx.sendMessage(Message.raw("Babies will stay babies forever!").color("#AAAAAA"));
-            }
+        protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
+            new HytameCommand.HytameTameSubCommand().executeFromDeprecated(ctx);
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    // --- Subcommand: tame ---
-    // [DEPRECATED] Taming is now done via Name Tag item with UI
-    public static class BreedTameSubCommand extends AbstractCommand {
-        private final RequiredArg<String> nameArg;
-
-        public BreedTameSubCommand() {
-            super("tame", "[Deprecated] Use Name Tag item on animal instead");
-            nameArg = withRequiredArg("name", "Name for the animal", ArgTypes.STRING);
+    private static class DeprecatedUntameSubCommand extends DeprecatedSubCommand {
+        public DeprecatedUntameSubCommand() {
+            super("untame", "Release a tamed animal");
         }
 
         @Override
-        protected CompletableFuture<Void> execute(CommandContext ctx) {
-            ctx.sendMessage(Message.raw("[Deprecated] This command has been replaced.").color("#FFAA00"));
-            ctx.sendMessage(Message.raw("To tame an animal:").color("#AAAAAA"));
-            ctx.sendMessage(Message.raw("  1. Hold a Name Tag item").color("#FFFFFF"));
-            ctx.sendMessage(Message.raw("  2. Press F on an animal").color("#FFFFFF"));
-            ctx.sendMessage(Message.raw("  3. Enter a name in the UI").color("#FFFFFF"));
+        protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
+            new HytameCommand.HytameUntameSubCommand().executeFromDeprecated(ctx);
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    // --- Subcommand: untame ---
-    // [DEPRECATED] Untaming should be done via a dedicated UI or command with animal name
-    public static class BreedUntameSubCommand extends AbstractCommand {
-        public BreedUntameSubCommand() {
-            super("untame", "[Deprecated] Release a tamed animal");
-        }
-
-        @Override
-        protected CompletableFuture<Void> execute(CommandContext ctx) {
-            ctx.sendMessage(Message.raw("[Deprecated] This command has been replaced.").color("#FFAA00"));
-            ctx.sendMessage(Message.raw("To release a tamed animal, use the naming UI").color("#AAAAAA"));
-            ctx.sendMessage(Message.raw("to rename it, or contact server admin.").color("#AAAAAA"));
-            return CompletableFuture.completedFuture(null);
-        }
-    }
-
-    // --- Subcommand: info ---
-    public static class BreedInfoSubCommand extends AbstractCommand {
-        public BreedInfoSubCommand() {
-            super("info", "Show taming information");
-        }
-
-        @Override
-        protected CompletableFuture<Void> execute(CommandContext ctx) {
-            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-            if (plugin == null || plugin.getTamingManager() == null) {
-                ctx.sendMessage(Message.raw("Taming system not initialized!").color("#FF5555"));
-                return CompletableFuture.completedFuture(null);
-            }
-
-            TamingManager taming = plugin.getTamingManager();
-            ctx.sendMessage(Message.raw("=== Taming Status ===").color("#FF9900"));
-            ctx.sendMessage(Message.raw("Total tamed: ").color("#AAAAAA")
-                    .insert(Message.raw(String.valueOf(taming.getTamedCount())).color("#FFFFFF")));
-            ctx.sendMessage(Message.raw("Awaiting respawn: ").color("#AAAAAA")
-                    .insert(Message.raw(String.valueOf(taming.getDespawnedCount())).color("#FFFF55")));
-            return CompletableFuture.completedFuture(null);
-        }
-    }
-
-    // --- Subcommand: settings ---
-    public static class BreedSettingsSubCommand extends AbstractCommand {
-        public BreedSettingsSubCommand() {
+    private static class DeprecatedSettingsSubCommand extends DeprecatedSubCommand {
+        public DeprecatedSettingsSubCommand() {
             super("settings", "Taming settings");
         }
 
         @Override
-        protected CompletableFuture<Void> execute(CommandContext ctx) {
-            ctx.sendMessage(Message.raw("This command is not yet available.").color("#FFFF55"));
-            ctx.sendMessage(Message.raw("By default, others CAN interact with your tamed animals.").color("#AAAAAA"));
+        protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
+            new HytameCommand.HytameSettingsSubCommand().executeFromDeprecated(ctx);
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    // --- Subcommand: custom (delegates to CustomAnimalCommand subcommands) ---
-    public static class BreedCustomSubCommand extends AbstractCommand {
-        public BreedCustomSubCommand() {
-            super("custom", "Manage custom animals from other mods");
-            addSubCommand(new CustomAnimalCommand.CustomAnimalAddCommand());
-            addSubCommand(new CustomAnimalCommand.CustomAnimalRemoveCommand());
-            addSubCommand(new CustomAnimalCommand.CustomAnimalListCommand());
-            addSubCommand(new CustomAnimalCommand.CustomAnimalInfoCommand());
-            addSubCommand(new CustomAnimalCommand.CustomAnimalEnableCommand());
-            addSubCommand(new CustomAnimalCommand.CustomAnimalDisableCommand());
-            addSubCommand(new CustomAnimalCommand.CustomAnimalAddFoodCommand());
-            addSubCommand(new CustomAnimalCommand.CustomAnimalRemoveFoodCommand());
-            addSubCommand(new CustomAnimalCommand.CustomAnimalScanCommand());
-            addSubCommand(new CustomAnimalCommand.CustomAnimalSetRoleCommand());
-            addSubCommand(new CustomAnimalCommand.CustomAnimalSetBabyCommand());
-            addSubCommand(new CustomAnimalCommand.CustomAnimalSetGrowthCommand());
-            addSubCommand(new CustomAnimalCommand.CustomAnimalSetCooldownCommand());
+    private static class DeprecatedScanSubCommand extends DeprecatedSubCommand {
+        public DeprecatedScanSubCommand() {
+            super("scan", "Scan for untracked babies");
         }
 
         @Override
-        protected CompletableFuture<Void> execute(CommandContext ctx) {
-            ctx.sendMessage(Message.raw("=== Custom Animal Commands ===").color("#FF9900"));
-            ctx.sendMessage(Message.raw("/breed custom scan").color("#FFFFFF")
-                    .insert(Message.raw(" - Find creature names in world").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breed custom add <model> <food>").color("#FFFFFF")
-                    .insert(Message.raw(" - Add custom animal").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breed custom remove <model>").color("#FFFFFF")
-                    .insert(Message.raw(" - Remove custom animal").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breed custom list").color("#FFFFFF")
-                    .insert(Message.raw(" - List added custom animals").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breed custom info <model>").color("#FFFFFF")
-                    .insert(Message.raw(" - Show details").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breed custom setrole <model> <role>").color("#FFFFFF")
-                    .insert(Message.raw(" - Set NPC role for spawning").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breed custom setgrowth <model> <min>").color("#FFFFFF")
-                    .insert(Message.raw(" - Set growth time").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breed custom setcooldown <model> <min>").color("#FFFFFF")
-                    .insert(Message.raw(" - Set breeding cooldown").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("Run ").color("#AAAAAA")
-                    .insert(Message.raw("/breed custom scan").color("#FFFF55"))
-                    .insert(Message.raw(" first to find creature names!").color("#AAAAAA")));
+        protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
+            new HytameCommand.HytameScanSubCommand().executeFromDeprecated(ctx);
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    // --- Subcommand: scan ---
-    public static class BreedScanSubCommand extends AbstractCommand {
-        public BreedScanSubCommand() {
-            super("scan", "Scan for untracked baby animals");
+    private static class DeprecatedFoodsSubCommand extends DeprecatedSubCommand {
+        public DeprecatedFoodsSubCommand() {
+            super("foods", "Quick food reference");
         }
 
         @Override
-        protected CompletableFuture<Void> execute(CommandContext ctx) {
-            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-            if (plugin == null) {
-                ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
-                return CompletableFuture.completedFuture(null);
-            }
-
-            ctx.sendMessage(Message.raw("Scanning for untracked babies...").color("#AAAAAA"));
-
-            // Run scan on world thread
-            World world = Universe.get().getDefaultWorld();
-            if (world != null) {
-                world.execute(() -> {
-                    int found = plugin.scanForUntrackedBabies();
-                    if (found > 0) {
-                        ctx.sendMessage(Message.raw("Found and registered ").color("#55FF55")
-                                .insert(Message.raw(String.valueOf(found)).color("#FFFFFF"))
-                                .insert(Message.raw(" untracked babies!").color("#55FF55")));
-                    } else {
-                        ctx.sendMessage(Message.raw("No untracked babies found.").color("#AAAAAA"));
-                    }
-
-                    // Also show current baby count
-                    BreedingManager breeding = plugin.getBreedingManager();
-                    int babyCount = breeding.getTrackedBabyUuids().size();
-                    ctx.sendMessage(Message.raw("Total tracked babies: ").color("#AAAAAA")
-                            .insert(Message.raw(String.valueOf(babyCount)).color("#FFFFFF")));
-                });
-            } else {
-                ctx.sendMessage(Message.raw("World not available!").color("#FF5555"));
-            }
-
+        protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
+            new HytameCommand.HytameFoodsSubCommand().executeFromDeprecated(ctx);
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    // --- Subcommand: debug ---
-    public static class BreedDebugSubCommand extends AbstractCommand {
-        public BreedDebugSubCommand() {
-            super("debug", "Debug commands for taming system");
-            addSubCommand(new DebugMemorySubCommand());
-            addSubCommand(new DebugFileSubCommand());
-            addSubCommand(new DebugEventsSubCommand());
-            addSubCommand(new DebugClearSubCommand());
+    private static class DeprecatedConfigSubCommand extends DeprecatedSubCommand {
+        public DeprecatedConfigSubCommand() {
+            super("config", "Configuration commands");
         }
 
         @Override
-        protected CompletableFuture<Void> execute(CommandContext ctx) {
-            ctx.sendMessage(Message.raw("=== Debug Commands ===").color("#FF9900"));
-            ctx.sendMessage(Message.raw("/breed debug memory").color("#FFFFFF")
-                    .insert(Message.raw(" - Log tamed animals in memory").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breed debug file").color("#FFFFFF")
-                    .insert(Message.raw(" - Log tamed animals from save file").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breed debug events").color("#FFFFFF")
-                    .insert(Message.raw(" - Log last detected death/despawn UUIDs").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breed debug clear").color("#FFFFFF")
-                    .insert(Message.raw(" - Clear tracked event UUIDs").color("#AAAAAA")));
+        protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
+            new HytameCommand.HytameConfigSubCommand().executeFromDeprecated(ctx);
             return CompletableFuture.completedFuture(null);
         }
+    }
 
-        // --- Debug: memory ---
-        public static class DebugMemorySubCommand extends AbstractCommand {
-            public DebugMemorySubCommand() {
-                super("memory", "Log tamed animals currently in memory");
-            }
-
-            @Override
-            protected CompletableFuture<Void> execute(CommandContext ctx) {
-                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-                if (plugin == null || plugin.getTamingManager() == null) {
-                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
-                    return CompletableFuture.completedFuture(null);
-                }
-
-                TamingManager taming = plugin.getTamingManager();
-                Collection<TamedAnimalData> animals = taming.getAllTamedAnimals();
-
-                ctx.sendMessage(Message.raw("=== Tamed Animals in Memory ===").color("#FF9900"));
-                ctx.sendMessage(Message.raw("Total: ").color("#AAAAAA")
-                        .insert(Message.raw(String.valueOf(animals.size())).color("#FFFFFF")));
-                ctx.sendMessage(Message.raw(""));
-
-                if (animals.isEmpty()) {
-                    ctx.sendMessage(Message.raw("No tamed animals in memory.").color("#AAAAAA"));
-                } else {
-                    int index = 1;
-                    for (TamedAnimalData data : animals) {
-                        String status = data.isDead() ? "[DEAD]" : (data.isDespawned() ? "[DESPAWNED]" : "[ACTIVE]");
-                        String statusColor = data.isDead() ? "#FF5555" : (data.isDespawned() ? "#FFFF55" : "#55FF55");
-
-                        ctx.sendMessage(Message.raw(index + ". ").color("#AAAAAA")
-                                .insert(Message.raw(data.getCustomName()).color("#FFFFFF"))
-                                .insert(Message.raw(" ").color("#AAAAAA"))
-                                .insert(Message.raw(status).color(statusColor)));
-
-                        ctx.sendMessage(Message.raw("   UUID: ").color("#AAAAAA")
-                                .insert(Message.raw(data.getAnimalUuid().toString()).color("#888888")));
-
-                        String typeStr = data.getAnimalType() != null ? data.getAnimalType().name() : "CUSTOM";
-                        ctx.sendMessage(Message.raw("   Type: ").color("#AAAAAA")
-                                .insert(Message.raw(typeStr).color("#FFFFFF")));
-
-                        index++;
-                    }
-                }
-
-                return CompletableFuture.completedFuture(null);
-            }
+    private static class DeprecatedGrowthSubCommand extends DeprecatedSubCommand {
+        public DeprecatedGrowthSubCommand() {
+            super("growth", "Toggle baby growth");
         }
 
-        // --- Debug: file ---
-        public static class DebugFileSubCommand extends AbstractCommand {
-            public DebugFileSubCommand() {
-                super("file", "Log tamed animals from save file");
-            }
+        @Override
+        protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
+            new HytameCommand.HytameGrowthSubCommand().executeFromDeprecated(ctx);
+            return CompletableFuture.completedFuture(null);
+        }
+    }
 
-            @Override
-            protected CompletableFuture<Void> execute(CommandContext ctx) {
-                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-                if (plugin == null || plugin.getPersistenceManager() == null) {
-                    ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
-                    return CompletableFuture.completedFuture(null);
-                }
-
-                PersistenceManager persistence = plugin.getPersistenceManager();
-                List<TamedAnimalData> animals = persistence.loadData();
-
-                ctx.sendMessage(Message.raw("=== Tamed Animals in File ===").color("#FF9900"));
-                ctx.sendMessage(Message.raw("File: ").color("#AAAAAA")
-                        .insert(Message.raw(persistence.getSaveFilePath().toString()).color("#888888")));
-                ctx.sendMessage(Message.raw("Total: ").color("#AAAAAA")
-                        .insert(Message.raw(String.valueOf(animals.size())).color("#FFFFFF")));
-                ctx.sendMessage(Message.raw(""));
-
-                if (animals.isEmpty()) {
-                    ctx.sendMessage(Message.raw("No tamed animals in save file.").color("#AAAAAA"));
-                } else {
-                    int index = 1;
-                    for (TamedAnimalData data : animals) {
-                        String status = data.isDead() ? "[DEAD]" : (data.isDespawned() ? "[DESPAWNED]" : "[ACTIVE]");
-                        String statusColor = data.isDead() ? "#FF5555" : (data.isDespawned() ? "#FFFF55" : "#55FF55");
-
-                        ctx.sendMessage(Message.raw(index + ". ").color("#AAAAAA")
-                                .insert(Message.raw(data.getCustomName()).color("#FFFFFF"))
-                                .insert(Message.raw(" ").color("#AAAAAA"))
-                                .insert(Message.raw(status).color(statusColor)));
-
-                        ctx.sendMessage(Message.raw("   UUID: ").color("#AAAAAA")
-                                .insert(Message.raw(data.getAnimalUuid().toString()).color("#888888")));
-
-                        String typeStr = data.getAnimalType() != null ? data.getAnimalType().name() : "CUSTOM";
-                        ctx.sendMessage(Message.raw("   Type: ").color("#AAAAAA")
-                                .insert(Message.raw(typeStr).color("#FFFFFF")));
-
-                        index++;
-                    }
-                }
-
-                return CompletableFuture.completedFuture(null);
-            }
+    private static class DeprecatedCustomSubCommand extends DeprecatedSubCommand {
+        public DeprecatedCustomSubCommand() {
+            super("custom", "Manage custom animals");
         }
 
-        // --- Debug: events ---
-        public static class DebugEventsSubCommand extends AbstractCommand {
-            public DebugEventsSubCommand() {
-                super("events", "Log last detected death and despawn UUIDs");
-            }
+        @Override
+        protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
+            new HytameCommand.HytameCustomSubCommand().executeFromDeprecated(ctx);
+            return CompletableFuture.completedFuture(null);
+        }
+    }
 
-            @Override
-            protected CompletableFuture<Void> execute(CommandContext ctx) {
-                ctx.sendMessage(Message.raw("=== Last Detected Events ===").color("#FF9900"));
-
-                // Deaths from DetectTamedDeath
-                List<UUID> deaths = DetectTamedDeath.getLastDetectedDeaths();
-                ctx.sendMessage(Message.raw(""));
-                ctx.sendMessage(Message.raw("Deaths (last " + deaths.size() + "):").color("#FF5555"));
-                if (deaths.isEmpty()) {
-                    ctx.sendMessage(Message.raw("  None").color("#AAAAAA"));
-                } else {
-                    for (int i = 0; i < deaths.size(); i++) {
-                        ctx.sendMessage(Message.raw("  " + (i + 1) + ". ").color("#AAAAAA")
-                                .insert(Message.raw(deaths.get(i).toString()).color("#888888")));
-                    }
-                }
-
-                // Despawns from LaitsBreedingPlugin
-                List<UUID> despawns = LaitsBreedingPlugin.getLastDetectedDespawns();
-                ctx.sendMessage(Message.raw(""));
-                ctx.sendMessage(Message.raw("Despawns (last " + despawns.size() + "):").color("#FFFF55"));
-                if (despawns.isEmpty()) {
-                    ctx.sendMessage(Message.raw("  None").color("#AAAAAA"));
-                } else {
-                    for (int i = 0; i < despawns.size(); i++) {
-                        ctx.sendMessage(Message.raw("  " + (i + 1) + ". ").color("#AAAAAA")
-                                .insert(Message.raw(despawns.get(i).toString()).color("#888888")));
-                    }
-                }
-
-                return CompletableFuture.completedFuture(null);
-            }
+    private static class DeprecatedDebugSubCommand extends DeprecatedSubCommand {
+        public DeprecatedDebugSubCommand() {
+            super("debug", "Debug commands");
         }
 
-        // --- Debug: clear ---
-        public static class DebugClearSubCommand extends AbstractCommand {
-            public DebugClearSubCommand() {
-                super("clear", "Clear tracked event UUIDs");
-            }
-
-            @Override
-            protected CompletableFuture<Void> execute(CommandContext ctx) {
-                DetectTamedDeath.clearTrackedDeaths();
-                LaitsBreedingPlugin.clearTrackedDespawns();
-
-                ctx.sendMessage(Message.raw("Cleared tracked death and despawn UUIDs.").color("#55FF55"));
-                return CompletableFuture.completedFuture(null);
-            }
+        @Override
+        protected CompletableFuture<Void> executeDeprecated(CommandContext ctx) {
+            new HytameCommand.HytameDebugSubCommand().executeFromDeprecated(ctx);
+            return CompletableFuture.completedFuture(null);
         }
     }
 }

@@ -12,6 +12,7 @@ import com.hypixel.hytale.server.core.inventory.ItemStack;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.npc.asset.builder.BuilderSupport;
 import com.hypixel.hytale.server.npc.corecomponents.ActionBase;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
@@ -186,6 +187,28 @@ public class ActionHyTameOrFeed extends ActionBase {
             UUIDComponent animalUUID = store.getComponent(ref, UUIDComponent.getComponentType());
             if (animalUUID != null) {
                 AnimalType animalType = getAnimalTypeFromRef(ref, store);
+
+                // Get world name for multi-world support
+                String worldName = null;
+                try {
+                    for (java.util.Map.Entry<String, World> entry : com.hypixel.hytale.server.core.universe.Universe.get().getWorlds().entrySet()) {
+                        World world = entry.getValue();
+                        if (world == null) continue;
+                        try {
+                            Store<EntityStore> worldStore = world.getEntityStore().getStore();
+                            if (worldStore == store) {
+                                worldName = entry.getKey();
+                                Debug.log("[MultiWorld] Taming animal in world: " + worldName, Level.INFO);
+                                break;
+                            }
+                        } catch (Exception e) {
+                            // Skip if we can't access this world's store
+                        }
+                    }
+                } catch (Exception e) {
+                    Debug.log("Could not get world name for taming: " + e.getMessage(), Level.WARNING);
+                }
+
                 // Use tameAnimal with full signature for proper persistence
                 plugin.getTamingManager().tameAnimal(
                         hyTame.getHytameId(), // hytameId
@@ -195,7 +218,8 @@ public class ActionHyTameOrFeed extends ActionBase {
                         animalType, // type
                         ref, // entityRef
                         0, 0, 0, // position (will be updated later)
-                        com.laits.breeding.models.GrowthStage.ADULT // growthStage
+                        com.laits.breeding.models.GrowthStage.ADULT, // growthStage
+                        worldName // worldName for multi-world support
                 );
             }
         }
@@ -236,9 +260,35 @@ public class ActionHyTameOrFeed extends ActionBase {
             return false;
         }
 
+        // Get world name for multi-world support
+        // Search all worlds to find which one contains this entity's store
+        String worldName = null;
+        try {
+            Store<EntityStore> entityStore = store;
+            for (java.util.Map.Entry<String, World> entry : com.hypixel.hytale.server.core.universe.Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null) continue;
+                try {
+                    Store<EntityStore> worldStore = world.getEntityStore().getStore();
+                    if (worldStore == entityStore) {
+                        worldName = entry.getKey();
+                        Debug.log("[MultiWorld] Found entity in world: " + worldName, Level.INFO);
+                        break;
+                    }
+                } catch (Exception e) {
+                    // Skip if we can't access this world's store
+                }
+            }
+            if (worldName == null) {
+                Debug.log("[MultiWorld] Entity not found in any world, will use default", Level.WARNING);
+            }
+        } catch (Exception e) {
+            Debug.log("Could not get world name: " + e.getMessage(), Level.WARNING);
+        }
+
         // Delegate to BreedingManager (handles cooldown check internally)
         // Pass the entity ref for heart particle spawning
-        BreedingManager.FeedResult result = manager.tryFeed(animalId, animalType, "food", ref);
+        BreedingManager.FeedResult result = manager.tryFeed(animalId, animalType, "food", ref, worldName);
 
         switch (result) {
             case SUCCESS:

@@ -44,6 +44,7 @@ public class ConfigManager {
     private boolean debugMode = false;
     private boolean growthEnabled = true;  // Can be disabled to freeze baby growth
     private String activePreset = "default_extended";
+    private int initializationGracePeriodSeconds = 15;  // Grace period after startup before respawning
 
     // Tameable animal groups (from tameable-animals integration)
     private Set<String> tameableAnimalGroups = new HashSet<>(Arrays.asList(
@@ -148,7 +149,8 @@ public class ConfigManager {
      * - Healing always uses union of all configured foods
      */
     public static class AnimalConfig {
-        public boolean enabled = true;
+        public boolean breedingEnabled = true;  // Can this animal breed
+        public boolean tamingEnabled = true;    // Can this animal be tamed/named
         public List<String> baseFoods = new ArrayList<>();      // v2: tame + breed + heal
         public List<String> tamingFoods = null;                 // v2: override for taming only
         public List<String> breedingFoods = new ArrayList<>();  // v1 compat + v2 override
@@ -158,7 +160,8 @@ public class ConfigManager {
         public AnimalConfig() {}
 
         public AnimalConfig(boolean enabled, List<String> breedingFoods, double growthTimeMinutes, double breedCooldownMinutes) {
-            this.enabled = enabled;
+            this.breedingEnabled = enabled;
+            this.tamingEnabled = enabled;  // Both default to same value for backwards compat
             this.breedingFoods = breedingFoods != null ? new ArrayList<>(breedingFoods) : new ArrayList<>();
             this.baseFoods = new ArrayList<>(this.breedingFoods); // v2 migration: copy to baseFoods
             this.growthTimeMinutes = growthTimeMinutes;
@@ -166,7 +169,8 @@ public class ConfigManager {
         }
 
         public AnimalConfig(boolean enabled, String breedingFood, double growthTimeMinutes, double breedCooldownMinutes) {
-            this.enabled = enabled;
+            this.breedingEnabled = enabled;
+            this.tamingEnabled = enabled;  // Both default to same value for backwards compat
             this.breedingFoods = new ArrayList<>();
             this.baseFoods = new ArrayList<>();
             if (breedingFood != null) {
@@ -290,7 +294,9 @@ public class ConfigManager {
         initializePresets();
 
         if (!Files.exists(configPath)) {
-            log("Config file not found, creating default: " + configPath);
+            log("Config file not found, creating with " + activePreset + " preset: " + configPath);
+            // Apply the default preset (default_extended) before saving
+            applyPreset(activePreset);
             saveToFile();
             return;
         }
@@ -359,7 +365,8 @@ public class ConfigManager {
                     AnimalConfig defaultConfig = presetDefaults.get(type);
                     if (defaultConfig != null) {
                         JsonObject animalJson = new JsonObject();
-                        animalJson.addProperty("enabled", defaultConfig.enabled);
+                        animalJson.addProperty("breedingEnabled", defaultConfig.breedingEnabled);
+                        animalJson.addProperty("tamingEnabled", defaultConfig.tamingEnabled);
 
                         JsonArray foodsArray = new JsonArray();
                         for (String food : defaultConfig.breedingFoods) {
@@ -397,7 +404,8 @@ public class ConfigManager {
         Map<AnimalType, AnimalConfig> originalConfigs = new EnumMap<>(AnimalType.class);
         for (Map.Entry<AnimalType, AnimalConfig> entry : animalConfigs.entrySet()) {
             AnimalConfig copy = new AnimalConfig();
-            copy.enabled = entry.getValue().enabled;
+            copy.breedingEnabled = entry.getValue().breedingEnabled;
+            copy.tamingEnabled = entry.getValue().tamingEnabled;
             copy.breedingFoods = new ArrayList<>(entry.getValue().breedingFoods);
             copy.growthTimeMinutes = entry.getValue().growthTimeMinutes;
             copy.breedCooldownMinutes = entry.getValue().breedCooldownMinutes;
@@ -419,7 +427,8 @@ public class ConfigManager {
         Map<AnimalType, AnimalConfig> presetConfigs = new EnumMap<>(AnimalType.class);
         for (Map.Entry<AnimalType, AnimalConfig> entry : animalConfigs.entrySet()) {
             AnimalConfig copy = new AnimalConfig();
-            copy.enabled = entry.getValue().enabled;
+            copy.breedingEnabled = entry.getValue().breedingEnabled;
+            copy.tamingEnabled = entry.getValue().tamingEnabled;
             copy.breedingFoods = new ArrayList<>(entry.getValue().breedingFoods);
             copy.growthTimeMinutes = entry.getValue().growthTimeMinutes;
             copy.breedCooldownMinutes = entry.getValue().breedCooldownMinutes;
@@ -476,7 +485,8 @@ public class ConfigManager {
         Map<AnimalType, AnimalConfig> originalConfigs = new EnumMap<>(AnimalType.class);
         for (Map.Entry<AnimalType, AnimalConfig> entry : animalConfigs.entrySet()) {
             AnimalConfig copy = new AnimalConfig();
-            copy.enabled = entry.getValue().enabled;
+            copy.breedingEnabled = entry.getValue().breedingEnabled;
+            copy.tamingEnabled = entry.getValue().tamingEnabled;
             copy.breedingFoods = new ArrayList<>(entry.getValue().breedingFoods);
             copy.growthTimeMinutes = entry.getValue().growthTimeMinutes;
             copy.breedCooldownMinutes = entry.getValue().breedCooldownMinutes;
@@ -543,6 +553,7 @@ public class ConfigManager {
                 defaultGrowthTimeMinutes = safeGetDouble(defaults, "growthTimeMinutes", defaultGrowthTimeMinutes);
                 defaultBreedCooldownMinutes = safeGetDouble(defaults, "breedCooldownMinutes", defaultBreedCooldownMinutes);
                 growthEnabled = safeGetBoolean(defaults, "growthEnabled", growthEnabled);
+                initializationGracePeriodSeconds = (int) safeGetDouble(defaults, "initializationGracePeriodSeconds", initializationGracePeriodSeconds);
             }
 
             // Load animal configs (using safe extraction)
@@ -558,7 +569,16 @@ public class ConfigManager {
                             animalConfigs.put(type, config);
                         }
 
-                        config.enabled = safeGetBoolean(animalJson, "enabled", config.enabled);
+                        // Load breedingEnabled (with fallback to legacy "enabled" field)
+                        if (animalJson.has("breedingEnabled")) {
+                            config.breedingEnabled = safeGetBoolean(animalJson, "breedingEnabled", config.breedingEnabled);
+                        } else {
+                            // Legacy: "enabled" maps to breedingEnabled
+                            config.breedingEnabled = safeGetBoolean(animalJson, "enabled", config.breedingEnabled);
+                        }
+
+                        // Load tamingEnabled (defaults to breedingEnabled if not specified for backwards compat)
+                        config.tamingEnabled = safeGetBoolean(animalJson, "tamingEnabled", config.breedingEnabled);
 
                         // Support both single food (legacy) and multiple foods
                         if (animalJson.has("breedingFoods") && animalJson.get("breedingFoods").isJsonArray()) {
@@ -608,11 +628,19 @@ public class ConfigManager {
                         String babyNpcRole = safeGetString(customJson, "babyNpcRoleId", null);
                         String adultNpcRole = safeGetString(customJson, "adultNpcRoleId", modelAssetId);
                         boolean mountable = safeGetBoolean(customJson, "mountable", false);
-                        boolean enabled = safeGetBoolean(customJson, "enabled", true);
+
+                        // Parse breedingEnabled/tamingEnabled with fallback to legacy "enabled"
+                        boolean legacyEnabled = safeGetBoolean(customJson, "enabled", true);
+                        boolean breedingEnabled = customJson.has("breedingEnabled")
+                            ? safeGetBoolean(customJson, "breedingEnabled", true)
+                            : legacyEnabled;
+                        boolean tamingEnabled = customJson.has("tamingEnabled")
+                            ? safeGetBoolean(customJson, "tamingEnabled", true)
+                            : legacyEnabled;
 
                         CustomAnimalConfig customConfig = new CustomAnimalConfig(
                             modelAssetId, displayName, foods, growthTime, breedCooldown,
-                            babyNpcRole, adultNpcRole, mountable, enabled
+                            babyNpcRole, adultNpcRole, mountable, breedingEnabled, tamingEnabled
                         );
                         customAnimals.put(modelAssetId, customConfig);
                         log("Loaded custom animal: " + modelAssetId);
@@ -660,6 +688,7 @@ public class ConfigManager {
         defaults.addProperty("growthTimeMinutes", defaultGrowthTimeMinutes);
         defaults.addProperty("breedCooldownMinutes", defaultBreedCooldownMinutes);
         defaults.addProperty("growthEnabled", growthEnabled);
+        defaults.addProperty("initializationGracePeriodSeconds", initializationGracePeriodSeconds);
         root.add("defaults", defaults);
 
         // Animals (grouped by category)
@@ -668,7 +697,8 @@ public class ConfigManager {
             AnimalConfig config = animalConfigs.get(type);
             if (config != null) {
                 JsonObject animalJson = new JsonObject();
-                animalJson.addProperty("enabled", config.enabled);
+                animalJson.addProperty("breedingEnabled", config.breedingEnabled);
+                animalJson.addProperty("tamingEnabled", config.tamingEnabled);
 
                 // Multiple breeding foods
                 JsonArray foodsArray = new JsonArray();
@@ -689,7 +719,8 @@ public class ConfigManager {
             JsonObject customAnimalsJson = new JsonObject();
             for (CustomAnimalConfig custom : customAnimals.values()) {
                 JsonObject customJson = new JsonObject();
-                customJson.addProperty("enabled", custom.isEnabled());
+                customJson.addProperty("breedingEnabled", custom.isBreedingEnabled());
+                customJson.addProperty("tamingEnabled", custom.isTamingEnabled());
                 customJson.addProperty("displayName", custom.getDisplayName());
 
                 JsonArray foodsArray = new JsonArray();
@@ -889,7 +920,7 @@ public class ConfigManager {
             }
 
             // Only livestock enabled by default
-            config.enabled = type.isLivestock();
+            config.breedingEnabled = type.isLivestock();
 
             // Single default food
             config.breedingFoods.clear();
@@ -920,7 +951,7 @@ public class ConfigManager {
             AnimalConfig config = animalConfigs.get(type);
             if (config != null) {
                 // Only livestock enabled
-                config.enabled = type.isLivestock();
+                config.breedingEnabled = type.isLivestock();
                 // Default timings
                 config.growthTimeMinutes = defaultGrowthTimeMinutes;
                 config.breedCooldownMinutes = defaultBreedCooldownMinutes;
@@ -943,7 +974,7 @@ public class ConfigManager {
             }
 
             // Only livestock enabled
-            config.enabled = type.isLivestock();
+            config.breedingEnabled = type.isLivestock();
             config.breedingFoods.clear();
 
             // Set curated foods per animal with multiple options
@@ -1014,7 +1045,7 @@ public class ConfigManager {
                     break;
 
                 case HORSE:
-                    config.enabled = false;
+                    config.breedingEnabled = false;
                     config.breedingFoods.addAll(Arrays.asList(
                         "Plant_Crop_Carrot_Item",  // Original - horses love carrots
                         "Plant_Fruit_Apple",       // Apples
@@ -1559,7 +1590,7 @@ public class ConfigManager {
             if (config != null) {
                 AnimalType.Category category = type.getCategory();
                 // Enable real animals, exclude fantasy/dangerous/pests
-                config.enabled = category != AnimalType.Category.MYTHIC &&
+                config.breedingEnabled = category != AnimalType.Category.MYTHIC &&
                                  category != AnimalType.Category.VERMIN &&
                                  category != AnimalType.Category.BOSS;
             }
@@ -1580,7 +1611,7 @@ public class ConfigManager {
         for (AnimalType type : AnimalType.values()) {
             AnimalConfig config = animalConfigs.get(type);
             if (config != null) {
-                config.enabled = true;
+                config.breedingEnabled = true;
             }
         }
     }
@@ -1591,10 +1622,27 @@ public class ConfigManager {
 
     /**
      * Check if an animal type is enabled for breeding.
+     * @deprecated Use {@link #isBreedingEnabled(AnimalType)} instead.
      */
+    @Deprecated
     public boolean isAnimalEnabled(AnimalType type) {
+        return isBreedingEnabled(type);
+    }
+
+    /**
+     * Check if an animal type is enabled for breeding.
+     */
+    public boolean isBreedingEnabled(AnimalType type) {
         AnimalConfig config = animalConfigs.get(type);
-        return config != null && config.enabled;
+        return config != null && config.breedingEnabled;
+    }
+
+    /**
+     * Check if an animal type is enabled for taming.
+     */
+    public boolean isTamingEnabled(AnimalType type) {
+        AnimalConfig config = animalConfigs.get(type);
+        return config != null && config.tamingEnabled;
     }
 
     // ===========================================
@@ -1617,11 +1665,29 @@ public class ConfigManager {
     }
 
     /**
-     * Check if a custom animal is enabled for breeding.
+     * Check if a custom animal is enabled (either breeding or taming).
+     * @deprecated Use {@link #isCustomAnimalBreedingEnabled(String)} or {@link #isCustomAnimalTamingEnabled(String)}.
      */
+    @Deprecated
     public boolean isCustomAnimalEnabled(String modelAssetId) {
         CustomAnimalConfig custom = customAnimals.get(modelAssetId);
-        return custom != null && custom.isEnabled();
+        return custom != null && (custom.isBreedingEnabled() || custom.isTamingEnabled());
+    }
+
+    /**
+     * Check if a custom animal is enabled for breeding.
+     */
+    public boolean isCustomAnimalBreedingEnabled(String modelAssetId) {
+        CustomAnimalConfig custom = customAnimals.get(modelAssetId);
+        return custom != null && custom.isBreedingEnabled();
+    }
+
+    /**
+     * Check if a custom animal is enabled for taming.
+     */
+    public boolean isCustomAnimalTamingEnabled(String modelAssetId) {
+        CustomAnimalConfig custom = customAnimals.get(modelAssetId);
+        return custom != null && custom.isTamingEnabled();
     }
 
     /**
@@ -1761,16 +1827,40 @@ public class ConfigManager {
     }
 
     /**
-     * Enable or disable any animal (built-in or custom).
+     * Enable or disable breeding for any animal (built-in or custom).
+     * @deprecated Use {@link #setAnyAnimalBreedingEnabled(String, boolean)} instead.
      */
+    @Deprecated
     public boolean setAnyAnimalEnabled(String id, boolean enabled) {
+        return setAnyAnimalBreedingEnabled(id, enabled);
+    }
+
+    /**
+     * Enable or disable breeding for any animal (built-in or custom).
+     */
+    public boolean setAnyAnimalBreedingEnabled(String id, boolean enabled) {
         AnimalLookupResult result = lookupAnimal(id);
         if (result == null) return false;
 
         if (result.isBuiltIn()) {
-            setAnimalEnabled(result.getBuiltInType(), enabled);
+            setBreedingEnabled(result.getBuiltInType(), enabled);
         } else {
-            setCustomAnimalEnabled(result.getCustomConfig().getModelAssetId(), enabled);
+            setCustomAnimalBreedingEnabled(result.getCustomConfig().getModelAssetId(), enabled);
+        }
+        return true;
+    }
+
+    /**
+     * Enable or disable taming for any animal (built-in or custom).
+     */
+    public boolean setAnyAnimalTamingEnabled(String id, boolean enabled) {
+        AnimalLookupResult result = lookupAnimal(id);
+        if (result == null) return false;
+
+        if (result.isBuiltIn()) {
+            setTamingEnabled(result.getBuiltInType(), enabled);
+        } else {
+            setCustomAnimalTamingEnabled(result.getCustomConfig().getModelAssetId(), enabled);
         }
         return true;
     }
@@ -1790,16 +1880,39 @@ public class ConfigManager {
     }
 
     /**
-     * Check if any animal is enabled (built-in or custom).
+     * Check if any animal is enabled (either breeding or taming) (built-in or custom).
+     * @deprecated Use {@link #isAnyAnimalBreedingEnabled(String)} or {@link #isAnyAnimalTamingEnabled(String)}.
      */
+    @Deprecated
     public boolean isAnyAnimalEnabled(String id) {
+        return isAnyAnimalBreedingEnabled(id) || isAnyAnimalTamingEnabled(id);
+    }
+
+    /**
+     * Check if breeding is enabled for any animal (built-in or custom).
+     */
+    public boolean isAnyAnimalBreedingEnabled(String id) {
         AnimalLookupResult result = lookupAnimal(id);
         if (result == null) return false;
 
         if (result.isBuiltIn()) {
-            return isAnimalEnabled(result.getBuiltInType());
+            return isBreedingEnabled(result.getBuiltInType());
         } else {
-            return result.getCustomConfig().isEnabled();
+            return result.getCustomConfig().isBreedingEnabled();
+        }
+    }
+
+    /**
+     * Check if taming is enabled for any animal (built-in or custom).
+     */
+    public boolean isAnyAnimalTamingEnabled(String id) {
+        AnimalLookupResult result = lookupAnimal(id);
+        if (result == null) return false;
+
+        if (result.isBuiltIn()) {
+            return isTamingEnabled(result.getBuiltInType());
+        } else {
+            return result.getCustomConfig().isTamingEnabled();
         }
     }
 
@@ -2049,17 +2162,45 @@ public class ConfigManager {
         this.growthEnabled = enabled;
     }
 
+    /**
+     * Get the initialization grace period in seconds.
+     * During this period after startup, tamed animals won't be respawned
+     * to prevent duplication race conditions on slow servers.
+     */
+    public int getInitializationGracePeriodSeconds() {
+        return initializationGracePeriodSeconds;
+    }
+
     // ===========================================
     // SETTERS (for runtime config changes)
     // ===========================================
 
     /**
-     * Enable or disable an animal type.
+     * Enable or disable breeding for an animal type.
+     * @deprecated Use {@link #setBreedingEnabled(AnimalType, boolean)} instead.
      */
+    @Deprecated
     public void setAnimalEnabled(AnimalType type, boolean enabled) {
+        setBreedingEnabled(type, enabled);
+    }
+
+    /**
+     * Enable or disable breeding for an animal type.
+     */
+    public void setBreedingEnabled(AnimalType type, boolean enabled) {
         AnimalConfig config = animalConfigs.get(type);
         if (config != null) {
-            config.enabled = enabled;
+            config.breedingEnabled = enabled;
+        }
+    }
+
+    /**
+     * Enable or disable taming for an animal type.
+     */
+    public void setTamingEnabled(AnimalType type, boolean enabled) {
+        AnimalConfig config = animalConfigs.get(type);
+        if (config != null) {
+            config.tamingEnabled = enabled;
         }
     }
 
@@ -2229,12 +2370,21 @@ public class ConfigManager {
     }
 
     /**
-     * Enable or disable a custom animal.
+     * Enable or disable a custom animal (sets both breeding and taming).
+     * @deprecated Use {@link #setCustomAnimalBreedingEnabled} or {@link #setCustomAnimalTamingEnabled}.
      */
+    @Deprecated
     public void setCustomAnimalEnabled(String modelAssetId, boolean enabled) {
+        setCustomAnimalBreedingEnabled(modelAssetId, enabled);
+        setCustomAnimalTamingEnabled(modelAssetId, enabled);
+    }
+
+    /**
+     * Enable or disable breeding for a custom animal.
+     */
+    public void setCustomAnimalBreedingEnabled(String modelAssetId, boolean enabled) {
         CustomAnimalConfig existing = customAnimals.get(modelAssetId);
         if (existing != null) {
-            // Recreate with new enabled status
             customAnimals.put(modelAssetId, new CustomAnimalConfig(
                 existing.getModelAssetId(),
                 existing.getDisplayName(),
@@ -2244,6 +2394,28 @@ public class ConfigManager {
                 existing.getBabyNpcRoleId(),
                 existing.getAdultNpcRoleId(),
                 existing.isMountable(),
+                enabled,
+                existing.isTamingEnabled()
+            ));
+        }
+    }
+
+    /**
+     * Enable or disable taming for a custom animal.
+     */
+    public void setCustomAnimalTamingEnabled(String modelAssetId, boolean enabled) {
+        CustomAnimalConfig existing = customAnimals.get(modelAssetId);
+        if (existing != null) {
+            customAnimals.put(modelAssetId, new CustomAnimalConfig(
+                existing.getModelAssetId(),
+                existing.getDisplayName(),
+                existing.getBreedingFoods(),
+                existing.getGrowthTimeMinutes(),
+                existing.getBreedCooldownMinutes(),
+                existing.getBabyNpcRoleId(),
+                existing.getAdultNpcRoleId(),
+                existing.isMountable(),
+                existing.isBreedingEnabled(),
                 enabled
             ));
         }

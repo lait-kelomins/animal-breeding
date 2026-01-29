@@ -37,6 +37,7 @@ public class TamedAnimalData {
     private long deathTime;            // When animal died
     private long despawnTime;          // When entity was marked despawned (for cleanup)
     private boolean allowInteraction;  // Whether other players can interact
+    private boolean isCaptured;        // True if animal is in a capture crate (survives server restart)
 
     // Transient (not saved) - runtime entity reference
     private transient Ref<EntityStore> entityRef;
@@ -248,6 +249,14 @@ public class TamedAnimalData {
 
     public void setAllowInteraction(boolean allowInteraction) {
         this.allowInteraction = allowInteraction;
+    }
+
+    public boolean isCaptured() {
+        return isCaptured;
+    }
+
+    public void setCaptured(boolean captured) {
+        isCaptured = captured;
     }
 
     // === Entity Reference (Transient) ===

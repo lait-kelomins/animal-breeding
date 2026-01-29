@@ -21,6 +21,9 @@ import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.CustomAnimalConfig;
 import com.laits.breeding.util.AnimalFinder;
+import com.laits.breeding.util.EcsReflectionUtil;
+
+import it.unimi.dsi.fastutil.Pair;
 
 import it.unimi.dsi.fastutil.Pair;
 
@@ -298,8 +301,7 @@ public class CustomAnimalCommand extends AbstractCommand {
          */
         private String extractModelFromRef(LaitsBreedingPlugin plugin, Store<EntityStore> store, Ref<EntityStore> ref) {
             try {
-                ComponentType<EntityStore, ModelComponent> modelType = ModelComponent.getComponentType();
-                ModelComponent modelComp = store.getComponent(ref, modelType);
+                ModelComponent modelComp = store.getComponent(ref, EcsReflectionUtil.MODEL_TYPE);
                 if (modelComp == null) {
                     plugin.getLogger().atWarning().log("[ModelDiscovery] ModelComponent is null");
                     return null;

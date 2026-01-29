@@ -17,6 +17,8 @@ import com.hypixel.hytale.server.core.ui.builder.UIEventBuilder;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
+import com.hypixel.hytale.server.core.universe.Universe;
+import com.hypixel.hytale.server.core.universe.world.World;
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.TamingManager;
@@ -29,6 +31,7 @@ import com.laits.breeding.util.EcsReflectionUtil;
 import com.laits.breeding.util.NameplateUtil;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -128,7 +131,7 @@ public class NametagUIPage extends InteractiveCustomUIPage<NametagUIPage.Nametag
     public void handleDataEvent(Ref<EntityStore> ref, Store<EntityStore> store, NametagEventData data) {
         try {
             // Get player to send messages and close page
-            Player player = store.getComponent(ref, Player.getComponentType());
+            Player player = store.getComponent(ref, EcsReflectionUtil.PLAYER_TYPE);
 
             // Check if confirm was clicked (animalName will have a value)
             if (data.animalName != null && !data.animalName.trim().isEmpty() && !data.animalName.equalsIgnoreCase(NameplateUtil.UNDEFINED_NAME)) {
@@ -165,7 +168,7 @@ public class NametagUIPage extends InteractiveCustomUIPage<NametagUIPage.Nametag
                                 // Get position for taming
                                 double px = 0, py = 0, pz = 0;
                                 try {
-                                    com.hypixel.hytale.math.vector.Vector3d pos = plugin.getPositionFromRef(targetAnimalRef);
+                                    com.hypixel.hytale.math.vector.Vector3d pos = com.laits.breeding.util.EntityUtil.getPositionFromRef(targetAnimalRef);
                                     if (pos != null) {
                                         px = pos.getX();
                                         py = pos.getY();
@@ -216,7 +219,8 @@ public class NametagUIPage extends InteractiveCustomUIPage<NametagUIPage.Nametag
 
                                 // Tame new animal with position and correct growth stage
                                 GrowthStage stageToUse = existingGrowthStage != null ? existingGrowthStage : GrowthStage.ADULT;
-                                TamedAnimalData tamedData = tamingManager.tameAnimal(animalUuid, playerUuid, name, type, targetAnimalRef, px, py, pz, stageToUse);
+                                String worldName = getWorldNameFromRef(targetAnimalRef);
+                                TamedAnimalData tamedData = tamingManager.tameAnimal(animalUuid, playerUuid, name, type, targetAnimalRef, px, py, pz, stageToUse, worldName);
                                 success = tamedData != null;
 
                                 // Set birth time if this is a baby
@@ -290,5 +294,33 @@ public class NametagUIPage extends InteractiveCustomUIPage<NametagUIPage.Nametag
 
     public String getExistingName() {
         return existingName;
+    }
+
+    /**
+     * Get the world name for an entity reference by comparing stores.
+     * @return World name or null if not found
+     */
+    private String getWorldNameFromRef(Ref<EntityStore> ref) {
+        if (ref == null) return null;
+        try {
+            Store<EntityStore> entityStore = ref.getStore();
+            if (entityStore == null) return null;
+
+            for (Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null) continue;
+                try {
+                    Store<EntityStore> worldStore = world.getEntityStore().getStore();
+                    if (worldStore == entityStore) {
+                        return entry.getKey();
+                    }
+                } catch (Exception e) {
+                    // Skip if we can't access this world's store
+                }
+            }
+        } catch (Exception e) {
+            // Silent
+        }
+        return null;
     }
 }

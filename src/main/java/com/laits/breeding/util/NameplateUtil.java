@@ -1,26 +1,16 @@
 package com.laits.breeding.util;
 
-import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.entity.nameplate.Nameplate;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.laits.breeding.LaitsBreedingPlugin;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.Method;
-
 /**
  * Utility for setting entity nameplates (names displayed above entities).
  */
 public class NameplateUtil {
     public static final String UNDEFINED_NAME = "_UNDEFINED";
-
-    /**
-     * Initialize the nameplate component type via reflection.
-     */
-    private static synchronized void initialize() {
-    }
 
     /**
      * Set the nameplate (display name) for an entity.
@@ -31,16 +21,20 @@ public class NameplateUtil {
      * @return true if successful
      */
     public static boolean setEntityNameplate(Store<EntityStore> store, Ref<EntityStore> entityRef, String name) {
-        initialize();
-
         try {
+            // Don't display reserved "_UNDEFINED" name - treat as no name
+            if (name != null && name.equalsIgnoreCase(UNDEFINED_NAME)) {
+                log("Skipping nameplate - reserved UNDEFINED_NAME");
+                return true;  // Return true since this is intentional, not a failure
+            }
+
             // Get or create the Nameplate component
-            Nameplate nameplateComp = store.getComponent(entityRef, Nameplate.getComponentType());
+            Nameplate nameplateComp = store.getComponent(entityRef, EcsReflectionUtil.NAMEPLATE_TYPE);
 
             if (nameplateComp == null) {
                 // Try to add the component if it doesn't exist
                 try {
-                    nameplateComp = store.ensureAndGetComponent(entityRef, Nameplate.getComponentType());
+                    nameplateComp = store.ensureAndGetComponent(entityRef, EcsReflectionUtil.NAMEPLATE_TYPE);
                 } catch (Exception e) {
                     log("Could not add Nameplate component: " + e.getMessage());
                     return false;
