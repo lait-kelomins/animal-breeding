@@ -3,8 +3,11 @@ package com.laits.breeding.util;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.server.core.asset.type.attitude.Attitude;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.npc.entities.NPCEntity;
+import com.hypixel.hytale.server.npc.role.support.WorldSupport;
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.tameableanimals.tame.HyTameComponent;
 
@@ -143,6 +146,16 @@ public final class TameHelper {
             // Component exists - tame immediately
             log("Taming animal immediately for player " + playerName);
             comp.setTamed(playerUuid, playerName);
+
+            // NOTE: feel free to move around, this is required for on tame as well and looked like the best place to put it.
+            // very basic implementation should be safe as entity already has Tame Component, but probably should be done properly.
+            WorldSupport worldSupport = ref.getStore().getComponent(ref, NPCEntity.getComponentType()).getRole().getWorldSupport();
+            try {
+                LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);
+            } catch (IllegalAccessException e) {
+                log(e.getMessage());
+            }
+
             if (callback != null) callback.accept(comp);
         } else if (world != null) {
             // Component doesn't exist - defer creation to next tick
@@ -167,6 +180,16 @@ public final class TameHelper {
                     HyTameComponent deferredComp = store.ensureAndGetComponent(ref, type);
                     if (deferredComp != null) {
                         log("Deferred taming for player " + playerName);
+
+                        // NOTE: feel free to move around, this is required for on tame as well and looked like the best place to put it.
+                        // very basic implementation should be safe as entity already has Tame Component, but probably should be done properly.
+                        WorldSupport worldSupport = ref.getStore().getComponent(ref, NPCEntity.getComponentType()).getRole().getWorldSupport();
+                        try {
+                            LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);
+                        } catch (IllegalAccessException e) {
+                            log(e.getMessage());
+                        }
+
                         deferredComp.setTamed(playerUuid, playerName);
                     }
                     if (callback != null) callback.accept(deferredComp);
