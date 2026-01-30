@@ -13,5 +13,8 @@
     "Website": "",
     "Main": "com.laits.breeding.LaitsBreedingPlugin",
     "ServerVersion": "*",
+    "OptionalDependencies": {
+        "com.hypersonicsharkz:Hytalor": "*"
+    },
     "IncludesAssetPack": true
 }

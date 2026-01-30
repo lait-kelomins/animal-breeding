@@ -1,5 +1,4 @@
 {
-  "$Comment": "Patch Template_Animal_Neutral to add feed/tame hints and restrict mounting to tamed animals",
   "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
   "InteractionInstruction": {
     "Enabled": {
@@ -7,7 +6,6 @@
     },
     "Instructions": [
       {
-        "$Comment": "Add Feed/Tame hint instruction at the beginning",
         "_op": "add",
         "_index": 0,
         "Enabled": {
@@ -15,7 +13,6 @@
         },
         "Instructions": [
           {
-            "$Comment": "Disable if player cannot interact at all",
             "Sensor": {
               "Type": "Not",
               "Sensor": {
@@ -32,7 +29,6 @@
             ]
           },
           {
-            "$Comment": "Disable if player not holding LovedItem",
             "Sensor": {
               "Type": "Not",
               "Sensor": {
@@ -55,15 +51,10 @@
             ]
           },
           {
-            "$Comment": "Show feed hint for tamed animals (Revered attitude)",
+            "Continue": true,
             "Sensor": {
-              "Type": "Target",
-              "Filters": [
-                {
-                  "Type": "Attitude",
-                  "Attitudes": ["Revered"]
-                }
-              ]
+              "Type": "CanInteract",
+              "Attitudes": ["Revered"]
             },
             "Actions": [
               {
@@ -74,7 +65,6 @@
             ]
           },
           {
-            "$Comment": "Show tame hint for wild animals (fallback - not Revered)",
             "Continue": true,
             "Sensor": {
               "Type": "Any"
@@ -90,7 +80,6 @@
         ]
       },
       {
-        "$Comment": "Modify mounting to only work for Revered (tamed) animals",
         "_find": "$[?(@.Enabled.Compute == 'IsMountable')]",
         "_op": "replace",
         "Enabled": {
@@ -98,17 +87,12 @@
         },
         "Instructions": [
           {
-            "$Comment": "Only allow mounting for Revered attitude",
             "Sensor": {
               "Type": "Not",
               "Sensor": {
-                "Type": "Target",
-                "Filters": [
-                  {
-                    "Type": "Attitude",
-                    "Attitudes": ["Revered"]
-                  }
-                ]
+                "Type": "CanInteract",
+                "ViewSector": 360,
+                "Attitudes": ["Revered"]
               }
             },
             "Actions": [
@@ -122,7 +106,6 @@
             "Enabled": {
               "Compute": "!isEmptyStringArray(LovedItems)"
             },
-            "$Comment": "Hide mount hint if holding LovedItem (feed takes priority)",
             "Sensor": {
               "Type": "Target",
               "Filters": [
