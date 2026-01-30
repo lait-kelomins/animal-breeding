@@ -8,7 +8,6 @@ import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.AbstractCommand;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
-import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg;
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
@@ -27,6 +26,8 @@ import com.laits.breeding.util.EcsReflectionUtil;
 import it.unimi.dsi.fastutil.Pair;
 
 import it.unimi.dsi.fastutil.Pair;
+
+import com.hypixel.hytale.server.core.entity.entities.Player;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -49,6 +50,25 @@ import java.util.concurrent.TimeUnit;
  * /customanimal removefood <modelAssetId> <food> - Remove a breeding food
  */
 public class CustomAnimalCommand extends AbstractCommand {
+
+    // Permission constant - use HytameCommand's for consistency
+    private static final String PERM_ADMIN = HytameCommand.PERM_ADMIN;
+
+    /**
+     * Check admin permission and send error message if denied.
+     * Uses HytamePermissions for singleplayer/multiplayer logic.
+     * @return true if access is denied (command should return early)
+     */
+    private static boolean checkAdminDenied(CommandContext ctx) {
+        if (ctx.sender() instanceof Player player) {
+            if (!HytamePermissions.hasAdminAccess(player)) {
+                ctx.sendMessage(Message.raw("This command requires admin permissions.").color("#FF5555"));
+                return true;
+            }
+        }
+        return false;
+    }
+
     public CustomAnimalCommand() {
         super("customanimal", "[Deprecated] Manage custom animals - Use /breed custom instead");
         addSubCommand(new CustomAnimalAddCommand());
@@ -64,6 +84,11 @@ public class CustomAnimalCommand extends AbstractCommand {
         addSubCommand(new CustomAnimalSetBabyCommand());
         addSubCommand(new CustomAnimalSetGrowthCommand());
         addSubCommand(new CustomAnimalSetCooldownCommand());
+    }
+
+    @Override
+    protected boolean canGeneratePermission() {
+        return false;
     }
 
     @Override
@@ -87,20 +112,6 @@ public class CustomAnimalCommand extends AbstractCommand {
         return CompletableFuture.completedFuture(null);
     }
 
-    /**
-     * Check admin permission and send error message if denied.
-     * @return true if access is denied (command should return early)
-     */
-    private static boolean checkAdminDenied(CommandContext ctx) {
-        if (ctx.sender() instanceof Player player) {
-            if (!HytamePermissions.hasAdminAccess(player)) {
-                ctx.sendMessage(Message.raw("This command requires admin permissions (or Creative mode).").color("#FF5555"));
-                return true;
-            }
-        }
-        return false;
-    }
-
     /** /customanimal add <npcRole> <food1> [food2] [food3] */
     public static class CustomAnimalAddCommand extends AbstractCommand {
         private final RequiredArg<String> roleArg;
@@ -114,6 +125,11 @@ public class CustomAnimalCommand extends AbstractCommand {
             food1Arg = withRequiredArg("food1", "Primary breeding food item ID", ArgTypes.STRING);
             food2Arg = withOptionalArg("food2", "Optional second food", ArgTypes.STRING);
             food3Arg = withOptionalArg("food3", "Optional third food", ArgTypes.STRING);
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -379,6 +395,11 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
@@ -399,15 +420,19 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
     }
 
-    /** /customanimal list */
+    /** /customanimal list - Public, no permission required */
     public static class CustomAnimalListCommand extends AbstractCommand {
         public CustomAnimalListCommand() {
             super("list", "List all custom animals");
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
-            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -433,7 +458,7 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
     }
 
-    /** /customanimal info <modelAssetId> */
+    /** /customanimal info <modelAssetId> - Public, no permission required */
     public static class CustomAnimalInfoCommand extends AbstractCommand {
         private final RequiredArg<String> modelArg;
 
@@ -443,8 +468,12 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
-            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -488,6 +517,11 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
@@ -517,6 +551,11 @@ public class CustomAnimalCommand extends AbstractCommand {
         public CustomAnimalDisableCommand() {
             super("disable", "Disable a custom animal");
             modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -550,6 +589,11 @@ public class CustomAnimalCommand extends AbstractCommand {
             super("addfood", "Add a breeding food to a custom animal");
             modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
             foodArg = withRequiredArg("food", "Food item ID to add", ArgTypes.STRING);
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -588,6 +632,11 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
@@ -615,14 +664,19 @@ public class CustomAnimalCommand extends AbstractCommand {
      * Scan the world for all entities and show their modelAssetIds.
      * Helps users find the exact name to use for custom animals.
      */
+    /** Scan - Public, no permission required */
     public static class CustomAnimalScanCommand extends AbstractCommand {
         public CustomAnimalScanCommand() {
             super("scan", "Scan world for all creature modelAssetIds");
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
-            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
             if (plugin == null) {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
@@ -731,6 +785,11 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
@@ -767,6 +826,11 @@ public class CustomAnimalCommand extends AbstractCommand {
             super("setbaby", "Set the NPC role for spawning babies");
             modelArg = withRequiredArg("modelAssetId", "Model asset ID of the adult", ArgTypes.STRING);
             babyRoleArg = withRequiredArg("babyRoleId", "NPC role ID for baby spawning", ArgTypes.STRING);
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -819,6 +883,11 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
@@ -862,6 +931,11 @@ public class CustomAnimalCommand extends AbstractCommand {
             super("setcooldown", "Set breeding cooldown in minutes");
             modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
             timeArg = withRequiredArg("minutes", "Cooldown in minutes", ArgTypes.DOUBLE);
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override

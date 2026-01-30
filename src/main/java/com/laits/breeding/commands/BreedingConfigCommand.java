@@ -6,8 +6,8 @@ import com.hypixel.hytale.server.core.command.system.CommandContext;
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
 import com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg;
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
-import com.hypixel.hytale.server.core.entity.entities.Player;
 
+import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.CustomAnimalConfig;
@@ -40,6 +40,9 @@ import java.util.concurrent.CompletableFuture;
  * /breedconfig removefood <animal> <item> - Remove breeding food
  */
 public class BreedingConfigCommand extends AbstractCommand {
+
+    // Permission constant - use HytameCommand's for consistency
+    private static final String PERM_ADMIN = HytameCommand.PERM_ADMIN;
 
     public BreedingConfigCommand() {
         super("breedconfig", "[Deprecated] Manage breeding configuration - Use /breed config instead");
@@ -76,23 +79,24 @@ public class BreedingConfigCommand extends AbstractCommand {
 
     // ==================== Helper Methods ====================
 
-    private static ConfigManager getConfig() {
-        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-        return plugin != null ? plugin.getConfigManager() : null;
-    }
-
     /**
-     * Check if command sender has admin access.
-     * @return true if access is denied (should return early)
+     * Check admin permission and send error message if denied.
+     * Uses HytamePermissions for singleplayer/multiplayer logic.
+     * @return true if access is denied (command should return early)
      */
     private static boolean checkAdminDenied(CommandContext ctx) {
         if (ctx.sender() instanceof Player player) {
             if (!HytamePermissions.hasAdminAccess(player)) {
-                ctx.sendMessage(Message.raw("This command requires admin permissions (or Creative mode).").color("#FF5555"));
+                ctx.sendMessage(Message.raw("This command requires admin permissions.").color("#FF5555"));
                 return true;
             }
         }
         return false;
+    }
+
+    private static ConfigManager getConfig() {
+        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+        return plugin != null ? plugin.getConfigManager() : null;
     }
 
     private static void showConfigSummary(CommandContext ctx, ConfigManager config) {
@@ -137,6 +141,11 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
@@ -157,6 +166,11 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
@@ -170,7 +184,7 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig list [category] */
+    /** /breedconfig list [category] - Public, no permission required */
     public static class ListSubCommand extends AbstractCommand {
         private final OptionalArg<AnimalType.Category> categoryArg;
 
@@ -178,6 +192,11 @@ public class BreedingConfigCommand extends AbstractCommand {
             super("list", "List all animals or filter by category");
             categoryArg = withOptionalArg("category", "Filter by category (LIVESTOCK, MAMMAL, etc.)",
                     ArgTypes.forEnum("category", AnimalType.Category.class));
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -226,7 +245,7 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig info <animal> */
+    /** /breedconfig info <animal> - Public, no permission required */
     public static class InfoSubCommand extends AbstractCommand {
         private final RequiredArg<String> animalArg;
 
@@ -234,6 +253,11 @@ public class BreedingConfigCommand extends AbstractCommand {
             super("info", "Show detailed information for an animal");
             animalArg = withRequiredArg("animal", "Animal name (built-in or custom)",
                     ArgTypes.STRING);
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -332,6 +356,11 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
@@ -354,6 +383,11 @@ public class BreedingConfigCommand extends AbstractCommand {
             super("disable", "Disable breeding for animal, category, or ALL");
             targetArg = withRequiredArg("target", "Animal name, category (LIVESTOCK, MAMMAL, etc.), or ALL",
                     ArgTypes.STRING);
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -434,6 +468,11 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
@@ -456,6 +495,11 @@ public class BreedingConfigCommand extends AbstractCommand {
             super("disabletaming", "Disable taming for animal, category, or ALL");
             targetArg = withRequiredArg("target", "Animal name, category (LIVESTOCK, MAMMAL, etc.), or ALL",
                     ArgTypes.STRING);
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -539,6 +583,11 @@ public class BreedingConfigCommand extends AbstractCommand {
                     ArgTypes.STRING);
             valueArg = withRequiredArg("value", "New value",
                     ArgTypes.STRING);
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -630,6 +679,11 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
@@ -678,6 +732,11 @@ public class BreedingConfigCommand extends AbstractCommand {
                     ArgTypes.STRING);
             foodArg = withRequiredArg("food", "Item ID or shortcut to remove",
                     ArgTypes.STRING);
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -737,6 +796,11 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             // Show preset help when /breedconfig preset is called alone
             ctx.sendMessage(Message.raw("=== Preset Commands ===").color("#FF9900"));
@@ -752,10 +816,15 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig preset list */
+    /** /breedconfig preset list - Public, no permission required */
     public static class PresetListSubCommand extends AbstractCommand {
         public PresetListSubCommand() {
             super("list", "Show available presets");
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -814,6 +883,11 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
@@ -850,6 +924,11 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             ConfigManager config = getConfig();
@@ -882,6 +961,11 @@ public class BreedingConfigCommand extends AbstractCommand {
             super("restore", "Reset a built-in preset to its default values");
             presetArg = withRequiredArg("preset", "Preset name (default, lait_curated, zoo, all)",
                     ArgTypes.STRING);
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override

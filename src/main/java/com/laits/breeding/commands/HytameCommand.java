@@ -3,7 +3,6 @@ package com.laits.breeding.commands;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
-import com.hypixel.hytale.protocol.GameMode;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.asset.type.attitude.Attitude;
 import com.hypixel.hytale.server.core.command.system.AbstractCommand;
@@ -44,6 +43,9 @@ import java.util.concurrent.CompletableFuture;
  */
 public class HytameCommand extends AbstractCommand {
 
+    // Permission constants
+    public static final String PERM_ADMIN = "hytame.admin.";
+
     private static final Message DEPRECATION_WARNING = Message.raw(
             "[Deprecated] Use /hytame instead. /breed will be removed in a future version."
     ).color("#FFAA00");
@@ -64,6 +66,11 @@ public class HytameCommand extends AbstractCommand {
         addSubCommand(new HytameGrowthSubCommand());
         addSubCommand(new HytameCustomSubCommand());
         addSubCommand(new HytameDebugSubCommand());
+    }
+
+    @Override
+    protected boolean canGeneratePermission() {
+        return false;
     }
 
     @Override
@@ -94,7 +101,7 @@ public class HytameCommand extends AbstractCommand {
     private static boolean checkAdminDenied(CommandContext ctx) {
         if (ctx.sender() instanceof Player player) {
             if (!HytamePermissions.hasAdminAccess(player)) {
-                ctx.sendMessage(Message.raw("This command requires admin permissions (or Creative mode).").color("#FF5555"));
+                ctx.sendMessage(Message.raw("This command requires admin permissions.").color("#FF5555"));
                 return true;
             }
         }
@@ -148,10 +155,15 @@ public class HytameCommand extends AbstractCommand {
     // Player Subcommands (no permission check needed)
     // =========================================================================
 
-    // --- Subcommand: help ---
+    // --- Subcommand: help --- Public, no permission required
     public static class HytameHelpSubCommand extends AbstractCommand {
         public HytameHelpSubCommand() {
             super("help", "Show help information");
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -167,10 +179,15 @@ public class HytameCommand extends AbstractCommand {
         }
     }
 
-    // --- Subcommand: status ---
+    // --- Subcommand: status --- Public, no permission required
     public static class HytameStatusSubCommand extends AbstractCommand {
         public HytameStatusSubCommand() {
             super("status", "View tracked animals and breeding stats");
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -210,10 +227,15 @@ public class HytameCommand extends AbstractCommand {
         }
     }
 
-    // --- Subcommand: info ---
+    // --- Subcommand: info --- Public, no permission required
     public static class HytameInfoSubCommand extends AbstractCommand {
         public HytameInfoSubCommand() {
             super("info", "Show taming information");
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -255,6 +277,11 @@ public class HytameCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             checkDeprecatedAlias(ctx);
             executeTameLogic(ctx);
@@ -270,7 +297,7 @@ public class HytameCommand extends AbstractCommand {
             ctx.sendMessage(Message.raw("[Deprecated] This command has been replaced.").color("#FFAA00"));
             ctx.sendMessage(Message.raw("To tame an animal:").color("#AAAAAA"));
             ctx.sendMessage(Message.raw("  1. Hold a Name Tag item").color("#FFFFFF"));
-            ctx.sendMessage(Message.raw("  2. Press F on an animal").color("#FFFFFF"));
+            ctx.sendMessage(Message.raw("  2. Press Left Click on an animal").color("#FFFFFF"));
             ctx.sendMessage(Message.raw("  3. Enter a name in the UI").color("#FFFFFF"));
         }
     }
@@ -280,6 +307,11 @@ public class HytameCommand extends AbstractCommand {
     public static class HytameUntameSubCommand extends AbstractCommand {
         public HytameUntameSubCommand() {
             super("untame", "[Deprecated] Release a tamed animal");
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -301,10 +333,15 @@ public class HytameCommand extends AbstractCommand {
         }
     }
 
-    // --- Subcommand: settings ---
+    // --- Subcommand: settings --- Public, no permission required
     public static class HytameSettingsSubCommand extends AbstractCommand {
         public HytameSettingsSubCommand() {
             super("settings", "Taming settings");
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -325,10 +362,15 @@ public class HytameCommand extends AbstractCommand {
         }
     }
 
-    // --- Subcommand: scan ---
+    // --- Subcommand: scan --- Public, no permission required
     public static class HytameScanSubCommand extends AbstractCommand {
         public HytameScanSubCommand() {
             super("scan", "Scan for untracked baby animals");
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -377,10 +419,15 @@ public class HytameCommand extends AbstractCommand {
         }
     }
 
-    // --- Subcommand: foods ---
+    // --- Subcommand: foods --- Public, no permission required
     public static class HytameFoodsSubCommand extends AbstractCommand {
         public HytameFoodsSubCommand() {
             super("foods", "Quick reference for animal foods");
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -501,12 +548,11 @@ public class HytameCommand extends AbstractCommand {
     // =========================================================================
 
     // --- Subcommand: config (delegates to BreedingConfigCommand subcommands) ---
-    // Note: info/list are available to everyone, modifying commands require Creative
+    // Note: info/list are available to everyone, modifying commands require admin permission
     public static class HytameConfigSubCommand extends AbstractCommand {
         public HytameConfigSubCommand() {
             super("config", "Configuration commands (some require admin)");
-            // No permission group - individual subcommands check permissions
-            // Add all config subcommands
+            // No permission on parent - individual subcommands check permissions
             addSubCommand(new BreedingConfigCommand.ReloadSubCommand());
             addSubCommand(new BreedingConfigCommand.SaveSubCommand());
             addSubCommand(new BreedingConfigCommand.ListSubCommand());
@@ -519,6 +565,11 @@ public class HytameCommand extends AbstractCommand {
             addSubCommand(new BreedingConfigCommand.AddFoodSubCommand());
             addSubCommand(new BreedingConfigCommand.RemoveFoodSubCommand());
             addSubCommand(new BreedingConfigCommand.PresetSubCommand());
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -553,7 +604,11 @@ public class HytameCommand extends AbstractCommand {
     public static class HytameGrowthSubCommand extends AbstractCommand {
         public HytameGrowthSubCommand() {
             super("growth", "Toggle baby animal growth (admin)");
-            setPermissionGroup(GameMode.Creative);
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -594,10 +649,11 @@ public class HytameCommand extends AbstractCommand {
     }
 
     // --- Subcommand: custom (delegates to CustomAnimalCommand subcommands) ---
+    // No permission on parent - subcommands handle their own permissions
     public static class HytameCustomSubCommand extends AbstractCommand {
         public HytameCustomSubCommand() {
-            super("custom", "Manage custom animals from other mods (admin)");
-            setPermissionGroup(GameMode.Creative);
+            super("custom", "Manage custom animals from other mods");
+            // No requirePermission() - parent just shows help, subcommands check individually
             addSubCommand(new CustomAnimalCommand.CustomAnimalAddCommand());
             addSubCommand(new CustomAnimalCommand.CustomAnimalRemoveCommand());
             addSubCommand(new CustomAnimalCommand.CustomAnimalListCommand());
@@ -614,8 +670,12 @@ public class HytameCommand extends AbstractCommand {
         }
 
         @Override
+        protected boolean canGeneratePermission() {
+            return false;
+        }
+
+        @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
-            if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
             checkDeprecatedAlias(ctx);
             executeCustomLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -623,7 +683,6 @@ public class HytameCommand extends AbstractCommand {
 
         /** Called from deprecated /breed command wrapper */
         public void executeFromDeprecated(CommandContext ctx) {
-            if (checkAdminDenied(ctx)) return;
             executeCustomLogic(ctx);
         }
 
@@ -655,12 +714,16 @@ public class HytameCommand extends AbstractCommand {
     public static class HytameDebugSubCommand extends AbstractCommand {
         public HytameDebugSubCommand() {
             super("debug", "Debug commands for taming system (admin)");
-            setPermissionGroup(GameMode.Creative);
             addSubCommand(new DebugMemorySubCommand());
             addSubCommand(new DebugFileSubCommand());
             addSubCommand(new DebugEventsSubCommand());
             addSubCommand(new DebugClearSubCommand());
             addSubCommand(new DebugTameStatusCommand());
+        }
+
+        @Override
+        protected boolean canGeneratePermission() {
+            return false;
         }
 
         @Override
@@ -695,6 +758,11 @@ public class HytameCommand extends AbstractCommand {
         public static class DebugMemorySubCommand extends AbstractCommand {
             public DebugMemorySubCommand() {
                 super("memory", "Log tamed animals currently in memory");
+            }
+
+            @Override
+            protected boolean canGeneratePermission() {
+                return false;
             }
 
             @Override
@@ -748,6 +816,11 @@ public class HytameCommand extends AbstractCommand {
         public static class DebugFileSubCommand extends AbstractCommand {
             public DebugFileSubCommand() {
                 super("file", "Log tamed animals from save file");
+            }
+
+            @Override
+            protected boolean canGeneratePermission() {
+                return false;
             }
 
             @Override
@@ -806,6 +879,11 @@ public class HytameCommand extends AbstractCommand {
             }
 
             @Override
+            protected boolean canGeneratePermission() {
+                return false;
+            }
+
+            @Override
             protected CompletableFuture<Void> execute(CommandContext ctx) {
                 if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
                 checkDeprecatedAlias(ctx);
@@ -849,6 +927,11 @@ public class HytameCommand extends AbstractCommand {
             }
 
             @Override
+            protected boolean canGeneratePermission() {
+                return false;
+            }
+
+            @Override
             protected CompletableFuture<Void> execute(CommandContext ctx) {
                 if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
                 checkDeprecatedAlias(ctx);
@@ -868,8 +951,19 @@ public class HytameCommand extends AbstractCommand {
             }
 
             @Override
+            protected boolean canGeneratePermission() {
+                return false;
+            }
+
+            @Override
             protected void execute(@Nonnull CommandContext context, @Nonnull ObjectList<Ref<EntityStore>> entities, @Nonnull World world, @Nonnull Store<EntityStore> store) {
-                if (checkAdminDenied(context)) return;
+                // Check admin permission (uses HytamePermissions for singleplayer/multiplayer logic)
+                if (context.sender() instanceof Player player) {
+                    if (!HytamePermissions.hasAdminAccess(player)) {
+                        context.sendMessage(Message.raw("This command requires admin permissions.").color("#FF5555"));
+                        return;
+                    }
+                }
                 Ref<EntityStore> playerRef = context.senderAsPlayerRef();
                 if (playerRef == null) return;
 
