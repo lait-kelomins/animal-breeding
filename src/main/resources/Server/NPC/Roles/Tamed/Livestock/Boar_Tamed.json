@@ -1,8 +1,16 @@
 {
   "Type": "Variant",
-  "Reference": "Boar",
+  "Reference": "Template_Animal_Neutral",
   "Modify": {
+    "Appearance": "Boar",
     "FlockArray": ["Boar_Tamed", "Boar_Piglet_Tamed"],
+    "LovedItems": ["Plant_Crop_Mushroom_Cap_Brown"],
+    "DropList": "Drop_Boar",
+    "MaxHealth": 81,
+    "ViewRange": 15,
+    "Attack": "Root_NPC_Attack_Melee",
+    "ProduceItem": "Ingredient_Poop",
+    "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
@@ -16,9 +24,13 @@
     "WanderRadius": 5,
     "LeashDistance": 30,
     "AlertedTimeoutGiveUp": [15, 25],
-    "AlertedActionRange": 4
+    "AlertedActionRange": 4,
+    "NameTranslationKey": {
+      "Compute": "NameTranslationKey"
+    }
   },
   "Parameters": {
+    "NameTranslationKey": { "Value": "server.npcRoles.Boar.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

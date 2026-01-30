@@ -1,8 +1,23 @@
 {
   "Type": "Variant",
-  "Reference": "Goat",
+  "Reference": "Template_Animal_Neutral",
   "Modify": {
+    "Appearance": "Goat",
     "FlockArray": ["Goat_Tamed", "Goat_Kid_Tamed"],
+    "LovedItems": ["Plant_Fruit_Apple"],
+    "DropList": "Drop_Goat",
+    "MaxHealth": 81,
+    "ViewRange": 15,
+    "Attack": "Root_NPC_Attack_Melee",
+    "GreetAnimation": "Bleat",
+    "ProduceItem": "Ingredient_Poop",
+    "IsHarvestable": true,
+    "HarvestDropList": "Drop_Goat_Harvest",
+    "HarvestInteractionContext": "Milk",
+    "HarvestParticles": "Block_Break_Snow",
+    "HarvestSound": "SFX_Water_MoveOut",
+    "HarvestTimeout": ["PT10H", "PT14H"],
+    "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
@@ -17,9 +32,12 @@
     "LeashDistance": 30,
     "AlertedTimeoutGiveUp": [15, 25],
     "AlertedActionRange": 4,
-    "IsHarvestable": true
+    "NameTranslationKey": {
+      "Compute": "NameTranslationKey"
+    }
   },
   "Parameters": {
+    "NameTranslationKey": { "Value": "server.npcRoles.Goat.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

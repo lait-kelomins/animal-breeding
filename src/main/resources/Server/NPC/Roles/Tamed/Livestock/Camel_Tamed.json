@@ -1,8 +1,21 @@
 {
   "Type": "Variant",
-  "Reference": "Camel",
+  "Reference": "Template_Animal_Neutral",
   "Modify": {
+    "Appearance": "Camel",
+    "AttitudeGroup": "PreyBig",
     "FlockArray": ["Camel_Tamed", "Camel_Calf_Tamed"],
+    "LovedItems": ["Plant_Crop_Wheat_Item"],
+    "DropList": "Drop_Camel",
+    "MaxHealth": 130,
+    "MaxSpeed": 9,
+    "ViewRange": 15,
+    "ProduceItem": "Ingredient_Poop",
+    "IsMemory": true,
+    "IsMountable": true,
+    "MountAnchorX": 0,
+    "MountAnchorY": 2.0,
+    "MountAnchorZ": 0,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
@@ -17,9 +30,12 @@
     "LeashDistance": 30,
     "AlertedTimeoutGiveUp": [15, 25],
     "AlertedActionRange": 4,
-    "IsMountable": true
+    "NameTranslationKey": {
+      "Compute": "NameTranslationKey"
+    }
   },
   "Parameters": {
+    "NameTranslationKey": { "Value": "server.npcRoles.Camel.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

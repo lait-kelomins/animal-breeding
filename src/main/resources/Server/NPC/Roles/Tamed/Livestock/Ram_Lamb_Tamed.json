@@ -1,8 +1,13 @@
 {
   "Type": "Variant",
-  "Reference": "Ram_Lamb",
+  "Reference": "Template_Animal_Neutral",
   "Modify": {
+    "Appearance": "Ram_Lamb",
     "FlockArray": ["Ram_Tamed", "Ram_Lamb_Tamed"],
+    "LovedItems": ["Plant_Fruit_Apple"],
+    "MaxHealth": 30,
+    "ViewRange": 10,
+    "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
@@ -16,9 +21,13 @@
     "WanderRadius": 5,
     "LeashDistance": 30,
     "AlertedTimeoutGiveUp": [15, 25],
-    "AlertedActionRange": 4
+    "AlertedActionRange": 4,
+    "NameTranslationKey": {
+      "Compute": "NameTranslationKey"
+    }
   },
   "Parameters": {
+    "NameTranslationKey": { "Value": "server.npcRoles.Ram_Lamb.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

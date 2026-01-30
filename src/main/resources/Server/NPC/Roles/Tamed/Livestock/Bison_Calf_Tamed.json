@@ -1,8 +1,13 @@
 {
   "Type": "Variant",
-  "Reference": "Bison_Calf",
+  "Reference": "Template_Animal_Neutral",
   "Modify": {
+    "Appearance": "Bison_Calf",
+    "AttitudeGroup": "PreyBig",
     "FlockArray": ["Bison_Tamed", "Bison_Calf_Tamed"],
+    "MaxHealth": 75,
+    "ViewRange": 12,
+    "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
@@ -16,9 +21,13 @@
     "WanderRadius": 5,
     "LeashDistance": 30,
     "AlertedTimeoutGiveUp": [15, 25],
-    "AlertedActionRange": 4
+    "AlertedActionRange": 4,
+    "NameTranslationKey": {
+      "Compute": "NameTranslationKey"
+    }
   },
   "Parameters": {
+    "NameTranslationKey": { "Value": "server.npcRoles.Bison_Calf.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }
