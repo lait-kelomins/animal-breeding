@@ -69,7 +69,7 @@
               {
                 "Type": "SetInteractable",
                 "Interactable": true,
-                "Hint": "server.interactionHints.feed"
+                "Hint": "animalbreeding.interactionHints.feed"
               }
             ]
           },
@@ -83,7 +83,7 @@
               {
                 "Type": "SetInteractable",
                 "Interactable": true,
-                "Hint": "server.interactionHints.tame"
+                "Hint": "animalbreeding.interactionHints.tame"
               }
             ]
           }

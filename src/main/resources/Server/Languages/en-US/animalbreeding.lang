@@ -3,7 +3,8 @@
 # Kept for backwards compatibility after disabling the interaction hints, will be moved to asset files
 
 # Interaction hints
-interactionHints.feed=Press [E] (or Ability 2) to Feed
+interactionHints.tame=Press [{key}] to Tame
+interactionHints.feed=Press [{key}] to Feed
 interactionHints.legacyFeed=Press [{key}] to Feed
 interactionHints.legacyFeedOrMount=Press [{key}] to Feed / Mount
 items.AB_Name_Tag.name=Name Tag
