@@ -15,6 +15,23 @@
         },
         "Instructions": [
           {
+            "$Comment": "Disable if player cannot interact at all",
+            "Sensor": {
+              "Type": "Not",
+              "Sensor": {
+                "Type": "CanInteract",
+                "ViewSector": 360,
+                "Attitudes": ["Neutral", "Friendly", "Revered"]
+              }
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": false
+              }
+            ]
+          },
+          {
             "$Comment": "Disable if player not holding LovedItem",
             "Sensor": {
               "Type": "Not",
@@ -38,32 +55,35 @@
             ]
           },
           {
-            "$Comment": "Show tame hint for wild animals (Neutral/Friendly attitude)",
-            "Sensor": {
-              "Type": "CanInteract",
-              "ViewSector": 360,
-              "Attitudes": ["Neutral", "Friendly"]
-            },
-            "Actions": [
-              {
-                "Type": "SetInteractable",
-                "Interactable": true,
-                "Hint": "server.interactionHints.tame"
-              }
-            ]
-          },
-          {
             "$Comment": "Show feed hint for tamed animals (Revered attitude)",
             "Sensor": {
-              "Type": "CanInteract",
-              "ViewSector": 360,
-              "Attitudes": ["Revered"]
+              "Type": "Target",
+              "Filters": [
+                {
+                  "Type": "Attitude",
+                  "Attitudes": ["Revered"]
+                }
+              ]
             },
             "Actions": [
               {
                 "Type": "SetInteractable",
                 "Interactable": true,
                 "Hint": "server.interactionHints.feed"
+              }
+            ]
+          },
+          {
+            "$Comment": "Show tame hint for wild animals (fallback - not Revered)",
+            "Continue": true,
+            "Sensor": {
+              "Type": "Any"
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "server.interactionHints.tame"
               }
             ]
           }
@@ -82,9 +102,13 @@
             "Sensor": {
               "Type": "Not",
               "Sensor": {
-                "Type": "CanInteract",
-                "ViewSector": 360,
-                "Attitudes": ["Revered"]
+                "Type": "Target",
+                "Filters": [
+                  {
+                    "Type": "Attitude",
+                    "Attitudes": ["Revered"]
+                  }
+                ]
               }
             },
             "Actions": [
