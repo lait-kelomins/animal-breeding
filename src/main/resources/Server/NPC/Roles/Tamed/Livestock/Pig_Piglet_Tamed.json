@@ -2,10 +2,10 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Pig_Piglet",
+    "Appearance": "Piglet",
     "FlockArray": ["Pig_Piglet_Tamed", "Pig_Tamed"],
     "LovedItems": ["Plant_Crop_Mushroom_Cap_Brown"],
-    "DropList": "Drop_Pig_Piglet",
+    "DropList": "Drop_Piglet",
     "MaxHealth": 19,
     "ViewRange": 10,
     "ProduceItem": "Ingredient_Poop",

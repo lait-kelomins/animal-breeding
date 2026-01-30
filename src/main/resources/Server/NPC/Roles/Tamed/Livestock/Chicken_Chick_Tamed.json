@@ -2,7 +2,7 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Chicken_Chick",
+    "Appearance": "Chick",
     "FlockArray": ["Chicken_Tamed", "Chicken_Chick_Tamed"],
     "LovedItems": ["Plant_Crop_Corn_Item"],
     "MaxHealth": 10,

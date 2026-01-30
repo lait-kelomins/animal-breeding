@@ -51,7 +51,6 @@
             ]
           },
           {
-            "Continue": true,
             "Sensor": {
               "Type": "CanInteract",
               "Attitudes": ["Revered"]
@@ -65,9 +64,12 @@
             ]
           },
           {
-            "Continue": true,
             "Sensor": {
-              "Type": "Any"
+              "Type": "Not",
+              "Sensor": {
+                "Type": "CanInteract",
+                "Attitudes": ["Revered"]
+              }
             },
             "Actions": [
               {
