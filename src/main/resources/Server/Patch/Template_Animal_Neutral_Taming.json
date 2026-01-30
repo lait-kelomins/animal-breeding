@@ -1,39 +1,48 @@
 {
-  "$Comment": "Patch Template_Animal_Neutral to add taming support and restrict mounting to tamed animals",
+  "$Comment": "Patch Template_Animal_Neutral to add feed/tame hints and restrict mounting to tamed animals",
   "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
   "InteractionInstruction": {
-    "Enabled": true,
+    "Enabled": {
+      "Compute": "IsHarvestable || IsMountable || !isEmptyStringArray(LovedItems)"
+    },
     "Instructions": [
       {
-        "$Comment": "Feed/Tame instruction - shows hint when player has LovedItem",
+        "$Comment": "Add Feed/Tame hint instruction at the beginning",
         "_op": "add",
+        "_index": 0,
         "Enabled": {
           "Compute": "!isEmptyStringArray(LovedItems)"
         },
         "Instructions": [
           {
-            "$Comment": "Show tame hint for wild animals (Neutral/Friendly) when player has LovedItem",
+            "$Comment": "Disable if player not holding LovedItem",
             "Sensor": {
-              "Type": "And",
-              "Sensors": [
-                {
-                  "Type": "CanInteract",
-                  "ViewSector": 180,
-                  "Attitudes": ["Neutral", "Friendly"]
-                },
-                {
-                  "Type": "Player",
-                  "Range": 5,
-                  "Filters": [
-                    {
-                      "Type": "ItemInHand",
-                      "Items": {
-                        "Compute": "LovedItems"
-                      }
+              "Type": "Not",
+              "Sensor": {
+                "Type": "Target",
+                "Filters": [
+                  {
+                    "Type": "ItemInHand",
+                    "Items": {
+                      "Compute": "LovedItems"
                     }
-                  ]
-                }
-              ]
+                  }
+                ]
+              }
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": false
+              }
+            ]
+          },
+          {
+            "$Comment": "Show tame hint for wild animals (Neutral/Friendly attitude)",
+            "Sensor": {
+              "Type": "CanInteract",
+              "ViewSector": 360,
+              "Attitudes": ["Neutral", "Friendly"]
             },
             "Actions": [
               {
@@ -44,28 +53,11 @@
             ]
           },
           {
-            "$Comment": "Show feed hint for tamed animals (Revered) when player has LovedItem",
+            "$Comment": "Show feed hint for tamed animals (Revered attitude)",
             "Sensor": {
-              "Type": "And",
-              "Sensors": [
-                {
-                  "Type": "CanInteract",
-                  "ViewSector": 180,
-                  "Attitudes": ["Revered"]
-                },
-                {
-                  "Type": "Player",
-                  "Range": 5,
-                  "Filters": [
-                    {
-                      "Type": "ItemInHand",
-                      "Items": {
-                        "Compute": "LovedItems"
-                      }
-                    }
-                  ]
-                }
-              ]
+              "Type": "CanInteract",
+              "ViewSector": 360,
+              "Attitudes": ["Revered"]
             },
             "Actions": [
               {
@@ -78,31 +70,45 @@
         ]
       },
       {
-        "$Comment": "Harvesting instruction - find and merge to keep unchanged",
-        "_find": {
-          "Enabled": { "Compute": "IsHarvestable" }
-        },
-        "_op": "merge"
-      },
-      {
-        "$Comment": "Mounting instruction - MODIFIED: only Revered attitude (tamed animals)",
-        "_find": {
-          "Enabled": { "Compute": "IsMountable" }
-        },
+        "$Comment": "Modify mounting to only work for Revered (tamed) animals",
+        "_find": "$[?(@.Enabled.Compute == 'IsMountable')]",
         "_op": "replace",
         "Enabled": {
           "Compute": "IsMountable"
         },
         "Instructions": [
           {
+            "$Comment": "Only allow mounting for Revered attitude",
             "Sensor": {
               "Type": "Not",
               "Sensor": {
-                "$Comment": "Only allow mounting for Revered (tamed) animals",
                 "Type": "CanInteract",
                 "ViewSector": 360,
                 "Attitudes": ["Revered"]
               }
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": false
+              }
+            ]
+          },
+          {
+            "Enabled": {
+              "Compute": "!isEmptyStringArray(LovedItems)"
+            },
+            "$Comment": "Hide mount hint if holding LovedItem (feed takes priority)",
+            "Sensor": {
+              "Type": "Target",
+              "Filters": [
+                {
+                  "Type": "ItemInHand",
+                  "Items": {
+                    "Compute": "LovedItems"
+                  }
+                }
+              ]
             },
             "Actions": [
               {
