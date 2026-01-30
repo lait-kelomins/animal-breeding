@@ -57,6 +57,7 @@ import com.laits.breeding.managers.GrowthManager;
 import com.laits.breeding.managers.RespawnManager;
 import com.laits.breeding.managers.SpawningManager;
 import com.laits.breeding.managers.InteractionSetupManager;
+import com.laits.breeding.managers.TamedRoleManager;
 import com.laits.breeding.handlers.MouseInteractionHandler;
 import com.laits.breeding.managers.TamingManager;
 import com.laits.breeding.managers.PersistenceManager;
@@ -155,6 +156,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private RespawnManager respawnManager;
     private InteractionSetupManager interactionSetupManager;
     private MouseInteractionHandler mouseInteractionHandler;
+    private TamedRoleManager tamedRoleManager;
+
+    // Asset-based taming feature flag
+    // When true: Uses RoleChangeSystem to apply tamed roles (persistent behavior)
+    // When false: Uses legacy reflection-based approach (InteractionSetupManager)
+    private boolean useAssetBasedTaming = true;
 
     // HyTameComponent type for ECS integration
     private ComponentType<EntityStore, HyTameComponent> hyTameComponentType;
@@ -396,6 +403,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         mouseInteractionHandler.setLogger(msg -> getLogger().atInfo().log(msg));
         mouseInteractionHandler.setTamingManager(tamingManager);
 
+        // Initialize tamed role manager for asset-based taming
+        tamedRoleManager = new TamedRoleManager();
+        tamedRoleManager.setLogger(msg -> {
+            if (verboseLogging)
+                getLogger().atInfo().log(msg);
+        });
+        tamedRoleManager.setWarningLogger(msg -> getLogger().atWarning().log(msg));
+
         // Set up breeding callbacks
         breedingTickManager.setOnBreedingComplete((type, animals) -> {
             // Get positions for midpoint calculation
@@ -620,6 +635,18 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         if (ids == null || ids.length == 0) {
             String[] newIds = new String[] { "FeedAnimal" };
             rootInt.build(Set.of(newIds));
+        }
+
+        // Initialize TamedRoleManager (must happen after assets are loaded)
+        if (tamedRoleManager != null) {
+            try {
+                tamedRoleManager.initialize();
+                getLogger().atInfo().log("Asset-based taming enabled: " + tamedRoleManager.getStats());
+            } catch (Exception e) {
+                getLogger().atWarning().log("TamedRoleManager initialization failed: " + e.getMessage());
+                getLogger().atWarning().log("Falling back to legacy taming system");
+                useAssetBasedTaming = false;
+            }
         }
 
         // Start tick scheduler for pregnancy and growth updates
@@ -1342,6 +1369,23 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      */
     public ComponentType<EntityStore, HyTameInteractionComponent> getHyTameInteractionComponentType() {
         return hyTameInteractionComponentType;
+    }
+
+    /**
+     * Get the TamedRoleManager for asset-based taming.
+     * Used by TameHelper to apply tamed roles when animals are tamed.
+     */
+    public TamedRoleManager getTamedRoleManager() {
+        return tamedRoleManager;
+    }
+
+    /**
+     * Check if asset-based taming should be used.
+     * Returns true if enabled and TamedRoleManager is initialized.
+     * Falls back to legacy InteractionSetupManager if false.
+     */
+    public boolean shouldUseAssetBasedTaming() {
+        return useAssetBasedTaming && tamedRoleManager != null && tamedRoleManager.isInitialized();
     }
 
 }

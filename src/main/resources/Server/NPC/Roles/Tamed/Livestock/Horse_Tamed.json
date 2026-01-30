@@ -1,0 +1,112 @@
+{
+  "Type": "Variant",
+  "Reference": "Template_Animal_Neutral",
+  "Modify": {
+    "Appearance": "Horse",
+    "AttitudeGroup": "PreyBig",
+    "FlockArray": ["Horse_Tamed", "Horse_Foal_Tamed"],
+    "LovedItems": ["Plant_Crop_Carrot_Item"],
+    "DropList": "Drop_Horse",
+    "MaxHealth": 124,
+    "MaxSpeed": 10,
+    "ViewRange": 15,
+    "Attack": "Root_NPC_Attack_Melee",
+    "ProduceItem": "Ingredient_Poop",
+    "IsMemory": true,
+    "IsMountable": true,
+    "MountAnchorX": 0,
+    "MountAnchorY": 1.6,
+    "MountAnchorZ": 0,
+    "PlayerDefaultAttitude": "Revered",
+    "ChanceToTurnFriendly": 100,
+    "ChanceToTurnFriendlyWithAttractiveItem": 100,
+    "FriendlyOverrideTime": 2147483647,
+    "Timid": false,
+    "AttackWhenStartled": false,
+    "WeightGreet": 40,
+    "WeightFollow": 50,
+    "WeightFollowItem": 30,
+    "WeightIgnore": 5,
+    "WanderRadius": 5,
+    "LeashDistance": 30,
+    "AlertedTimeoutGiveUp": [15, 25],
+    "AlertedActionRange": 4,
+    "NameTranslationKey": {
+      "Compute": "NameTranslationKey"
+    },
+    "_InteractionVars": {
+      "Melee_Start": {
+        "Interactions": [
+          {
+            "Parent": "NPC_Attack_Melee_Simple",
+            "Effects": {
+              "ItemPlayerAnimationsId": "Cow_Default",
+              "ItemAnimationId": "Kick"
+            },
+            "RunTime": 0.167
+          }
+        ]
+      },
+      "Melee_Selector": {
+        "Interactions": [
+          {
+            "Parent": "NPC_Attack_Selector_Left",
+            "RunTime": 0.083,
+            "Selector": {
+              "Id": "Stab",
+              "TestLineOfSight": true,
+              "ExtendTop": 0,
+              "ExtendBottom": 1,
+              "ExtendLeft": 0.5,
+              "ExtendRight": 0.5,
+              "StartDistance": 0.25,
+              "EndDistance": 2.5,
+              "YawOffset": 180
+            },
+            "Next": {
+              "Type": "Simple",
+              "RunTime": 0.167
+            }
+          }
+        ]
+      },
+      "Melee_Damage": {
+        "Interactions": [
+          {
+            "Parent": "NPC_Livestock_Kick_Damage",
+            "DamageCalculator": {
+              "Type": "Absolute",
+              "BaseDamage": { "Physical": 30 },
+              "RandomPercentageModifier": 0.1
+            },
+            "DamageEffects": {
+              "Knockback": {
+                "Type": "Force",
+                "VelocityConfig": {
+                  "AirResistance": 0.97,
+                  "AirResistanceMax": 0.96,
+                  "GroundResistance": 0.94,
+                  "GroundResistanceMax": 0.3,
+                  "Threshold": 3,
+                  "Style": "Exp"
+                },
+                "Direction": { "X": 0, "Y": 1, "Z": 2 },
+                "Force": 15,
+                "VelocityType": "Set"
+              },
+              "WorldSoundEventId": "SFX_Unarmed_Impact",
+              "LocalSoundEventId": "SFX_Unarmed_Impact",
+              "WorldParticles": [{ "SystemId": "Impact_Sword_Basic" }]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Parameters": {
+    "NameTranslationKey": { "Value": "server.npcRoles.Horse.name" },
+    "OwnerUUID": { "Value": "" },
+    "TrustLevel": { "Value": 100 },
+    "Generation": { "Value": 0 }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "$Comment": "Disable harvesting on wild Cow - only tamed Cow can be milked",
+  "BaseAssetPath": "NPC/Roles/Creature/Livestock/Cow",
+  "IsHarvestable": false
+}

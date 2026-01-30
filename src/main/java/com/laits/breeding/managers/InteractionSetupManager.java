@@ -37,10 +37,10 @@ public class InteractionSetupManager {
     private Supplier<ComponentType<EntityStore, HyTameInteractionComponent>> hyTameInteractionTypeSupplier;
 
     // Build flags
-    private boolean useEntityBasedInteractions = true;
-    private boolean useLegacyFeedInteraction = true;
-    private boolean showAbility2HintsOnEntities = true;
-    private boolean modifyInteractionHints = true; // If true, sets custom hints (requires cleanup on mod disable)
+    private boolean useEntityBasedInteractions = false;
+    private boolean useLegacyFeedInteraction = false;
+    private boolean showAbility2HintsOnEntities = false;
+    private boolean modifyInteractionHints = false; // If true, sets custom hints (requires cleanup on mod disable)
 
     // Cached InteractionTypes (avoid enum iteration every call)
     private static InteractionType cachedUseType = null;

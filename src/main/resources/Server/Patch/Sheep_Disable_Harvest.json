@@ -1,0 +1,5 @@
+{
+  "$Comment": "Disable harvesting on wild Sheep and Cow - only tamed versions can be sheared/milked",
+  "BaseAssetPath": "NPC/Roles/Creature/Livestock/Sheep",
+  "IsHarvestable": false
+}

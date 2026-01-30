@@ -1,0 +1,8 @@
+{
+  "$Comment": "Patch crop item template to add FeedAnimal interaction on Use (F key)",
+  "BaseAssetPath": "Item/Items/Plant/Crop/_Template/Template_Crop_Item",
+  "Interactions": {
+    "Use": "Root_FeedAnimal",
+    "Secondary": "Root_Secondary_Consume_Food_T1"
+  }
+}

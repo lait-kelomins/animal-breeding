@@ -9,6 +9,7 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.npc.role.support.WorldSupport;
 import com.laits.breeding.LaitsBreedingPlugin;
+import com.laits.breeding.managers.TamedRoleManager;
 import com.tameableanimals.tame.HyTameComponent;
 
 import java.util.UUID;
@@ -202,6 +203,72 @@ public final class TameHelper {
             log("HyTameComponent not found and no world provided for deferred creation");
             if (callback != null) callback.accept(null);
         }
+    }
+
+    /**
+     * Tame an animal with asset-based role change.
+     * This is the preferred method for taming as it:
+     * 1. Sets the HyTameComponent (ECS tame state)
+     * 2. Applies the tamed role via RoleChangeSystem (persistent behavior change)
+     *
+     * The role change gives the animal tamed behaviors (Revered attitude, no attack,
+     * follow owner, etc.) that persist across server restarts without runtime reflection.
+     *
+     * @param ref        Entity reference
+     * @param playerUuid Player UUID who is taming
+     * @param playerName Player name who is taming
+     * @param world      World for deferred execution
+     * @param callback   Called with HyTameComponent after taming
+     */
+    public static void tameAnimalWithRoleChange(
+            Ref<EntityStore> ref,
+            UUID playerUuid,
+            String playerName,
+            World world,
+            Consumer<HyTameComponent> callback) {
+
+        if (ref == null || playerUuid == null || playerName == null) {
+            log("TameHelper.tameAnimalWithRoleChange called with null parameters");
+            if (callback != null) callback.accept(null);
+            return;
+        }
+
+        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+        if (plugin == null) {
+            log("Plugin instance is null");
+            if (callback != null) callback.accept(null);
+            return;
+        }
+
+        // Check if asset-based taming is enabled
+        if (!plugin.shouldUseAssetBasedTaming()) {
+            // Fall back to legacy taming
+            log("Asset-based taming disabled, using legacy method");
+            tameAnimalDeferred(ref, playerUuid, playerName, world, callback);
+            return;
+        }
+
+        // Use the deferred taming to set HyTameComponent
+        tameAnimalDeferred(ref, playerUuid, playerName, world, (hyTameComp) -> {
+            if (hyTameComp != null) {
+                // Apply the tamed role via RoleChangeSystem
+                TamedRoleManager roleManager = plugin.getTamedRoleManager();
+                if (roleManager != null && roleManager.isInitialized()) {
+                    Store<EntityStore> store = ref.getStore();
+                    if (store != null) {
+                        boolean roleChanged = roleManager.applyTamedRole(ref, store);
+                        if (roleChanged) {
+                            log("Applied tamed role via RoleChangeSystem for player " + playerName);
+                        } else {
+                            log("Role change not applied (no tamed role for this animal type)");
+                        }
+                    }
+                } else {
+                    log("TamedRoleManager not available, skipping role change");
+                }
+            }
+            if (callback != null) callback.accept(hyTameComp);
+        });
     }
 
     /**

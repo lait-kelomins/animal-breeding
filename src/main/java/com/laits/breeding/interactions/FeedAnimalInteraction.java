@@ -248,8 +248,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                             final AnimalType finalAnimalType = animalType;
                             final Ref<EntityStore> finalTargetRef = targetRef;
 
-                            // Use deferred taming (handles component creation if needed)
-                            TameHelper.tameAnimalDeferred(targetRef, tamerUuid, tamerName, world, (hyTameComp) -> {
+                            // Use asset-based taming with role change (falls back to legacy if disabled)
+                            TameHelper.tameAnimalWithRoleChange(targetRef, tamerUuid, tamerName, world, (hyTameComp) -> {
                                 if (hyTameComp != null) {
                                     log("Animal tamed successfully via HyTameComponent");
                                     // Also register with TamingManager for persistence

@@ -1,0 +1,153 @@
+{
+  "$Comment": "Patch Template_Animal_Neutral to add taming support and restrict mounting to tamed animals",
+  "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+  "InteractionInstruction": {
+    "Enabled": true,
+    "Instructions": [
+      {
+        "$Comment": "Feed/Tame instruction - shows hint when player has LovedItem",
+        "_op": "add",
+        "Enabled": {
+          "Compute": "!isEmptyStringArray(LovedItems)"
+        },
+        "Instructions": [
+          {
+            "$Comment": "Show tame hint for wild animals (Neutral/Friendly) when player has LovedItem",
+            "Sensor": {
+              "Type": "And",
+              "Sensors": [
+                {
+                  "Type": "CanInteract",
+                  "ViewSector": 180,
+                  "Attitudes": ["Neutral", "Friendly"]
+                },
+                {
+                  "Type": "Player",
+                  "Range": 5,
+                  "Filters": [
+                    {
+                      "Type": "ItemInHand",
+                      "Items": {
+                        "Compute": "LovedItems"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "server.interactionHints.tame"
+              }
+            ]
+          },
+          {
+            "$Comment": "Show feed hint for tamed animals (Revered) when player has LovedItem",
+            "Sensor": {
+              "Type": "And",
+              "Sensors": [
+                {
+                  "Type": "CanInteract",
+                  "ViewSector": 180,
+                  "Attitudes": ["Revered"]
+                },
+                {
+                  "Type": "Player",
+                  "Range": 5,
+                  "Filters": [
+                    {
+                      "Type": "ItemInHand",
+                      "Items": {
+                        "Compute": "LovedItems"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "server.interactionHints.feed"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "$Comment": "Harvesting instruction - find and merge to keep unchanged",
+        "_find": {
+          "Enabled": { "Compute": "IsHarvestable" }
+        },
+        "_op": "merge"
+      },
+      {
+        "$Comment": "Mounting instruction - MODIFIED: only Revered attitude (tamed animals)",
+        "_find": {
+          "Enabled": { "Compute": "IsMountable" }
+        },
+        "_op": "replace",
+        "Enabled": {
+          "Compute": "IsMountable"
+        },
+        "Instructions": [
+          {
+            "Sensor": {
+              "Type": "Not",
+              "Sensor": {
+                "$Comment": "Only allow mounting for Revered (tamed) animals",
+                "Type": "CanInteract",
+                "ViewSector": 360,
+                "Attitudes": ["Revered"]
+              }
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": false
+              }
+            ]
+          },
+          {
+            "Continue": true,
+            "Sensor": {
+              "Type": "Any"
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "server.interactionHints.mount"
+              }
+            ]
+          },
+          {
+            "Sensor": {
+              "Type": "HasInteracted"
+            },
+            "Actions": [
+              {
+                "Type": "Mount",
+                "AnchorX": {
+                  "Compute": "MountAnchorX"
+                },
+                "AnchorY": {
+                  "Compute": "MountAnchorY"
+                },
+                "AnchorZ": {
+                  "Compute": "MountAnchorZ"
+                },
+                "MovementConfig": {
+                  "Compute": "MountMovementConfig"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

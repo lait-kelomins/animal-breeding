@@ -1,0 +1,8 @@
+{
+  "$Comment": "Patch general food item template to add FeedAnimal interaction on Use (F key)",
+  "BaseAssetPath": "Item/Items/Food/Template_Food",
+  "Interactions": {
+    "Use": "Root_FeedAnimal",
+    "Secondary": "Root_Secondary_Consume_Food_T1"
+  }
+}
