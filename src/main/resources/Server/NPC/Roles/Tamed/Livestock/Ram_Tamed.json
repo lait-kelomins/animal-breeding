@@ -1,21 +1,8 @@
 {
   "Type": "Variant",
-  "Reference": "Template_Animal_Neutral",
+  "Reference": "Ram",
   "Modify": {
-    "Appearance": "Ram",
-    "AttitudeGroup": "Prey",
     "FlockArray": ["Ram_Tamed", "Ram_Lamb_Tamed"],
-    "LovedItems": ["Plant_Fruit_Apple"],
-    "DropList": "Drop_Ram",
-    "MaxHealth": 124,
-    "ViewRange": 15,
-    "Attack": "Root_NPC_Attack_Melee",
-    "ProduceItem": "Ingredient_Poop",
-    "IsMemory": true,
-    "IsMountable": true,
-    "MountAnchorX": 0,
-    "MountAnchorY": 1.3,
-    "MountAnchorZ": 0,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
@@ -30,12 +17,9 @@
     "LeashDistance": 30,
     "AlertedTimeoutGiveUp": [15, 25],
     "AlertedActionRange": 4,
-    "NameTranslationKey": {
-      "Compute": "NameTranslationKey"
-    }
+    "IsMountable": true
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Ram.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

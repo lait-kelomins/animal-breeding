@@ -1,18 +1,8 @@
 {
   "Type": "Variant",
-  "Reference": "Template_Animal_Neutral",
+  "Reference": "Bison",
   "Modify": {
-    "Appearance": "Bison",
-    "AttitudeGroup": "PreyBig",
     "FlockArray": ["Bison_Tamed", "Bison_Calf_Tamed"],
-    "DropList": "Drop_Bison",
-    "MaxHealth": 126,
-    "ViewRange": 20,
-    "Attack": "Root_NPC_Attack_Melee",
-    "GreetAnimation": "Moo",
-    "ProduceItem": "Ingredient_Poop",
-    "IsHarvestable": false,
-    "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
@@ -26,13 +16,9 @@
     "WanderRadius": 5,
     "LeashDistance": 30,
     "AlertedTimeoutGiveUp": [15, 25],
-    "AlertedActionRange": 4,
-    "NameTranslationKey": {
-      "Compute": "NameTranslationKey"
-    }
+    "AlertedActionRange": 4
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Bison.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

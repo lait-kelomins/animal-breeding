@@ -1,13 +1,8 @@
 {
   "Type": "Variant",
-  "Reference": "Template_Animal_Neutral",
+  "Reference": "Bunny",
   "Modify": {
-    "Appearance": "Bunny",
     "FlockArray": ["Rabbit_Tamed", "Bunny_Tamed"],
-    "LovedItems": ["Plant_Crop_Carrot_Item"],
-    "MaxHealth": 25,
-    "ViewRange": 8,
-    "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
@@ -21,13 +16,9 @@
     "WanderRadius": 5,
     "LeashDistance": 30,
     "AlertedTimeoutGiveUp": [15, 25],
-    "AlertedActionRange": 4,
-    "NameTranslationKey": {
-      "Compute": "NameTranslationKey"
-    }
+    "AlertedActionRange": 4
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Bunny.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

@@ -1,24 +1,8 @@
 {
   "Type": "Variant",
-  "Reference": "Template_Animal_Neutral",
+  "Reference": "Chicken",
   "Modify": {
-    "Appearance": "Chicken",
     "FlockArray": ["Chicken_Tamed", "Chicken_Chick_Tamed"],
-    "LovedItems": ["Plant_Crop_Corn_Item"],
-    "DropList": "Drop_Chicken",
-    "MaxHealth": 29,
-    "MaxSpeed": 5,
-    "AlertedActionRange": 4,
-    "AbsoluteDetectionRange": 1.5,
-    "ProduceItem": "Food_Egg",
-    "IsHarvestable": true,
-    "HarvestDropList": "Drop_Chicken_Harvest",
-    "HarvestInteractionContext": "Shear",
-    "HarvestParticles": "Impact_Feathers_Black",
-    "HarvestSound": "SFX_Chicken_Alerted",
-    "HarvestTimeout": ["PT11H", "PT14H"],
-    "ProduceTimeout": ["PT18H", "PT48H"],
-    "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
@@ -32,12 +16,9 @@
     "WanderRadius": 5,
     "LeashDistance": 30,
     "AlertedTimeoutGiveUp": [15, 25],
-    "NameTranslationKey": {
-      "Compute": "NameTranslationKey"
-    }
+    "AlertedActionRange": 4
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Chicken.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }
