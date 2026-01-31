@@ -308,32 +308,30 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Check if Hytalor is installed by looking for the Hytalor plugin class.
+     * Check if Hytalor is installed by searching the PluginManager.
      * Hytalor applies patches from Server/Patch/ directory - without it, patches are ignored.
      */
     private boolean detectHytalor() {
         try {
-            // Try to load the Hytalor main plugin class
-            // If Hytalor is installed, this class will exist
-            Class.forName("com.hytalor.HytalorPlugin");
-            return true;
-        } catch (ClassNotFoundException e) {
-            // Hytalor class not found - try alternative class names
-            try {
-                Class.forName("com.hytalor.Hytalor");
-                return true;
-            } catch (ClassNotFoundException e2) {
-                // Try yet another possible name
-                try {
-                    Class.forName("hytalor.HytalorPlugin");
+            com.hypixel.hytale.server.core.plugin.PluginManager pm = HytaleServer.get().getPluginManager();
+            if (pm == null) {
+                getLogger().atInfo().log("PluginManager not available for Hytalor detection");
+                return false;
+            }
+
+            // Search for Hytalor plugin by name
+            for (com.hypixel.hytale.server.core.plugin.PluginBase plugin : pm.getPlugins()) {
+                String name = plugin.getName();
+                if (name != null && name.toLowerCase().contains("hytalor")) {
+                    getLogger().atInfo().log("Hytalor plugin detected: %s", name);
                     return true;
-                } catch (ClassNotFoundException e3) {
-                    // Hytalor is not installed
-                    return false;
                 }
             }
+
+            // Hytalor not found in plugin list
+            return false;
         } catch (Exception e) {
-            // Any other error - assume not installed
+            getLogger().atWarning().log("Failed to detect Hytalor: %s", e.getMessage());
             return false;
         }
     }
