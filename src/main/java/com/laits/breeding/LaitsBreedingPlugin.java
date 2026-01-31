@@ -308,33 +308,32 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     }
 
     /**
-     * Check if Hytalor is installed by testing if our patches were applied.
+     * Check if Hytalor is installed by looking for the Hytalor plugin class.
      * Hytalor applies patches from Server/Patch/ directory - without it, patches are ignored.
      */
     private boolean detectHytalor() {
         try {
-            // Check if RootInteraction "Root_FeedAnimal" exists and has our custom interaction
-            // This would only exist if Hytalor applied Template_Crop_Item_FeedAnimal.json
-            RootInteraction rootInt = RootInteraction.getRootInteractionOrUnknown("Root_FeedAnimal");
-            if (rootInt != null) {
-                String[] ids = rootInt.getInteractionIds();
-                // If our patch was applied, this would have "FeedAnimal" in the chain
-                // However, we register it ourselves in start(), so check differently
-            }
-
-            // Alternative: Check if NPCPlugin recognizes our custom sensor type
-            // The "Tamed" sensor type is registered by us, but the behavior tree patches
-            // that USE it would only exist if Hytalor applied our Template_Animal_Neutral_Taming.json
-
-            // For now, assume Hytalor is installed if we're running at all
-            // A more robust check would be to verify a patched asset has our modifications
-            // But since patches are applied at asset load time before plugins run,
-            // we can't easily detect this without trying to use the feature
-
-            // Simple heuristic: Try to find if a known patched field exists
-            // For now, default to true and let failures indicate Hytalor issues
+            // Try to load the Hytalor main plugin class
+            // If Hytalor is installed, this class will exist
+            Class.forName("com.hytalor.HytalorPlugin");
             return true;
+        } catch (ClassNotFoundException e) {
+            // Hytalor class not found - try alternative class names
+            try {
+                Class.forName("com.hytalor.Hytalor");
+                return true;
+            } catch (ClassNotFoundException e2) {
+                // Try yet another possible name
+                try {
+                    Class.forName("hytalor.HytalorPlugin");
+                    return true;
+                } catch (ClassNotFoundException e3) {
+                    // Hytalor is not installed
+                    return false;
+                }
+            }
         } catch (Exception e) {
+            // Any other error - assume not installed
             return false;
         }
     }
