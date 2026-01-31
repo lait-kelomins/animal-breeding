@@ -284,6 +284,7 @@ public class ConfigManager {
 
     /**
      * Load configuration from a JSON file.
+     * Handles corrupted configs gracefully by backing up and resetting.
      * @param configPath Path to the config file
      */
     public void loadFromFile(Path configPath) {
@@ -307,10 +308,48 @@ public class ConfigManager {
             log("Loaded config from: " + configPath);
             // Save to persist any format migrations (e.g., enabled -> breedingEnabled/tamingEnabled)
             saveToFile();
-        } catch (Exception e) {
-            log("Error loading config: " + e.getMessage() + ", using defaults");
+        } catch (com.google.gson.JsonSyntaxException e) {
+            // JSON parsing error - likely corrupted config
+            handleCorruptedConfig(configPath, "JSON syntax error: " + e.getMessage());
+        } catch (com.google.gson.JsonParseException e) {
+            // JSON structure error
+            handleCorruptedConfig(configPath, "JSON parse error: " + e.getMessage());
+        } catch (java.io.IOException e) {
+            // File read error
+            log("Error reading config file: " + e.getMessage() + ", using defaults");
             loadDefaults();
+        } catch (Exception e) {
+            // Any other error - be defensive
+            handleCorruptedConfig(configPath, "Unexpected error: " + e.getMessage());
         }
+    }
+
+    /**
+     * Handle a corrupted config file by backing it up and resetting to defaults.
+     */
+    private void handleCorruptedConfig(Path configPath, String errorMessage) {
+        log("Config file appears corrupted: " + errorMessage);
+
+        // Try to backup the corrupted file
+        try {
+            Path backupPath = configPath.resolveSibling("config.json.corrupted");
+            // Add timestamp if backup already exists
+            if (Files.exists(backupPath)) {
+                String timestamp = java.time.LocalDateTime.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+                backupPath = configPath.resolveSibling("config.json.corrupted." + timestamp);
+            }
+            Files.copy(configPath, backupPath);
+            log("Backed up corrupted config to: " + backupPath);
+        } catch (Exception backupError) {
+            log("Could not backup corrupted config: " + backupError.getMessage());
+        }
+
+        // Reset to defaults
+        log("Resetting config to defaults");
+        loadDefaults();
+        applyPreset(activePreset);
+        saveToFile();
     }
 
     /**
@@ -559,10 +598,21 @@ public class ConfigManager {
 
     /**
      * Load configuration from JSON string.
+     * Uses defensive parsing to handle partial corruption gracefully.
      */
     public void loadFromJson(String json) {
+        if (json == null || json.trim().isEmpty()) {
+            log("Empty config JSON, using defaults");
+            return;
+        }
+
         try {
-            JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+            JsonElement parsed = JsonParser.parseString(json);
+            if (parsed == null || !parsed.isJsonObject()) {
+                log("Config is not a valid JSON object, using defaults");
+                return;
+            }
+            JsonObject root = parsed.getAsJsonObject();
 
             // Load active preset name (using safe extraction)
             activePreset = safeGetString(root, "activePreset", activePreset);

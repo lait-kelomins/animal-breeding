@@ -112,6 +112,15 @@ public class HytameCommand extends AbstractCommand {
         ctx.sendMessage(Message.raw("=== HyTame - Animal Breeding & Taming ===").color("#FF9900"));
         ctx.sendMessage(Message.raw("Version: ").color("#AAAAAA")
                 .insert(Message.raw(LaitsBreedingPlugin.VERSION).color("#FFFFFF")));
+
+        // Show Hytalor warning if not installed
+        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+        if (plugin != null && !plugin.isHytalorInstalled()) {
+            ctx.sendMessage(Message.raw(""));
+            ctx.sendMessage(Message.raw("[!] Hytalor not detected").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("Some features require Hytalor for asset patching.").color("#888888"));
+        }
+
         ctx.sendMessage(Message.raw(""));
         ctx.sendMessage(Message.raw("Player Commands:").color("#FFAA00"));
         ctx.sendMessage(Message.raw("/hytame help").color("#FFFFFF")
