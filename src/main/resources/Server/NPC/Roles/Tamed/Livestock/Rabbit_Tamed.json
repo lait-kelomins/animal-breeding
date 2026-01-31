@@ -10,7 +10,7 @@
     "MaxSpeed": 8,
     "ViewRange": 16,
     "IsMemory": true,
-    "PlayerDefaultAttitude": "Revered",
+    "PlayerDefaultAttitude": "Friendly",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
     "FriendlyOverrideTime": 2147483647,

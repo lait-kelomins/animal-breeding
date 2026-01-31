@@ -92,7 +92,7 @@ public class HyTameSystems {
             HyTameComponent hyTameComponent = holder.ensureAndGetComponent(this.hyTameComponentType);
             if (hyTameComponent.isTamed()) {
                 try {
-                    LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);
+                    LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.FRIENDLY);
                 } catch (IllegalAccessException e) {
                     LaitsBreedingPlugin.getInstance().getLogger().atSevere().log("Failed to override attitude for NPC", e);
                 }

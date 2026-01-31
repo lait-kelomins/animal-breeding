@@ -165,10 +165,10 @@ public class ActionHyTameOrFeed extends ActionBase {
         // Mark as tamed
         hyTame.setTamed(playerUUID.getUuid(), player.getDisplayName());
 
-        // Set attitude to REVERED
+        // Set attitude to FRIENDLY (allows mount/harvest interactions)
         WorldSupport worldSupport = role.getWorldSupport();
         try {
-            LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);
+            LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.FRIENDLY);
         } catch (IllegalAccessException e) {
             Debug.msg(playerMsgRef, "Failed to set attitude", Level.SEVERE);
             Debug.log("Attitude set error: " + e.getMessage(), Level.SEVERE);

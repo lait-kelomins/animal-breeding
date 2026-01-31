@@ -16,7 +16,7 @@
     "MountAnchorX": 0,
     "MountAnchorY": 1.3,
     "MountAnchorZ": 0,
-    "PlayerDefaultAttitude": "Revered",
+    "PlayerDefaultAttitude": "Friendly",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
     "FriendlyOverrideTime": 2147483647,

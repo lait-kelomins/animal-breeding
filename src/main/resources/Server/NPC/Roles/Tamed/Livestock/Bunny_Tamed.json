@@ -8,7 +8,7 @@
     "MaxHealth": 25,
     "ViewRange": 8,
     "IsMemory": true,
-    "PlayerDefaultAttitude": "Revered",
+    "PlayerDefaultAttitude": "Friendly",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
     "FriendlyOverrideTime": 2147483647,

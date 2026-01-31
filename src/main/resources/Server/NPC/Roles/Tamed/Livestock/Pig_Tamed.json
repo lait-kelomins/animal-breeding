@@ -12,7 +12,7 @@
     "IsHarvestable": false,
     "IsMemory": true,
     "MemoriesNameOverride": "Pig",
-    "PlayerDefaultAttitude": "Revered",
+    "PlayerDefaultAttitude": "Friendly",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
     "FriendlyOverrideTime": 2147483647,

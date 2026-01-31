@@ -1,0 +1,7 @@
+{
+  "_comment": "Add FeedAnimal interaction to fruit items - allows feeding animals with F key",
+  "BaseAssetPath": "Item/Items/Plant/Fruit/Template_Fruit",
+  "Interactions": {
+    "Use": "Root_FeedAnimal"
+  }
+}

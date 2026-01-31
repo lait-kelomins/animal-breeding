@@ -1,0 +1,7 @@
+{
+  "_comment": "Add FeedAnimal interaction to crop items - allows feeding animals with F key",
+  "BaseAssetPath": "Item/Items/Plant/Crop/_Template/Template_Crop_Item",
+  "Interactions": {
+    "Use": "Root_FeedAnimal"
+  }
+}

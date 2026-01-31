@@ -19,7 +19,7 @@
     "HarvestTimeout": ["PT11H", "PT14H"],
     "ProduceTimeout": ["PT18H", "PT48H"],
     "IsMemory": true,
-    "PlayerDefaultAttitude": "Revered",
+    "PlayerDefaultAttitude": "Friendly",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
     "FriendlyOverrideTime": 2147483647,

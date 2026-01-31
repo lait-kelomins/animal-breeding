@@ -256,7 +256,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // When false: Disables interaction-based feeding (ActionHyTameOrFeed via
     // behavior tree)
     // Note: Action-based system had issues, reverted to legacy interaction system
-    private static final boolean USE_LEGACY_FEED_INTERACTION = true;
+    private static final boolean USE_LEGACY_FEED_INTERACTION = false;
 
     // Show interaction hints on animals even when using item-based Ability2
     // When true: Animals show "Press [Ability2] to Feed" hint (but actual feeding

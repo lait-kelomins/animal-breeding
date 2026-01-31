@@ -1,4 +1,5 @@
 {
+  "_comment": "Override hints for taming - only for non-mountable/harvestable animals to avoid interfering with mount/harvest",
   "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
   "InteractionInstruction": {
     "Enabled": {
@@ -9,66 +10,17 @@
         "_op": "add",
         "_index": 0,
         "Enabled": {
-          "Compute": "!isEmptyStringArray(LovedItems)"
+          "Compute": "!isEmptyStringArray(LovedItems) && !IsMountable && !IsHarvestable"
         },
         "Instructions": [
           {
+            "_comment": "Non-mountable/harvestable wild animal = Tame hint",
+            "Continue": true,
             "Sensor": {
               "Type": "Not",
               "Sensor": {
-                "Type": "CanInteract",
-                "ViewSector": 360,
-                "Attitudes": ["Neutral", "Friendly", "Revered"]
-              }
-            },
-            "Actions": [
-              {
-                "Type": "SetInteractable",
-                "Interactable": false
-              }
-            ]
-          },
-          {
-            "Sensor": {
-              "Type": "Not",
-              "Sensor": {
-                "Type": "Target",
-                "Filters": [
-                  {
-                    "Type": "ItemInHand",
-                    "Items": {
-                      "Compute": "LovedItems"
-                    }
-                  }
-                ]
-              }
-            },
-            "Actions": [
-              {
-                "Type": "SetInteractable",
-                "Interactable": false
-              }
-            ]
-          },
-          {
-            "Sensor": {
-              "Type": "CanInteract",
-              "Attitudes": ["Revered"]
-            },
-            "Actions": [
-              {
-                "Type": "SetInteractable",
-                "Interactable": true,
-                "Hint": "animalbreeding.interactionHints.feed"
-              }
-            ]
-          },
-          {
-            "Sensor": {
-              "Type": "Not",
-              "Sensor": {
-                "Type": "CanInteract",
-                "Attitudes": ["Revered"]
+                "Type": "Tamed",
+                "Set": true
               }
             },
             "Actions": [
@@ -78,86 +30,19 @@
                 "Hint": "animalbreeding.interactionHints.tame"
               }
             ]
-          }
-        ]
-      },
-      {
-        "_find": "$[?(@.Enabled.Compute == 'IsMountable')]",
-        "_op": "replace",
-        "Enabled": {
-          "Compute": "IsMountable"
-        },
-        "Instructions": [
-          {
-            "Sensor": {
-              "Type": "Not",
-              "Sensor": {
-                "Type": "CanInteract",
-                "ViewSector": 360,
-                "Attitudes": ["Revered"]
-              }
-            },
-            "Actions": [
-              {
-                "Type": "SetInteractable",
-                "Interactable": false
-              }
-            ]
           },
           {
-            "Enabled": {
-              "Compute": "!isEmptyStringArray(LovedItems)"
-            },
-            "Sensor": {
-              "Type": "Target",
-              "Filters": [
-                {
-                  "Type": "ItemInHand",
-                  "Items": {
-                    "Compute": "LovedItems"
-                  }
-                }
-              ]
-            },
-            "Actions": [
-              {
-                "Type": "SetInteractable",
-                "Interactable": false
-              }
-            ]
-          },
-          {
+            "_comment": "Non-mountable/harvestable tamed animal = Feed hint",
             "Continue": true,
             "Sensor": {
-              "Type": "Any"
+              "Type": "Tamed",
+              "Set": true
             },
             "Actions": [
               {
                 "Type": "SetInteractable",
                 "Interactable": true,
-                "Hint": "server.interactionHints.mount"
-              }
-            ]
-          },
-          {
-            "Sensor": {
-              "Type": "HasInteracted"
-            },
-            "Actions": [
-              {
-                "Type": "Mount",
-                "AnchorX": {
-                  "Compute": "MountAnchorX"
-                },
-                "AnchorY": {
-                  "Compute": "MountAnchorY"
-                },
-                "AnchorZ": {
-                  "Compute": "MountAnchorZ"
-                },
-                "MovementConfig": {
-                  "Compute": "MountMovementConfig"
-                }
+                "Hint": "animalbreeding.interactionHints.feed"
               }
             ]
           }
