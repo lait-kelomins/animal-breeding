@@ -342,6 +342,14 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
      * The hytameId is stable across entity respawns/captures.
      * Also marks the animal as captured in TamedAnimalData for persistence across server restarts.
      */
+    /**
+     * Register a pending capture by hytameId - more reliable than entity UUID.
+     * The hytameId is stable across entity respawns/captures.
+     *
+     * IMPORTANT: Order of operations for crash safety:
+     * 1. Add to in-memory list FIRST
+     * 2. Then mark and persist
+     */
     public static void registerPendingCaptureByHytameId(UUID hytameId, UUID playerUuid) {
         if (hytameId == null || playerUuid == null) {
             logStatic("registerPendingCaptureByHytameId: null hytameId or playerUuid");
@@ -361,13 +369,13 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
             return;
         }
 
-        // Mark as captured in TamedAnimalData (persists across server restart)
-        tamedData.setCaptured(true);
-        tamingManager.saveImmediately();  // Persist immediately
-
-        // Track this capture using hytameId (which is stable)
-        // Store in capturedByPlayer using hytameId as the key
+        // STEP 1: Add to in-memory list FIRST (survives even if save fails)
         capturedByPlayer.computeIfAbsent(playerUuid, k -> new ArrayList<>()).add(hytameId);
+
+        // STEP 2: Then mark and persist
+        tamedData.setCaptured(true);
+        tamingManager.saveImmediately();
+
         logStatic("Registered capture by hytameId: player=" + playerUuid + " hytameId=" + hytameId +
             " name=" + tamedData.getCustomName() + " type=" + tamedData.getAnimalType());
     }
@@ -478,8 +486,15 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
     /**
      * Remove an animal from storage tracking.
      */
+    /**
+     * Remove an animal from storage tracking.
+     * Always scans for ghost entries in position map to prevent orphaned data.
+     */
     private static boolean removeFromStorage(UUID uuid) {
         Vector3i pos = animalsInStorage.remove(uuid);
+        boolean removed = pos != null;
+
+        // If we found the position, remove from position map
         if (pos != null) {
             String key = positionKey(pos);
             List<UUID> list = animalsByCoopPosition.get(key);
@@ -489,9 +504,22 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
                     animalsByCoopPosition.remove(key);
                 }
             }
-            return true;
         }
-        return false;
+
+        // ALWAYS scan for ghost entries in ALL positions (cleanup stale data)
+        java.util.Iterator<Map.Entry<String, List<UUID>>> it = animalsByCoopPosition.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, List<UUID>> entry = it.next();
+            if (entry.getValue().remove(uuid)) {
+                logStatic("Cleaned up ghost entry for " + uuid + " at " + entry.getKey());
+                removed = true;
+            }
+            if (entry.getValue().isEmpty()) {
+                it.remove();
+            }
+        }
+
+        return removed;
     }
 
     /**
@@ -751,6 +779,12 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
             }
         }
 
+        // Clear captured flag and persist
+        if (tamedData.isCaptured()) {
+            tamedData.setCaptured(false);
+            tamingManager.saveImmediately();
+        }
+
         logStatic("  - SUCCESS: Animal restored from capture crate!");
         return true;
     }
@@ -868,6 +902,12 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
                             } catch (Exception e) {
                                 logStatic("  - Failed to schedule nameplate restore: " + e.getMessage());
                             }
+                        }
+
+                        // Clear captured flag and persist
+                        if (tamedData.isCaptured()) {
+                            tamedData.setCaptured(false);
+                            tamingManager.saveImmediately();
                         }
 
                         logStatic("  - SUCCESS: Animal restored from capture crate!");
