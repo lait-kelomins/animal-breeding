@@ -10,6 +10,7 @@ import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 
 import com.laits.breeding.LaitsBreedingPlugin;
+import com.laits.breeding.commands.HytamePermissions;
 import com.laits.breeding.interactions.InteractionStateCache;
 import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.GrowthManager;
@@ -34,28 +35,39 @@ public class LegacyCommands {
     private static final Set<UUID> hytalorWarningShown = ConcurrentHashMap.newKeySet();
 
     /**
-     * Show Hytalor warning once per player if not installed.
+     * Check Hytalor and show appropriate message.
+     * @return true if command should be blocked (non-admin without Hytalor)
      */
-    private static void checkHytalorWarning(CommandContext ctx) {
+    private static boolean checkHytalorWarning(CommandContext ctx) {
         LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
         if (plugin == null || plugin.isHytalorInstalled()) {
-            return;
+            return false;
         }
 
-        UUID playerUuid = null;
-        if (ctx.sender() instanceof Player player) {
-            try {
-                playerUuid = player.getUuid();
-            } catch (Exception e) { }
-        }
+        // Check if sender is admin
+        boolean isAdmin = !(ctx.sender() instanceof Player) ||
+                          HytamePermissions.hasAdminAccess((Player) ctx.sender());
 
-        if (playerUuid == null || !hytalorWarningShown.contains(playerUuid)) {
-            ctx.sendMessage(Message.raw("⚠ HYTALOR NOT DETECTED - HyTame requires Hytalor!").color("#FF5555"));
-            ctx.sendMessage(Message.raw("Install from: curseforge.com/hytale/mods/hytalor").color("#AAAAAA"));
-            ctx.sendMessage(Message.raw(""));
-            if (playerUuid != null) {
-                hytalorWarningShown.add(playerUuid);
+        if (isAdmin) {
+            UUID playerUuid = null;
+            if (ctx.sender() instanceof Player player) {
+                try {
+                    playerUuid = player.getUuid();
+                } catch (Exception e) { }
             }
+
+            if (playerUuid == null || !hytalorWarningShown.contains(playerUuid)) {
+                ctx.sendMessage(Message.raw("⚠ HYTALOR NOT DETECTED - HyTame requires Hytalor!").color("#FF5555"));
+                ctx.sendMessage(Message.raw("Install from: curseforge.com/hytale/mods/hytalor").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw(""));
+                if (playerUuid != null) {
+                    hytalorWarningShown.add(playerUuid);
+                }
+            }
+            return false; // Allow admin to continue
+        } else {
+            ctx.sendMessage(Message.raw("[HyTame] This feature is currently unavailable.").color("#FF5555"));
+            return true; // Block non-admin
         }
     }
 
@@ -71,7 +83,7 @@ public class LegacyCommands {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
-            checkHytalorWarning(ctx);
+            if (checkHytalorWarning(ctx)) return CompletableFuture.completedFuture(null);
             ctx.sendMessage(Message.raw("[Deprecated] Use /breed info instead").color("#FFAA00"));
             ctx.sendMessage(Message.raw(""));
 
@@ -130,7 +142,7 @@ public class LegacyCommands {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
-            checkHytalorWarning(ctx);
+            if (checkHytalorWarning(ctx)) return CompletableFuture.completedFuture(null);
             ctx.sendMessage(Message.raw("[Deprecated] Use /breed instead").color("#FFAA00"));
             ctx.sendMessage(Message.raw(""));
             ctx.sendMessage(Message.raw("=== Lait's Animal Breeding v" + LaitsBreedingPlugin.VERSION + " ===").color("#FF9900"));
@@ -168,7 +180,7 @@ public class LegacyCommands {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
-            checkHytalorWarning(ctx);
+            if (checkHytalorWarning(ctx)) return CompletableFuture.completedFuture(null);
             ctx.sendMessage(Message.raw("[Deprecated] Use /breed status instead").color("#FFAA00"));
             ctx.sendMessage(Message.raw(""));
 
