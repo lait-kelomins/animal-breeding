@@ -141,40 +141,24 @@ public class HytameCommand extends AbstractCommand {
             }
 
             if (playerUuid == null || !hytalorWarningShown.contains(playerUuid)) {
-                ctx.sendMessage(Message.raw("").color("#000000"));
-                ctx.sendMessage(Message.raw("╔════════════════════════════════════════╗").color("#FF5555"));
-                ctx.sendMessage(Message.raw("║  ").color("#FF5555")
-                        .insert(Message.raw("⚠ HYTALOR NOT DETECTED").color("#FFFF55"))
-                        .insert(Message.raw("              ║").color("#FF5555")));
-                ctx.sendMessage(Message.raw("║                                        ║").color("#FF5555"));
-                ctx.sendMessage(Message.raw("║  ").color("#FF5555")
-                        .insert(Message.raw("HyTame requires Hytalor to work.").color("#FFFFFF"))
-                        .insert(Message.raw("   ║").color("#FF5555")));
-                ctx.sendMessage(Message.raw("║  ").color("#FF5555")
-                        .insert(Message.raw("Without it, taming and breeding").color("#AAAAAA"))
-                        .insert(Message.raw("    ║").color("#FF5555")));
-                ctx.sendMessage(Message.raw("║  ").color("#FF5555")
-                        .insert(Message.raw("features will NOT work properly.").color("#AAAAAA"))
-                        .insert(Message.raw("   ║").color("#FF5555")));
-                ctx.sendMessage(Message.raw("║                                        ║").color("#FF5555"));
-                ctx.sendMessage(Message.raw("║  ").color("#FF5555")
-                        .insert(Message.raw("Install Hytalor from:").color("#AAAAAA"))
-                        .insert(Message.raw("              ║").color("#FF5555")));
-                ctx.sendMessage(Message.raw("║  ").color("#FF5555")
-                        .insert(Message.raw("curseforge.com/hytale/mods/hytalor").color("#55FFFF"))
-                        .insert(Message.raw(" ║").color("#FF5555")));
-                ctx.sendMessage(Message.raw("╚════════════════════════════════════════╝").color("#FF5555"));
-                ctx.sendMessage(Message.raw("").color("#000000"));
+                ctx.sendMessage(Message.raw(""));
+                ctx.sendMessage(Message.raw("[WARNING] HYTALOR NOT DETECTED").color("#FF5555"));
+                ctx.sendMessage(Message.raw("HyTame requires Hytalor to work.").color("#FFFFFF"));
+                ctx.sendMessage(Message.raw("Without it, taming and breeding features will NOT work.").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw(""));
+                ctx.sendMessage(Message.raw("Install Hytalor from:").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw("curseforge.com/hytale/mods/hytalor").color("#55FFFF"));
+                ctx.sendMessage(Message.raw(""));
 
                 if (playerUuid != null) {
                     hytalorWarningShown.add(playerUuid);
                 }
             }
-            return false; // Allow admin to continue (for debugging)
+            return true; // Block command - Hytalor is required
         } else {
             // Non-admin: show simple message and block command
             ctx.sendMessage(Message.raw("[HyTame] This feature is currently unavailable.").color("#FF5555"));
-            ctx.sendMessage(Message.raw("Please contact the server administrator.").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw("Server needs Hytalor installed.").color("#AAAAAA"));
             return true; // Block command
         }
     }

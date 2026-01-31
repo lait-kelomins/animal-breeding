@@ -368,13 +368,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         getLogger().atInfo().log("Feeding mode: %s",
                 USE_ENTITY_BASED_INTERACTIONS ? "Entity-based (F key)" : "Item Ability2 (E key)");
 
-        // Detect Hytalor for patch-dependent features
-        hytalorInstalled = detectHytalor();
-        if (hytalorInstalled) {
-            getLogger().atInfo().log("Hytalor detected - asset patching enabled");
-        } else {
-            getLogger().atWarning().log(HYTALOR_WARNING);
-        }
+        // Note: Hytalor detection moved to start() - PluginManager not ready during setup()
 
         // Initialize config manager and load from file
         configManager = new ConfigManager();
@@ -687,6 +681,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     @Override
     protected void start() {
+        // Detect Hytalor for patch-dependent features
+        // Must be done in start() because PluginManager is not fully populated during setup()
+        hytalorInstalled = detectHytalor();
+        if (hytalorInstalled) {
+            getLogger().atInfo().log("Hytalor detected - asset patching enabled");
+        } else {
+            getLogger().atWarning().log(HYTALOR_WARNING);
+        }
+
         // Configure RootInteraction chain (after assets are loaded)
         RootInteraction rootInt = RootInteraction.getRootInteractionOrUnknown("Root_FeedAnimal");
         String[] ids = rootInt.getInteractionIds();

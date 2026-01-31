@@ -81,16 +81,17 @@ public class BreedCommand extends AbstractCommand {
             }
 
             if (playerUuid == null || !hytalorWarningShown.contains(playerUuid)) {
-                ctx.sendMessage(Message.raw("⚠ HYTALOR NOT DETECTED - HyTame requires Hytalor!").color("#FF5555"));
+                ctx.sendMessage(Message.raw("WARNING: HYTALOR NOT DETECTED - HyTame requires Hytalor!").color("#FF5555"));
                 ctx.sendMessage(Message.raw("Install from: curseforge.com/hytale/mods/hytalor").color("#AAAAAA"));
                 ctx.sendMessage(Message.raw(""));
                 if (playerUuid != null) {
                     hytalorWarningShown.add(playerUuid);
                 }
             }
-            return false; // Allow admin to continue
+            return true; // Block command - Hytalor is required
         } else {
             ctx.sendMessage(Message.raw("[HyTame] This feature is currently unavailable.").color("#FF5555"));
+            ctx.sendMessage(Message.raw("Server needs Hytalor installed.").color("#AAAAAA"));
             return true; // Block non-admin
         }
     }
