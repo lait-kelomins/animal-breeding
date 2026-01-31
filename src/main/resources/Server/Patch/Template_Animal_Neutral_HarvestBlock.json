@@ -1,0 +1,48 @@
+{
+  "_comment": "Block harvesting when wild - only tamed animals can be harvested",
+  "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+  "InteractionInstruction": {
+    "Instructions": [
+      {
+        "_index": 2,
+        "Instructions": [
+          {
+            "_op": "replace",
+            "_index": 4,
+            "$Comment": "Harvest action triggered by left-click with appropriate tool - ONLY IF TAMED",
+            "Sensor": {
+              "Type": "And",
+              "Sensors": [
+                {
+                  "_comment": "Must be tamed to harvest",
+                  "Type": "Tamed",
+                  "Set": true
+                },
+                {
+                  "Enabled": {
+                    "Compute": "!isEmpty(HarvestInteractionContext)"
+                  },
+                  "Type": "InteractionContext",
+                  "Context": {
+                    "Compute": "HarvestInteractionContext"
+                  }
+                },
+                {
+                  "Type": "Alarm",
+                  "Name": "Harvest_Ready",
+                  "State": "Unset"
+                }
+              ]
+            },
+            "Actions": [
+              {
+                "Type": "State",
+                "State": "$Harvest"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
