@@ -75,6 +75,8 @@ public class HytameCommand extends AbstractCommand {
 
     @Override
     protected CompletableFuture<Void> execute(CommandContext ctx) {
+        // Check Hytalor requirement first
+        checkHytalorWarning(ctx);
         // Check if invoked via deprecated /breed alias
         checkDeprecatedAlias(ctx);
         // Default action: show help
@@ -108,19 +110,66 @@ public class HytameCommand extends AbstractCommand {
         return false;
     }
 
+    // Track if we've shown the Hytalor warning this session (per-player would be better but this reduces spam)
+    private static final java.util.Set<UUID> hytalorWarningShown = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * Show Hytalor warning if not installed. Shows once per player per session.
+     * Called at the start of every command execution.
+     */
+    private static void checkHytalorWarning(CommandContext ctx) {
+        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+        if (plugin == null || plugin.isHytalorInstalled()) {
+            return; // Hytalor is installed, no warning needed
+        }
+
+        // Get player UUID to track if we've shown warning
+        UUID playerUuid = null;
+        if (ctx.sender() instanceof Player player) {
+            try {
+                playerUuid = player.getUuid();
+            } catch (Exception e) {
+                // Fallback - show warning
+            }
+        }
+
+        // Show warning if not shown to this player yet
+        if (playerUuid == null || !hytalorWarningShown.contains(playerUuid)) {
+            ctx.sendMessage(Message.raw("").color("#000000")); // Blank line
+            ctx.sendMessage(Message.raw("╔════════════════════════════════════════╗").color("#FF5555"));
+            ctx.sendMessage(Message.raw("║  ").color("#FF5555")
+                    .insert(Message.raw("⚠ HYTALOR NOT DETECTED").color("#FFFF55"))
+                    .insert(Message.raw("              ║").color("#FF5555")));
+            ctx.sendMessage(Message.raw("║                                        ║").color("#FF5555"));
+            ctx.sendMessage(Message.raw("║  ").color("#FF5555")
+                    .insert(Message.raw("HyTame requires Hytalor to work.").color("#FFFFFF"))
+                    .insert(Message.raw("   ║").color("#FF5555")));
+            ctx.sendMessage(Message.raw("║  ").color("#FF5555")
+                    .insert(Message.raw("Without it, taming and breeding").color("#AAAAAA"))
+                    .insert(Message.raw("    ║").color("#FF5555")));
+            ctx.sendMessage(Message.raw("║  ").color("#FF5555")
+                    .insert(Message.raw("features will NOT work properly.").color("#AAAAAA"))
+                    .insert(Message.raw("   ║").color("#FF5555")));
+            ctx.sendMessage(Message.raw("║                                        ║").color("#FF5555"));
+            ctx.sendMessage(Message.raw("║  ").color("#FF5555")
+                    .insert(Message.raw("Install Hytalor from:").color("#AAAAAA"))
+                    .insert(Message.raw("              ║").color("#FF5555")));
+            ctx.sendMessage(Message.raw("║  ").color("#FF5555")
+                    .insert(Message.raw("curseforge.com/hytale/mods/hytalor").color("#55FFFF"))
+                    .insert(Message.raw(" ║").color("#FF5555")));
+            ctx.sendMessage(Message.raw("╚════════════════════════════════════════╝").color("#FF5555"));
+            ctx.sendMessage(Message.raw("").color("#000000")); // Blank line
+
+            if (playerUuid != null) {
+                hytalorWarningShown.add(playerUuid);
+            }
+        }
+    }
+
     private static void showHelp(CommandContext ctx) {
         ctx.sendMessage(Message.raw("=== HyTame - Animal Breeding & Taming ===").color("#FF9900"));
         ctx.sendMessage(Message.raw("Version: ").color("#AAAAAA")
                 .insert(Message.raw(LaitsBreedingPlugin.VERSION).color("#FFFFFF")));
-
-        // Show Hytalor warning if not installed
-        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
-        if (plugin != null && !plugin.isHytalorInstalled()) {
-            ctx.sendMessage(Message.raw(""));
-            ctx.sendMessage(Message.raw("[!] Hytalor not detected").color("#FFAA00"));
-            ctx.sendMessage(Message.raw("Some features require Hytalor for asset patching.").color("#888888"));
-        }
-
         ctx.sendMessage(Message.raw(""));
         ctx.sendMessage(Message.raw("Player Commands:").color("#FFAA00"));
         ctx.sendMessage(Message.raw("/hytame help").color("#FFFFFF")
@@ -177,6 +226,7 @@ public class HytameCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkHytalorWarning(ctx);
             checkDeprecatedAlias(ctx);
             showHelp(ctx);
             return CompletableFuture.completedFuture(null);
@@ -201,6 +251,7 @@ public class HytameCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkHytalorWarning(ctx);
             checkDeprecatedAlias(ctx);
             executeStatusLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -249,6 +300,7 @@ public class HytameCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkHytalorWarning(ctx);
             checkDeprecatedAlias(ctx);
             executeInfoLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -292,6 +344,7 @@ public class HytameCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkHytalorWarning(ctx);
             checkDeprecatedAlias(ctx);
             executeTameLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -325,6 +378,7 @@ public class HytameCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkHytalorWarning(ctx);
             checkDeprecatedAlias(ctx);
             executeUntameLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -355,6 +409,7 @@ public class HytameCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkHytalorWarning(ctx);
             checkDeprecatedAlias(ctx);
             executeSettingsLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -384,6 +439,7 @@ public class HytameCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkHytalorWarning(ctx);
             checkDeprecatedAlias(ctx);
             executeScanLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -441,6 +497,7 @@ public class HytameCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkHytalorWarning(ctx);
             checkDeprecatedAlias(ctx);
             executeFoodsLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -583,6 +640,7 @@ public class HytameCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkHytalorWarning(ctx);
             checkDeprecatedAlias(ctx);
             executeConfigLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -623,6 +681,7 @@ public class HytameCommand extends AbstractCommand {
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
+            checkHytalorWarning(ctx);
             checkDeprecatedAlias(ctx);
             executeGrowthLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -685,6 +744,7 @@ public class HytameCommand extends AbstractCommand {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkHytalorWarning(ctx);
             checkDeprecatedAlias(ctx);
             executeCustomLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -738,6 +798,7 @@ public class HytameCommand extends AbstractCommand {
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
+            checkHytalorWarning(ctx);
             checkDeprecatedAlias(ctx);
             executeDebugLogic(ctx);
             return CompletableFuture.completedFuture(null);
@@ -777,7 +838,8 @@ public class HytameCommand extends AbstractCommand {
             @Override
             protected CompletableFuture<Void> execute(CommandContext ctx) {
                 if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
-                checkDeprecatedAlias(ctx);
+                checkHytalorWarning(ctx);
+            checkDeprecatedAlias(ctx);
 
                 LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
                 if (plugin == null || plugin.getTamingManager() == null) {
@@ -835,7 +897,8 @@ public class HytameCommand extends AbstractCommand {
             @Override
             protected CompletableFuture<Void> execute(CommandContext ctx) {
                 if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
-                checkDeprecatedAlias(ctx);
+                checkHytalorWarning(ctx);
+            checkDeprecatedAlias(ctx);
 
                 LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
                 if (plugin == null || plugin.getPersistenceManager() == null) {
@@ -895,7 +958,8 @@ public class HytameCommand extends AbstractCommand {
             @Override
             protected CompletableFuture<Void> execute(CommandContext ctx) {
                 if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
-                checkDeprecatedAlias(ctx);
+                checkHytalorWarning(ctx);
+            checkDeprecatedAlias(ctx);
 
                 ctx.sendMessage(Message.raw("=== Last Detected Events ===").color("#FF9900"));
 
@@ -943,7 +1007,8 @@ public class HytameCommand extends AbstractCommand {
             @Override
             protected CompletableFuture<Void> execute(CommandContext ctx) {
                 if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
-                checkDeprecatedAlias(ctx);
+                checkHytalorWarning(ctx);
+            checkDeprecatedAlias(ctx);
 
                 DetectTamedDeath.clearTrackedDeaths();
                 LaitsBreedingPlugin.clearTrackedDespawns();

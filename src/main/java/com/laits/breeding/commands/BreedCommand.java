@@ -3,7 +3,10 @@ package com.laits.breeding.commands;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.AbstractCommand;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.laits.breeding.LaitsBreedingPlugin;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -39,12 +42,40 @@ public class BreedCommand extends AbstractCommand {
 
     @Override
     protected CompletableFuture<Void> execute(CommandContext ctx) {
+        // Check Hytalor requirement
+        showHytalorWarningIfNeeded(ctx);
         // Show deprecation warning then help
         ctx.sendMessage(DEPRECATION_WARNING);
         ctx.sendMessage(Message.raw(""));
         // Show help from HytameCommand
         showDeprecatedHelp(ctx);
         return CompletableFuture.completedFuture(null);
+    }
+
+    // Track if we've shown the Hytalor warning this session
+    private static final java.util.Set<UUID> hytalorWarningShown = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private static void showHytalorWarningIfNeeded(CommandContext ctx) {
+        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+        if (plugin == null || plugin.isHytalorInstalled()) {
+            return;
+        }
+
+        UUID playerUuid = null;
+        if (ctx.sender() instanceof Player player) {
+            try {
+                playerUuid = player.getUuid();
+            } catch (Exception e) { }
+        }
+
+        if (playerUuid == null || !hytalorWarningShown.contains(playerUuid)) {
+            ctx.sendMessage(Message.raw("⚠ HYTALOR NOT DETECTED - HyTame requires Hytalor to work!").color("#FF5555"));
+            ctx.sendMessage(Message.raw("Install from: curseforge.com/hytale/mods/hytalor").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw(""));
+            if (playerUuid != null) {
+                hytalorWarningShown.add(playerUuid);
+            }
+        }
     }
 
     private static void showDeprecatedHelp(CommandContext ctx) {
@@ -99,6 +130,7 @@ public class BreedCommand extends AbstractCommand {
 
         @Override
         protected final CompletableFuture<Void> execute(CommandContext ctx) {
+            showHytalorWarningIfNeeded(ctx);
             ctx.sendMessage(DEPRECATION_WARNING);
             ctx.sendMessage(Message.raw(""));
             return executeDeprecated(ctx);

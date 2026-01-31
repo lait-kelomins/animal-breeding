@@ -30,6 +30,35 @@ import java.util.concurrent.TimeUnit;
  */
 public class LegacyCommands {
 
+    // Track if we've shown the Hytalor warning this session
+    private static final Set<UUID> hytalorWarningShown = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Show Hytalor warning once per player if not installed.
+     */
+    private static void checkHytalorWarning(CommandContext ctx) {
+        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+        if (plugin == null || plugin.isHytalorInstalled()) {
+            return;
+        }
+
+        UUID playerUuid = null;
+        if (ctx.sender() instanceof Player player) {
+            try {
+                playerUuid = player.getUuid();
+            } catch (Exception e) { }
+        }
+
+        if (playerUuid == null || !hytalorWarningShown.contains(playerUuid)) {
+            ctx.sendMessage(Message.raw("⚠ HYTALOR NOT DETECTED - HyTame requires Hytalor!").color("#FF5555"));
+            ctx.sendMessage(Message.raw("Install from: curseforge.com/hytale/mods/hytalor").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw(""));
+            if (playerUuid != null) {
+                hytalorWarningShown.add(playerUuid);
+            }
+        }
+    }
+
     /**
      * Show taming info and list tamed animals.
      * Usage: /taminginfo
@@ -42,6 +71,7 @@ public class LegacyCommands {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkHytalorWarning(ctx);
             ctx.sendMessage(Message.raw("[Deprecated] Use /breed info instead").color("#FFAA00"));
             ctx.sendMessage(Message.raw(""));
 
@@ -100,6 +130,7 @@ public class LegacyCommands {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkHytalorWarning(ctx);
             ctx.sendMessage(Message.raw("[Deprecated] Use /breed instead").color("#FFAA00"));
             ctx.sendMessage(Message.raw(""));
             ctx.sendMessage(Message.raw("=== Lait's Animal Breeding v" + LaitsBreedingPlugin.VERSION + " ===").color("#FF9900"));
@@ -137,6 +168,7 @@ public class LegacyCommands {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            checkHytalorWarning(ctx);
             ctx.sendMessage(Message.raw("[Deprecated] Use /breed status instead").color("#FFAA00"));
             ctx.sendMessage(Message.raw(""));
 
