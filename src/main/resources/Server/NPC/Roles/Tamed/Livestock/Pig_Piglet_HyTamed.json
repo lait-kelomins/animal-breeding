@@ -2,13 +2,12 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Lamb",
-    "FlockArray": ["Sheep_Tamed", "Sheep_Lamb_Tamed"],
-    "LovedItems": ["Plant_Crop_Lettuce_Item"],
-    "DropList": "Drop_Lamb",
-    "MaxHealth": 29,
+    "Appearance": "Piglet",
+    "FlockArray": ["Pig_Piglet_HyTamed", "Pig_HyTamed"],
+    "LovedItems": ["Plant_Crop_Mushroom_Cap_Brown"],
+    "DropList": "Drop_Piglet",
+    "MaxHealth": 19,
     "ViewRange": 10,
-    "GreetAnimation": "Bleat",
     "ProduceItem": "Ingredient_Poop",
     "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
@@ -30,10 +29,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": {
-      "Value": "server.npcRoles.Sheep_Lamb.name",
-      "Description": "Translation key for NPC name display"
-    },
+    "NameTranslationKey": { "Value": "server.npcRoles.Pig_Piglet.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

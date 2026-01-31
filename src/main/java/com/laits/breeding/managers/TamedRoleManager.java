@@ -15,57 +15,28 @@ import java.util.function.Consumer;
 /**
  * Manages asset-based tamed roles for animals.
  * When an animal is tamed, it transitions from its wild role (e.g., "Cow")
- * to a tamed role (e.g., "Cow_Tamed") using Hytale's native RoleChangeSystem.
+ * to a tamed role (e.g., "Cow_HyTamed") using Hytale's native RoleChangeSystem.
+ *
+ * Tamed role naming convention: <WildRoleName>_HyTamed
+ * The manager dynamically checks if a _HyTamed role exists for any wild role.
+ * If the role doesn't exist, the role change is skipped (taming still works via HyTameComponent).
  *
  * This approach provides:
  * - Persistent behavior changes that survive server restarts
  * - Native Hytale integration (no runtime reflection hacks)
  * - Consistent attitude, hints, and interactions via role assets
+ * - Easy expansion: just create <AnimalName>_HyTamed.json asset
  */
 public class TamedRoleManager {
 
-    // Wild -> Tamed role name mapping (covers adults and young variants)
-    private static final Map<String, String> WILD_TO_TAMED = Map.ofEntries(
-        // Cow
-        Map.entry("Cow", "Cow_Tamed"),
-        Map.entry("Cow_Calf", "Cow_Calf_Tamed"),
-        // Horse
-        Map.entry("Horse", "Horse_Tamed"),
-        Map.entry("Horse_Foal", "Horse_Foal_Tamed"),
-        // Pig
-        Map.entry("Pig", "Pig_Tamed"),
-        Map.entry("Pig_Piglet", "Pig_Piglet_Tamed"),
-        // Sheep
-        Map.entry("Sheep", "Sheep_Tamed"),
-        Map.entry("Sheep_Lamb", "Sheep_Lamb_Tamed"),
-        // Chicken
-        Map.entry("Chicken", "Chicken_Tamed"),
-        Map.entry("Chicken_Chick", "Chicken_Chick_Tamed"),
-        // Goat
-        Map.entry("Goat", "Goat_Tamed"),
-        Map.entry("Goat_Kid", "Goat_Kid_Tamed"),
-        // Turkey
-        Map.entry("Turkey", "Turkey_Tamed"),
-        Map.entry("Turkey_Chick", "Turkey_Chick_Tamed"),
-        // Rabbit/Bunny
-        Map.entry("Rabbit", "Rabbit_Tamed"),
-        Map.entry("Bunny", "Bunny_Tamed"),
-        // Boar
-        Map.entry("Boar", "Boar_Tamed"),
-        Map.entry("Boar_Piglet", "Boar_Piglet_Tamed"),
-        // Bison
-        Map.entry("Bison", "Bison_Tamed"),
-        Map.entry("Bison_Calf", "Bison_Calf_Tamed"),
-        // Camel
-        Map.entry("Camel", "Camel_Tamed"),
-        Map.entry("Camel_Calf", "Camel_Calf_Tamed"),
-        // Ram
-        Map.entry("Ram", "Ram_Tamed"),
-        Map.entry("Ram_Lamb", "Ram_Lamb_Tamed")
-    );
+    // Suffix for tamed roles - uses HyTamed to avoid conflicts with base game
+    private static final String TAMED_SUFFIX = "_HyTamed";
 
-    // Cached role indices for O(1) lookup
+    // Cached role indices for O(1) lookup (null = checked and not found)
     private final Map<String, Integer> roleIndexCache = new ConcurrentHashMap<>();
+
+    // Track roles we've already checked don't exist (to avoid repeated lookups)
+    private final Map<String, Boolean> checkedRoles = new ConcurrentHashMap<>();
 
     // Track initialization state
     private volatile boolean initialized = false;
@@ -99,33 +70,12 @@ public class TamedRoleManager {
 
     /**
      * Initialize the manager at plugin startup.
-     * Preloads role indices to ensure they exist and are cached.
      */
     public void initialize() {
-        log("Initializing TamedRoleManager...");
-
-        int loadedCount = 0;
-        int missingCount = 0;
-
-        for (String tamedRoleName : WILD_TO_TAMED.values()) {
-            // Skip duplicates (some young variants share flock arrays)
-            if (roleIndexCache.containsKey(tamedRoleName)) {
-                continue;
-            }
-
-            int index = getRoleIndexUncached(tamedRoleName);
-            if (index >= 0) {
-                roleIndexCache.put(tamedRoleName, index);
-                loadedCount++;
-                log("Cached role index: " + tamedRoleName + " = " + index);
-            } else {
-                missingCount++;
-                logWarning("Tamed role not found: " + tamedRoleName + " (asset may be missing)");
-            }
-        }
-
+        log("Initializing TamedRoleManager with dynamic role detection...");
+        log("Tamed role naming convention: <WildRole>" + TAMED_SUFFIX);
         initialized = true;
-        log("Initialization complete: " + loadedCount + " roles cached, " + missingCount + " missing");
+        log("Initialization complete - roles will be discovered on demand");
     }
 
     /**
@@ -136,23 +86,53 @@ public class TamedRoleManager {
     }
 
     /**
-     * Check if a wild role has a corresponding tamed variant.
+     * Derive the tamed role name from a wild role name.
+     * Convention: <WildRoleName>_HyTamed
      *
-     * @param wildRoleName The wild role name (e.g., "Cow", "Horse")
-     * @return true if a tamed variant exists
+     * @param wildRoleName The wild role name (e.g., "Cow", "Rex_Cave")
+     * @return The tamed role name (e.g., "Cow_HyTamed", "Rex_Cave_HyTamed")
      */
-    public boolean hasTamedRole(String wildRoleName) {
-        return wildRoleName != null && WILD_TO_TAMED.containsKey(wildRoleName);
+    public String deriveTamedRoleName(String wildRoleName) {
+        if (wildRoleName == null || wildRoleName.isEmpty()) {
+            return null;
+        }
+        // Don't double-suffix
+        if (wildRoleName.endsWith(TAMED_SUFFIX)) {
+            return wildRoleName;
+        }
+        return wildRoleName + TAMED_SUFFIX;
     }
 
     /**
-     * Get the tamed role name for a wild role.
+     * Check if a wild role has a corresponding tamed variant asset.
+     *
+     * @param wildRoleName The wild role name (e.g., "Cow", "Horse")
+     * @return true if a _HyTamed variant exists in the game
+     */
+    public boolean hasTamedRole(String wildRoleName) {
+        if (wildRoleName == null) {
+            return false;
+        }
+        String tamedRoleName = deriveTamedRoleName(wildRoleName);
+        return getRoleIndex(tamedRoleName) >= 0;
+    }
+
+    /**
+     * Get the tamed role name for a wild role (if it exists).
      *
      * @param wildRoleName The wild role name (e.g., "Cow")
-     * @return The tamed role name (e.g., "Cow_Tamed") or null if not found
+     * @return The tamed role name if it exists, null otherwise
      */
     public String getTamedRoleName(String wildRoleName) {
-        return wildRoleName != null ? WILD_TO_TAMED.get(wildRoleName) : null;
+        if (wildRoleName == null) {
+            return null;
+        }
+        String tamedRoleName = deriveTamedRoleName(wildRoleName);
+        // Only return if the role actually exists
+        if (getRoleIndex(tamedRoleName) >= 0) {
+            return tamedRoleName;
+        }
+        return null;
     }
 
     /**
@@ -170,10 +150,18 @@ public class TamedRoleManager {
             return cached;
         }
 
+        // Check if we already know it doesn't exist
+        if (checkedRoles.containsKey(roleName)) {
+            return -1;
+        }
+
         // Not in cache - fetch and cache
         int index = getRoleIndexUncached(roleName);
         if (index >= 0) {
             roleIndexCache.put(roleName, index);
+            log("Discovered tamed role: " + roleName + " (index=" + index + ")");
+        } else {
+            checkedRoles.put(roleName, true);
         }
         return index;
     }
@@ -185,14 +173,14 @@ public class TamedRoleManager {
         try {
             return NPCPlugin.get().getIndex(roleName);
         } catch (Exception e) {
-            logWarning("Error looking up role index for " + roleName + ": " + e.getMessage());
             return -1;
         }
     }
 
     /**
      * Apply the tamed role to an NPC when it is tamed.
-     * This changes the NPC's role from wild (e.g., Cow) to tamed (e.g., Cow_Tamed).
+     * This changes the NPC's role from wild (e.g., Cow) to tamed (e.g., Cow_HyTamed).
+     * If no _HyTamed role exists, returns false (taming still works via HyTameComponent).
      *
      * @param npcRef Reference to the NPC entity
      * @param store  Entity store containing the NPC
@@ -225,22 +213,18 @@ public class TamedRoleManager {
             }
 
             // Check if already tamed
-            if (currentRoleName.endsWith("_Tamed")) {
+            if (currentRoleName.endsWith(TAMED_SUFFIX)) {
                 log("applyTamedRole: " + currentRoleName + " is already a tamed role");
                 return true; // Already tamed, success
             }
 
-            // Look up tamed role name
-            String tamedRoleName = getTamedRoleName(currentRoleName);
-            if (tamedRoleName == null) {
-                log("applyTamedRole: no tamed role mapping for " + currentRoleName);
-                return false;
-            }
+            // Derive tamed role name
+            String tamedRoleName = deriveTamedRoleName(currentRoleName);
 
-            // Get tamed role index
+            // Get tamed role index (checks if role exists)
             int tamedRoleIndex = getRoleIndex(tamedRoleName);
             if (tamedRoleIndex < 0) {
-                logWarning("applyTamedRole: tamed role " + tamedRoleName + " not found (asset missing?)");
+                log("applyTamedRole: no " + tamedRoleName + " role exists, skipping role change");
                 return false;
             }
 
@@ -296,15 +280,15 @@ public class TamedRoleManager {
             }
 
             String currentRoleName = npcEntity.getRoleName();
-            if (currentRoleName == null || currentRoleName.endsWith("_Tamed")) {
-                return currentRoleName != null && currentRoleName.endsWith("_Tamed");
-            }
-
-            String tamedRoleName = getTamedRoleName(currentRoleName);
-            if (tamedRoleName == null) {
+            if (currentRoleName == null) {
                 return false;
             }
 
+            if (currentRoleName.endsWith(TAMED_SUFFIX)) {
+                return true; // Already tamed
+            }
+
+            String tamedRoleName = deriveTamedRoleName(currentRoleName);
             int tamedRoleIndex = getRoleIndex(tamedRoleName);
             if (tamedRoleIndex < 0) {
                 return false;
@@ -355,7 +339,7 @@ public class TamedRoleManager {
             }
 
             String roleName = npcEntity.getRoleName();
-            return roleName != null && roleName.endsWith("_Tamed");
+            return roleName != null && roleName.endsWith(TAMED_SUFFIX);
         } catch (Exception e) {
             return false;
         }
@@ -382,11 +366,18 @@ public class TamedRoleManager {
     }
 
     /**
+     * Get the tamed role suffix used by this manager.
+     */
+    public static String getTamedSuffix() {
+        return TAMED_SUFFIX;
+    }
+
+    /**
      * Get statistics about the role manager.
      */
     public String getStats() {
         return "TamedRoleManager: initialized=" + initialized +
-               ", cachedRoles=" + roleIndexCache.size() +
-               ", totalMappings=" + WILD_TO_TAMED.size();
+               ", discoveredRoles=" + roleIndexCache.size() +
+               ", checkedMissing=" + checkedRoles.size();
     }
 }

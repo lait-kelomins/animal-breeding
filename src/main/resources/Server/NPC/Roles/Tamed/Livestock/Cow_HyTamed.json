@@ -2,21 +2,24 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Horse",
-    "AttitudeGroup": "PreyBig",
-    "FlockArray": ["Horse_Tamed", "Horse_Foal_Tamed"],
-    "LovedItems": ["Plant_Crop_Carrot_Item"],
-    "DropList": "Drop_Horse",
-    "MaxHealth": 124,
-    "MaxSpeed": 10,
+    "Appearance": "Cow",
+    "FlockArray": ["Cow_HyTamed", "Cow_Calf_HyTamed"],
+    "LovedItems": ["Plant_Crop_Cauliflower_Item"],
+    "DropList": "Drop_Cow",
+    "MaxHealth": 103,
     "ViewRange": 15,
     "Attack": "Root_NPC_Attack_Melee",
+    "GreetAnimation": "Moo",
     "ProduceItem": "Ingredient_Poop",
+    "IsHarvestable": true,
+    "HarvestDropList": "Drop_Cow_Harvest",
+    "HarvestInteractionContext": "Milk",
+    "HarvestParticles": "Block_Break_Snow",
+    "HarvestSound": "SFX_Water_MoveOut",
+    "HarvestTimeout": ["PT11H", "PT14H"],
+    "HarvestAddItemBucket": "*Container_Bucket_State_Filled_Milk",
+    "HarvestAddItemDecoBucket": "*Deco_Bucket_State_Filled_Milk",
     "IsMemory": true,
-    "IsMountable": true,
-    "MountAnchorX": 0,
-    "MountAnchorY": 1.6,
-    "MountAnchorZ": 0,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
@@ -60,7 +63,7 @@
               "ExtendLeft": 0.5,
               "ExtendRight": 0.5,
               "StartDistance": 0.25,
-              "EndDistance": 2.5,
+              "EndDistance": 2,
               "YawOffset": 180
             },
             "Next": {
@@ -76,7 +79,7 @@
             "Parent": "NPC_Livestock_Kick_Damage",
             "DamageCalculator": {
               "Type": "Absolute",
-              "BaseDamage": { "Physical": 30 },
+              "BaseDamage": { "Physical": 20 },
               "RandomPercentageModifier": 0.1
             },
             "DamageEffects": {
@@ -91,7 +94,7 @@
                   "Style": "Exp"
                 },
                 "Direction": { "X": 0, "Y": 1, "Z": 2 },
-                "Force": 15,
+                "Force": 10,
                 "VelocityType": "Set"
               },
               "WorldSoundEventId": "SFX_Unarmed_Impact",
@@ -104,7 +107,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Horse.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Cow.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

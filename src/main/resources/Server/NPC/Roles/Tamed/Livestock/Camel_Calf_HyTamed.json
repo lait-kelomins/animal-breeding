@@ -2,14 +2,12 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Boar",
-    "FlockArray": ["Boar_Tamed", "Boar_Piglet_Tamed"],
-    "LovedItems": ["Plant_Crop_Mushroom_Cap_Brown"],
-    "DropList": "Drop_Boar",
-    "MaxHealth": 81,
-    "ViewRange": 15,
-    "Attack": "Root_NPC_Attack_Melee",
-    "ProduceItem": "Ingredient_Poop",
+    "Appearance": "Camel_Calf",
+    "AttitudeGroup": "PreyBig",
+    "FlockArray": ["Camel_HyTamed", "Camel_Calf_HyTamed"],
+    "LovedItems": ["Plant_Crop_Wheat_Item"],
+    "MaxHealth": 65,
+    "ViewRange": 12,
     "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
@@ -30,7 +28,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Boar.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Camel_Calf.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

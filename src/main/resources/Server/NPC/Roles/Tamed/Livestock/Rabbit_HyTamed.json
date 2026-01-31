@@ -2,11 +2,13 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Ram_Lamb",
-    "FlockArray": ["Ram_Tamed", "Ram_Lamb_Tamed"],
-    "LovedItems": ["Plant_Fruit_Apple"],
-    "MaxHealth": 30,
-    "ViewRange": 10,
+    "Appearance": "Rabbit",
+    "FlockArray": ["Rabbit_HyTamed", "Bunny_HyTamed"],
+    "LovedItems": ["Plant_Crop_Carrot_Item"],
+    "DropList": "Drop_Rabbit",
+    "MaxHealth": 49,
+    "MaxSpeed": 8,
+    "ViewRange": 16,
     "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
@@ -27,7 +29,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Ram_Lamb.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Rabbit.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

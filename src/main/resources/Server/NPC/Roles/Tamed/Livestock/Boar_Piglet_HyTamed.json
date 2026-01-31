@@ -2,14 +2,11 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Goat_Kid",
-    "FlockArray": ["Goat_Tamed", "Goat_Kid_Tamed"],
-    "LovedItems": ["Plant_Fruit_Apple"],
-    "DropList": "Drop_Goat_Kid",
-    "MaxHealth": 36,
+    "Appearance": "Boar_Piglet",
+    "FlockArray": ["Boar_HyTamed", "Boar_Piglet_HyTamed"],
+    "LovedItems": ["Plant_Crop_Mushroom_Cap_Brown"],
+    "MaxHealth": 27,
     "ViewRange": 10,
-    "GreetAnimation": "Bleat",
-    "ProduceItem": "Ingredient_Poop",
     "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
@@ -30,7 +27,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Goat_Kid.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Boar_Piglet.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

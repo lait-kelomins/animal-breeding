@@ -2,16 +2,17 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Pig",
-    "FlockArray": ["Pig_Tamed", "Pig_Piglet_Tamed"],
-    "LovedItems": ["Plant_Crop_Mushroom_Cap_Brown"],
-    "DropList": "Drop_Pig",
-    "MaxHealth": 38,
-    "ViewRange": 15,
+    "Appearance": "Bison",
+    "AttitudeGroup": "PreyBig",
+    "FlockArray": ["Bison_HyTamed", "Bison_Calf_HyTamed"],
+    "DropList": "Drop_Bison",
+    "MaxHealth": 126,
+    "ViewRange": 20,
+    "Attack": "Root_NPC_Attack_Melee",
+    "GreetAnimation": "Moo",
     "ProduceItem": "Ingredient_Poop",
     "IsHarvestable": false,
     "IsMemory": true,
-    "MemoriesNameOverride": "Pig",
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
@@ -31,7 +32,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Pig.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Bison.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

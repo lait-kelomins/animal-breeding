@@ -2,12 +2,14 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Camel_Calf",
-    "AttitudeGroup": "PreyBig",
-    "FlockArray": ["Camel_Tamed", "Camel_Calf_Tamed"],
-    "LovedItems": ["Plant_Crop_Wheat_Item"],
-    "MaxHealth": 65,
-    "ViewRange": 12,
+    "Appearance": "Lamb",
+    "FlockArray": ["Sheep_HyTamed", "Sheep_Lamb_HyTamed"],
+    "LovedItems": ["Plant_Crop_Lettuce_Item"],
+    "DropList": "Drop_Lamb",
+    "MaxHealth": 29,
+    "ViewRange": 10,
+    "GreetAnimation": "Bleat",
+    "ProduceItem": "Ingredient_Poop",
     "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
@@ -28,7 +30,10 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Camel_Calf.name" },
+    "NameTranslationKey": {
+      "Value": "server.npcRoles.Sheep_Lamb.name",
+      "Description": "Translation key for NPC name display"
+    },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

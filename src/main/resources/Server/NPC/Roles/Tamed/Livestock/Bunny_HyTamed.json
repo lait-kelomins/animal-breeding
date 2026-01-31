@@ -2,13 +2,11 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Piglet",
-    "FlockArray": ["Pig_Piglet_Tamed", "Pig_Tamed"],
-    "LovedItems": ["Plant_Crop_Mushroom_Cap_Brown"],
-    "DropList": "Drop_Piglet",
-    "MaxHealth": 19,
-    "ViewRange": 10,
-    "ProduceItem": "Ingredient_Poop",
+    "Appearance": "Bunny",
+    "FlockArray": ["Rabbit_HyTamed", "Bunny_HyTamed"],
+    "LovedItems": ["Plant_Crop_Carrot_Item"],
+    "MaxHealth": 25,
+    "ViewRange": 8,
     "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
@@ -29,7 +27,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Pig_Piglet.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Bunny.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

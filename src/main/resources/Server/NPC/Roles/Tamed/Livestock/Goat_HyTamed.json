@@ -2,11 +2,15 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Bison_Calf",
-    "AttitudeGroup": "PreyBig",
-    "FlockArray": ["Bison_Tamed", "Bison_Calf_Tamed"],
-    "MaxHealth": 75,
-    "ViewRange": 12,
+    "Appearance": "Goat",
+    "FlockArray": ["Goat_HyTamed", "Goat_Kid_HyTamed"],
+    "LovedItems": ["Plant_Fruit_Apple"],
+    "DropList": "Drop_Goat",
+    "MaxHealth": 81,
+    "ViewRange": 15,
+    "Attack": "Root_NPC_Attack_Melee",
+    "GreetAnimation": "Bleat",
+    "ProduceItem": "Ingredient_Poop",
     "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
@@ -27,7 +31,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Bison_Calf.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Goat.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

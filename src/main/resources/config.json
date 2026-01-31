@@ -128,7 +128,7 @@
     "TRILLODON": { "enabled": false, "breedingFoods": ["Food_Wildmeat_Raw", "Food_Fish_Raw"], "growthTimeMinutes": 35.0, "breedCooldownMinutes": 8.0 },
 
     "RAPTOR_CAVE": { "enabled": false, "breedingFoods": ["Food_Wildmeat_Cooked", "Food_Wildmeat_Raw"], "growthTimeMinutes": 35.0, "breedCooldownMinutes": 5.0 },
-    "REX_CAVE": { "enabled": false, "breedingFoods": ["Food_Wildmeat_Cooked", "Food_Wildmeat_Raw"], "growthTimeMinutes": 60.0, "breedCooldownMinutes": 10.0 },
+    "REX_CAVE": { "enabled": true, "breedingFoods": ["Food_Wildmeat_Cooked", "Food_Wildmeat_Raw"], "growthTimeMinutes": 60.0, "breedCooldownMinutes": 10.0 },
     "ARCHAEOPTERYX": { "enabled": false, "breedingFoods": ["Food_Wildmeat_Raw", "Plant_Fruit_Berries_Red"], "growthTimeMinutes": 20.0, "breedCooldownMinutes": 3.0 },
     "PTERODACTYL": { "enabled": false, "breedingFoods": ["Food_Fish_Raw", "Food_Fish_Grilled", "Food_Wildmeat_Raw"], "growthTimeMinutes": 40.0, "breedCooldownMinutes": 8.0 },
 

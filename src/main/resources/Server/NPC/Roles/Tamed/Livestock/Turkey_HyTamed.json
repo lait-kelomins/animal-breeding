@@ -2,15 +2,13 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Goat",
-    "FlockArray": ["Goat_Tamed", "Goat_Kid_Tamed"],
-    "LovedItems": ["Plant_Fruit_Apple"],
-    "DropList": "Drop_Goat",
-    "MaxHealth": 81,
-    "ViewRange": 15,
-    "Attack": "Root_NPC_Attack_Melee",
-    "GreetAnimation": "Bleat",
-    "ProduceItem": "Ingredient_Poop",
+    "Appearance": "Turkey",
+    "FlockArray": ["Turkey_HyTamed", "Turkey_Chick_HyTamed"],
+    "LovedItems": ["Plant_Crop_Corn_Item"],
+    "DropList": "Drop_Turkey",
+    "MaxHealth": 38,
+    "MaxSpeed": 5,
+    "ViewRange": 16,
     "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
@@ -31,7 +29,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Goat.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Turkey.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

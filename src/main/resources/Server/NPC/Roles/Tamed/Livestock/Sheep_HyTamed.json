@@ -3,7 +3,7 @@
   "Reference": "Template_Animal_Neutral",
   "Modify": {
     "Appearance": "Sheep",
-    "FlockArray": ["Sheep_Tamed", "Sheep_Lamb_Tamed"],
+    "FlockArray": ["Sheep_HyTamed", "Sheep_Lamb_HyTamed"],
     "LovedItems": ["Plant_Crop_Lettuce_Item"],
     "DropList": "Drop_Sheep",
     "MaxHealth": 81,

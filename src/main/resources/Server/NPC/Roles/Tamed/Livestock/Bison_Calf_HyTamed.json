@@ -2,11 +2,11 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Turkey_Chick",
-    "FlockArray": ["Turkey_Tamed", "Turkey_Chick_Tamed"],
-    "LovedItems": ["Plant_Crop_Corn_Item"],
-    "MaxHealth": 12,
-    "ViewRange": 8,
+    "Appearance": "Bison_Calf",
+    "AttitudeGroup": "PreyBig",
+    "FlockArray": ["Bison_HyTamed", "Bison_Calf_HyTamed"],
+    "MaxHealth": 75,
+    "ViewRange": 12,
     "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
@@ -27,7 +27,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Turkey_Chick.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Bison_Calf.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

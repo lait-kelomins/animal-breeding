@@ -1,39 +1,26 @@
 {
   "Type": "Variant",
-  "Reference": "Template_Animal_Neutral",
+  "Reference": "Template_Predator",
   "Modify": {
-    "Appearance": "Cow",
-    "FlockArray": ["Cow_Tamed", "Cow_Calf_Tamed"],
-    "LovedItems": ["Plant_Crop_Cauliflower_Item"],
-    "DropList": "Drop_Cow",
-    "MaxHealth": 103,
-    "ViewRange": 15,
+    "Appearance": "Rex_Cave",
+    "Interactions": {
+      "Use": "*UseNPC"
+    },
+    "FlockArray": ["Rex_Cave_HyTamed"],
+    "LovedItems": ["Food_Wildmeat_Raw", "Food_Wildmeat_Cooked"],
+    "DropList": "Drop_Rex_Cave",
+    "MaxHealth": 400,
+    "MaxSpeed": 9,
     "Attack": "Root_NPC_Attack_Melee",
-    "GreetAnimation": "Moo",
-    "ProduceItem": "Ingredient_Poop",
-    "IsHarvestable": true,
-    "HarvestDropList": "Drop_Cow_Harvest",
-    "HarvestInteractionContext": "Milk",
-    "HarvestParticles": "Block_Break_Snow",
-    "HarvestSound": "SFX_Water_MoveOut",
-    "HarvestTimeout": ["PT11H", "PT14H"],
-    "HarvestAddItemBucket": "*Container_Bucket_State_Filled_Milk",
-    "HarvestAddItemDecoBucket": "*Deco_Bucket_State_Filled_Milk",
+    "AttackWhenStartled": true,
+    "AttackRange": 5,
+    "ClimbHeight": 2,
+    "WanderRadius": 8,
+    "LeashDistance": 60,
     "IsMemory": true,
+    "MemoriesCategory": "Reptile",
     "PlayerDefaultAttitude": "Revered",
-    "ChanceToTurnFriendly": 100,
-    "ChanceToTurnFriendlyWithAttractiveItem": 100,
-    "FriendlyOverrideTime": 2147483647,
-    "Timid": false,
-    "AttackWhenStartled": false,
-    "WeightGreet": 40,
-    "WeightFollow": 50,
-    "WeightFollowItem": 30,
-    "WeightIgnore": 5,
-    "WanderRadius": 5,
-    "LeashDistance": 30,
-    "AlertedTimeoutGiveUp": [15, 25],
-    "AlertedActionRange": 4,
+    "AttitudeGroup": "Livestock",
     "NameTranslationKey": {
       "Compute": "NameTranslationKey"
     },
@@ -43,10 +30,10 @@
           {
             "Parent": "NPC_Attack_Melee_Simple",
             "Effects": {
-              "ItemPlayerAnimationsId": "Cow_Default",
-              "ItemAnimationId": "Kick"
+              "ItemPlayerAnimationsId": "Rex_Cave",
+              "ItemAnimationId": "Bite"
             },
-            "RunTime": 0.167
+            "RunTime": 0.2
           }
         ]
       },
@@ -54,21 +41,21 @@
         "Interactions": [
           {
             "Parent": "NPC_Attack_Selector_Left",
-            "RunTime": 0.083,
+            "RunTime": 0.1,
             "Selector": {
-              "Id": "Stab",
+              "Id": "Bite",
               "TestLineOfSight": true,
-              "ExtendTop": 0,
+              "ExtendTop": 0.5,
               "ExtendBottom": 1,
-              "ExtendLeft": 0.5,
-              "ExtendRight": 0.5,
-              "StartDistance": 0.25,
-              "EndDistance": 2,
-              "YawOffset": 180
+              "ExtendLeft": 1,
+              "ExtendRight": 1,
+              "StartDistance": 0.5,
+              "EndDistance": 3,
+              "YawOffset": 0
             },
             "Next": {
               "Type": "Simple",
-              "RunTime": 0.167
+              "RunTime": 0.2
             }
           }
         ]
@@ -79,7 +66,7 @@
             "Parent": "NPC_Livestock_Kick_Damage",
             "DamageCalculator": {
               "Type": "Absolute",
-              "BaseDamage": { "Physical": 20 },
+              "BaseDamage": { "Physical": 40 },
               "RandomPercentageModifier": 0.1
             },
             "DamageEffects": {
@@ -93,8 +80,8 @@
                   "Threshold": 3,
                   "Style": "Exp"
                 },
-                "Direction": { "X": 0, "Y": 1, "Z": 2 },
-                "Force": 10,
+                "Direction": { "X": 0, "Y": 1, "Z": 3 },
+                "Force": 15,
                 "VelocityType": "Set"
               },
               "WorldSoundEventId": "SFX_Unarmed_Impact",
@@ -107,7 +94,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Cow.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Rex_Cave.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

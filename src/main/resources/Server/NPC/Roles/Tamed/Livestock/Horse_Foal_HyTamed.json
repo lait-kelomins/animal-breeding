@@ -2,16 +2,15 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Bison",
-    "AttitudeGroup": "PreyBig",
-    "FlockArray": ["Bison_Tamed", "Bison_Calf_Tamed"],
-    "DropList": "Drop_Bison",
-    "MaxHealth": 126,
-    "ViewRange": 20,
-    "Attack": "Root_NPC_Attack_Melee",
+    "Appearance": "Horse_Foal",
+    "FlockArray": ["Horse_Foal_HyTamed", "Horse_HyTamed"],
+    "LovedItems": ["Plant_Crop_Carrot_Item"],
+    "DropList": "Drop_Horse_Foal",
+    "MaxHealth": 49,
+    "MaxSpeed": 8,
+    "ViewRange": 12,
     "GreetAnimation": "Moo",
     "ProduceItem": "Ingredient_Poop",
-    "IsHarvestable": false,
     "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
@@ -32,7 +31,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Bison.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Horse_Foal.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

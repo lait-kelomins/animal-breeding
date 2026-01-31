@@ -2,11 +2,14 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Bunny",
-    "FlockArray": ["Rabbit_Tamed", "Bunny_Tamed"],
-    "LovedItems": ["Plant_Crop_Carrot_Item"],
-    "MaxHealth": 25,
-    "ViewRange": 8,
+    "Appearance": "Calf",
+    "FlockArray": ["Cow_Calf_HyTamed", "Cow_HyTamed"],
+    "LovedItems": ["Plant_Crop_Cauliflower_Item"],
+    "DropList": "Drop_Calf",
+    "MaxHealth": 60,
+    "ViewRange": 12,
+    "GreetAnimation": "Moo",
+    "ProduceItem": "Ingredient_Poop",
     "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
@@ -27,7 +30,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Bunny.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Cow_Calf.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

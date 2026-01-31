@@ -2,11 +2,11 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Boar_Piglet",
-    "FlockArray": ["Boar_Tamed", "Boar_Piglet_Tamed"],
-    "LovedItems": ["Plant_Crop_Mushroom_Cap_Brown"],
-    "MaxHealth": 27,
-    "ViewRange": 10,
+    "Appearance": "Turkey_Chick",
+    "FlockArray": ["Turkey_HyTamed", "Turkey_Chick_HyTamed"],
+    "LovedItems": ["Plant_Crop_Corn_Item"],
+    "MaxHealth": 12,
+    "ViewRange": 8,
     "IsMemory": true,
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
@@ -27,7 +27,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Boar_Piglet.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Turkey_Chick.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }

@@ -2,15 +2,16 @@
   "Type": "Variant",
   "Reference": "Template_Animal_Neutral",
   "Modify": {
-    "Appearance": "Calf",
-    "FlockArray": ["Cow_Calf_Tamed", "Cow_Tamed"],
-    "LovedItems": ["Plant_Crop_Cauliflower_Item"],
-    "DropList": "Drop_Calf",
-    "MaxHealth": 60,
-    "ViewRange": 12,
-    "GreetAnimation": "Moo",
+    "Appearance": "Pig",
+    "FlockArray": ["Pig_HyTamed", "Pig_Piglet_HyTamed"],
+    "LovedItems": ["Plant_Crop_Mushroom_Cap_Brown"],
+    "DropList": "Drop_Pig",
+    "MaxHealth": 38,
+    "ViewRange": 15,
     "ProduceItem": "Ingredient_Poop",
+    "IsHarvestable": false,
     "IsMemory": true,
+    "MemoriesNameOverride": "Pig",
     "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
@@ -30,7 +31,7 @@
     }
   },
   "Parameters": {
-    "NameTranslationKey": { "Value": "server.npcRoles.Cow_Calf.name" },
+    "NameTranslationKey": { "Value": "server.npcRoles.Pig.name" },
     "OwnerUUID": { "Value": "" },
     "TrustLevel": { "Value": 100 },
     "Generation": { "Value": 0 }
