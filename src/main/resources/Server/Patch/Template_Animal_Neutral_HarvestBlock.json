@@ -4,11 +4,15 @@
   "InteractionInstruction": {
     "Instructions": [
       {
-        "_index": 2,
+        "_find": {
+          "Enabled": { "Compute": "IsHarvestable" }
+        },
         "Instructions": [
           {
             "_op": "replace",
-            "_index": 4,
+            "_find": {
+              "Actions": [{ "Type": "State", "State": "$Harvest" }]
+            },
             "$Comment": "Harvest action triggered by left-click with appropriate tool - ONLY IF TAMED",
             "Sensor": {
               "Type": "And",

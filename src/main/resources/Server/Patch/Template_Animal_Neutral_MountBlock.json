@@ -4,12 +4,16 @@
   "InteractionInstruction": {
     "Instructions": [
       {
-        "_comment": "Target the mountable block (index 3 after taming patch adds block 0)",
-        "_index": 3,
+        "_comment": "Find the mountable block by its Enabled condition",
+        "_find": {
+          "Enabled": { "Compute": "IsMountable" }
+        },
         "Instructions": [
           {
-            "_comment": "Modify the HasInteracted -> Mount instruction: only mount if TAMED and NOT holding loved item",
-            "_index": 2,
+            "_comment": "Find and modify the HasInteracted -> Mount instruction",
+            "_find": {
+              "Sensor": { "Type": "HasInteracted" }
+            },
             "Sensor": {
               "Type": "And",
               "Sensors": [
