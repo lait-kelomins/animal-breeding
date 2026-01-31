@@ -152,7 +152,7 @@ public final class TameHelper {
             // very basic implementation should be safe as entity already has Tame Component, but probably should be done properly.
             WorldSupport worldSupport = ref.getStore().getComponent(ref, NPCEntity.getComponentType()).getRole().getWorldSupport();
             try {
-                LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.FRIENDLY);
+                LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);
             } catch (IllegalAccessException e) {
                 log(e.getMessage());
             }
@@ -186,7 +186,7 @@ public final class TameHelper {
                         // very basic implementation should be safe as entity already has Tame Component, but probably should be done properly.
                         WorldSupport worldSupport = ref.getStore().getComponent(ref, NPCEntity.getComponentType()).getRole().getWorldSupport();
                         try {
-                            LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.FRIENDLY);
+                            LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);
                         } catch (IllegalAccessException e) {
                             log(e.getMessage());
                         }

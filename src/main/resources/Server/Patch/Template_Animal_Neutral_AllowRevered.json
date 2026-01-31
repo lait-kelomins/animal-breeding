@@ -1,0 +1,41 @@
+{
+  "_comment": "Allow Revered attitude for mount and harvest interactions (tamed animals)",
+  "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+  "InteractionInstruction": {
+    "Instructions": [
+      {
+        "_find": { "Enabled": { "Compute": "IsHarvestable" } },
+        "Instructions": [
+          {
+            "_find": { "Sensor": { "Type": "Not" } },
+            "Sensor": {
+              "Sensor": {
+                "Sensors": [
+                  {},
+                  {
+                    "Attitudes": {
+                      "Compute": "HarvestRequiredAttitudes"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "_find": { "Enabled": { "Compute": "IsMountable" } },
+        "Instructions": [
+          {
+            "_find": { "Sensor": { "Type": "Not" } },
+            "Sensor": {
+              "Sensor": {
+                "Attitudes": ["Neutral", "Friendly", "Hostile", "Revered"]
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

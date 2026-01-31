@@ -59,7 +59,14 @@ public class HyTameSystems {
             this.query = Query.and(npcComponentType, Query.not(NPCMountComponent.getComponentType()));
             this.dependencies = Set.of(new SystemDependency<>(Order.AFTER, RoleBuilderSystem.class));
             // Use Laits ConfigManager for tameable animal groups
-            this.validGroups = LaitsBreedingPlugin.getInstance().getConfigManager().getTameableAnimalGroups();
+            // Defensive null check for early initialization
+            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+            if (plugin != null && plugin.getConfigManager() != null) {
+                this.validGroups = plugin.getConfigManager().getTameableAnimalGroups();
+            } else {
+                // Fallback to default groups if plugin not ready
+                this.validGroups = Set.of("Livestock", "PreyBig", "Prey");
+            }
         }
 
         @Nonnull
@@ -92,9 +99,13 @@ public class HyTameSystems {
             HyTameComponent hyTameComponent = holder.ensureAndGetComponent(this.hyTameComponentType);
             if (hyTameComponent.isTamed()) {
                 try {
-                    LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.FRIENDLY);
+                    LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);
                 } catch (IllegalAccessException e) {
-                    LaitsBreedingPlugin.getInstance().getLogger().atSevere().log("Failed to override attitude for NPC", e);
+                    // Defensive null check for logging
+                    LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                    if (plugin != null) {
+                        plugin.getLogger().atSevere().log("Failed to override attitude for NPC", e);
+                    }
                 }
 
                 // Remove from over population tracking

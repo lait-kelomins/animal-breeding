@@ -10,7 +10,7 @@
     "ViewRange": 10,
     "ProduceItem": "Ingredient_Poop",
     "IsMemory": true,
-    "PlayerDefaultAttitude": "Friendly",
+    "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
     "FriendlyOverrideTime": 2147483647,

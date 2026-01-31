@@ -20,7 +20,7 @@
     "HarvestAddItemBucket": "*Container_Bucket_State_Filled_Milk",
     "HarvestAddItemDecoBucket": "*Deco_Bucket_State_Filled_Milk",
     "IsMemory": true,
-    "PlayerDefaultAttitude": "Friendly",
+    "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
     "FriendlyOverrideTime": 2147483647,

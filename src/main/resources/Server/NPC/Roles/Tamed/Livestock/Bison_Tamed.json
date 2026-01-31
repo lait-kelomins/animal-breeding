@@ -13,7 +13,7 @@
     "ProduceItem": "Ingredient_Poop",
     "IsHarvestable": false,
     "IsMemory": true,
-    "PlayerDefaultAttitude": "Friendly",
+    "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
     "FriendlyOverrideTime": 2147483647,

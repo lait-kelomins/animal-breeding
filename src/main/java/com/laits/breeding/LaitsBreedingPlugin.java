@@ -724,25 +724,30 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Periodically update player UUIDs for the spawn detector to exclude players
             scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
                 try {
-                    if (spawnDetector != null) {
-                        Set<UUID> currentPlayerUuids = ConcurrentHashMap.newKeySet();
-                        // Collect player UUIDs from all worlds
-                        for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
-                            World world = entry.getValue();
-                            if (world == null) continue;
-                            for (Player p : world.getPlayers()) {
-                                UUID pUuid = EntityUtil.getEntityUUID(p);
-                                if (pUuid != null) {
-                                    currentPlayerUuids.add(pUuid);
-                                }
+                    if (spawnDetector == null) return;
+
+                    // Defensive null checks for early initialization
+                    if (Universe.get() == null) return;
+                    var worlds = Universe.get().getWorlds();
+                    if (worlds == null) return;
+
+                    Set<UUID> currentPlayerUuids = ConcurrentHashMap.newKeySet();
+                    // Collect player UUIDs from all worlds
+                    for (java.util.Map.Entry<String, World> entry : worlds.entrySet()) {
+                        World world = entry.getValue();
+                        if (world == null) continue;
+                        for (Player p : world.getPlayers()) {
+                            UUID pUuid = EntityUtil.getEntityUUID(p);
+                            if (pUuid != null) {
+                                currentPlayerUuids.add(pUuid);
                             }
                         }
-                        spawnDetector.updatePlayerUuids(currentPlayerUuids);
                     }
+                    spawnDetector.updatePlayerUuids(currentPlayerUuids);
                 } catch (Exception e) {
-                    // Silent
+                    // Silent - may happen during early initialization
                 }
-            }, 0, 5, TimeUnit.SECONDS));
+            }, 2, 5, TimeUnit.SECONDS));  // Delay start by 2 seconds to allow initialization
 
             // Periodically clear the processedEntities cache to prevent memory leak
             scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {

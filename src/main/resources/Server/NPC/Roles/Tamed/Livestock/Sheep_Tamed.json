@@ -21,7 +21,7 @@
     "HarvestParticles": "Sheep_Wool_Shear",
     "HarvestSound": "SFX_Sheep_Sheared",
     "IsMemory": true,
-    "PlayerDefaultAttitude": "Friendly",
+    "PlayerDefaultAttitude": "Revered",
     "ChanceToTurnFriendly": 100,
     "ChanceToTurnFriendlyWithAttractiveItem": 100,
     "FriendlyOverrideTime": 2147483647,
