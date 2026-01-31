@@ -359,6 +359,9 @@ public class RespawnManager {
                                             tamingManager.markRespawned(tamedData.getAnimalUuid(), newUuid, foundRef);
                                         }
                                     }
+
+                                    // Notify smart loading detection
+                                    tamingManager.onEntityLinked(hytameId);
                                 } catch (ArrayIndexOutOfBoundsException e) {
                                     // Entity ref became stale - treat as not existing
                                     entityExists = false;
@@ -371,6 +374,11 @@ public class RespawnManager {
                                 tamedData.setDespawned(false);
                                 logVerbose("[RespawnCheck] Entity found for: " + tamedData.getCustomName()
                                         + ", unmarking despawned");
+
+                                // Notify smart loading detection
+                                if (hytameId != null) {
+                                    tamingManager.onEntityLinked(hytameId);
+                                }
                             }
                         } else {
                             if (!tamedData.isDespawned()) {

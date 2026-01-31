@@ -42,7 +42,15 @@ public class TamingManager {
 
     // Grace period tracking for preventing duplication on slow servers
     private volatile long initializationTime = 0;
-    private int gracePeriodMs = 15000;  // Default 15 seconds
+    private int gracePeriodMs = 15000;  // Default 15 seconds (fallback)
+
+    // Smart loading detection - track expected vs found entities
+    private int expectedEntityCount = 0;      // From JSON load
+    private int foundEntityCount = 0;         // Incremented as entities link
+    private volatile boolean loadingComplete = false;
+    private volatile long loadingCompleteTime = 0;
+    private static final int POST_LOAD_BUFFER_MS = 5000;  // 5 second buffer after all entities found
+    private static final int MAX_GRACE_PERIOD_MS = 30000; // 30 second hard max (fallback for missing entities)
 
     public TamingManager() {
     }
@@ -67,10 +75,49 @@ public class TamingManager {
     /**
      * Check if we're still in the initialization grace period.
      * During this period, respawn operations should be skipped.
+     *
+     * Smart detection: Waits until all expected entities are found, then adds a buffer.
+     * Fallback: Hard max timeout in case some entities are genuinely missing.
      */
     public boolean isInGracePeriod() {
         if (initializationTime == 0) return true;  // Not yet initialized
-        return (System.currentTimeMillis() - initializationTime) < gracePeriodMs;
+
+        long now = System.currentTimeMillis();
+
+        // Hard max timeout - prevents indefinite waiting if entities are genuinely missing
+        if ((now - initializationTime) > MAX_GRACE_PERIOD_MS) {
+            if (!loadingComplete) {
+                loadingComplete = true;
+                loadingCompleteTime = now;
+                log("Grace period max timeout reached - " + foundEntityCount + "/" + expectedEntityCount +
+                    " entities found. Proceeding anyway.");
+            }
+            return false;
+        }
+
+        // Still scanning for entities
+        if (!loadingComplete) return true;
+
+        // Buffer period after loading complete
+        return (now - loadingCompleteTime) < POST_LOAD_BUFFER_MS;
+    }
+
+    /**
+     * Called when an entity is successfully linked to saved tamed animal data.
+     * Tracks progress toward loading completion.
+     */
+    public void onEntityLinked(UUID hytameId) {
+        if (loadingComplete) return;
+
+        foundEntityCount++;
+        log("Entity linked: " + hytameId + " (" + foundEntityCount + "/" + expectedEntityCount + ")");
+
+        if (foundEntityCount >= expectedEntityCount && !loadingComplete) {
+            loadingComplete = true;
+            loadingCompleteTime = System.currentTimeMillis();
+            log("All " + expectedEntityCount + " tamed entities found - " +
+                (POST_LOAD_BUFFER_MS / 1000) + "s buffer started");
+        }
     }
 
     /**
@@ -143,6 +190,12 @@ public class TamingManager {
         tamedByHytameId.clear();
         int migrated = 0;
         int despawnedCount = 0;
+        int capturedCount = 0;
+
+        // Reset smart loading detection
+        foundEntityCount = 0;
+        loadingComplete = false;
+        loadingCompleteTime = 0;
 
         for (TamedAnimalData data : savedAnimals) {
             if (data != null && data.getAnimalUuid() != null) {
@@ -164,13 +217,29 @@ public class TamingManager {
                 if (data.isDespawned()) {
                     despawnedCount++;
                 }
+                if (data.isCaptured()) {
+                    capturedCount++;
+                }
 
                 tamedAnimalsByUuid.put(data.getAnimalUuid(), data);
                 tamedByHytameId.put(data.getHytameId(), data);
             }
         }
 
-        log("Loaded " + tamedAnimalsByUuid.size() + " tamed animals from persistence (" + despawnedCount + " marked as despawned)");
+        // Set expected entity count for smart loading detection
+        // Only count non-despawned, non-captured, non-dead animals (those expected to exist in world)
+        expectedEntityCount = 0;
+        for (TamedAnimalData data : tamedAnimalsByUuid.values()) {
+            if (!data.isDespawned() && !data.isCaptured() && !data.isDead()) {
+                expectedEntityCount++;
+            }
+        }
+
+        log("Loaded " + tamedAnimalsByUuid.size() + " tamed animals from persistence");
+        log("  - " + despawnedCount + " marked as despawned");
+        log("  - " + capturedCount + " marked as captured");
+        log("  - " + expectedEntityCount + " expected to exist in world (for smart loading)");
+
         if (migrated > 0) {
             log("Migrated " + migrated + " animals to new hytameId system");
             markDirty(true); // Save migrated data immediately
@@ -755,6 +824,9 @@ public class TamingManager {
             jsonData.setDespawned(false);
             jsonData.setLastPosition(x, y, z);
 
+            // Notify smart loading detection
+            onEntityLinked(hytameId);
+
             log("Synced entity " + entityUuid + " with hytameId=" + hytameId +
                 " (name: " + jsonData.getCustomName() + ")");
             return SyncResult.SYNCED;
@@ -784,6 +856,33 @@ public class TamingManager {
             .filter(data -> !data.isDead())
             .filter(data -> data.isDespawned())
             .collect(Collectors.toList());
+    }
+
+    /**
+     * Cleanup orphaned flags after loading is complete.
+     * Clears isCaptured flag for animals that:
+     * - Have no entity reference
+     * - Are not despawned (meaning we expected them to exist but they don't)
+     *
+     * Call this after the grace period expires and entity scan completes.
+     *
+     * @return Number of orphaned flags cleared
+     */
+    public int cleanupOrphanedFlags() {
+        int cleaned = 0;
+        for (TamedAnimalData data : tamedByHytameId.values()) {
+            if (data.isCaptured() && data.getEntityRef() == null && !data.isDespawned()) {
+                log("Clearing orphaned isCaptured flag for: " + data.getHytameId() +
+                    " (" + data.getCustomName() + ")");
+                data.setCaptured(false);
+                cleaned++;
+            }
+        }
+        if (cleaned > 0) {
+            markDirty(true);
+            log("Cleaned up " + cleaned + " orphaned captured flags");
+        }
+        return cleaned;
     }
 
     /**
