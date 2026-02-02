@@ -14,7 +14,7 @@ import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
-
+import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.listeners.CoopResidentTracker;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
@@ -50,11 +50,8 @@ public class RespawnManager {
     private BreedingManager breedingManager;
     private Supplier<ComponentType<EntityStore, HyTameComponent>> hyTameTypeSupplier;
     private Function<Ref<EntityStore>, Vector3d> positionGetter;
-
-    // Logging
-    private boolean verboseLogging = false;
-    private Consumer<String> logger;
-    private Consumer<String> warningLogger;
+    private boolean _isFirstTimeRunning = true; // Used to remove "isRespawning" flag if it was persisted from previous
+                                                // session
 
     // Respawn radius in blocks
     private static final double RESPAWN_RADIUS = 64.0;
@@ -97,27 +94,15 @@ public class RespawnManager {
     // LOGGING CONFIGURATION
     // ========================================================================
 
-    public void setVerboseLogging(boolean verbose) {
-        this.verboseLogging = verbose;
-    }
-
-    public void setLogger(Consumer<String> logger) {
-        this.logger = logger;
-    }
-
-    public void setWarningLogger(Consumer<String> warningLogger) {
-        this.warningLogger = warningLogger;
-    }
-
     private void logVerbose(String message) {
-        if (verboseLogging && logger != null) {
-            logger.accept(message);
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atInfo().log(message);
         }
     }
 
     private void logWarning(String message) {
-        if (warningLogger != null) {
-            warningLogger.accept(message);
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atWarning().log(message);
         }
     }
 
@@ -143,24 +128,29 @@ public class RespawnManager {
                 continue;
 
             String worldId = data.getWorldId();
-            if (worldId == null) worldId = "default";
+            if (worldId == null) {
+                worldId = getWorldNameFromRef(data.getEntityRef());
+                if (worldId == null) {
+                    worldId = "default";
+                }
+            }
             animalsByWorld.computeIfAbsent(worldId, k -> new java.util.ArrayList<>()).add(data);
         }
 
-        final int[] totalUpdated = {0};
+        final int[] totalUpdated = { 0 };
 
         // Process each world's animals on that world's thread
         for (Map.Entry<String, java.util.List<TamedAnimalData>> entry : animalsByWorld.entrySet()) {
             String worldId = entry.getKey();
             java.util.List<TamedAnimalData> animals = entry.getValue();
 
-            World world = "default".equals(worldId) ?
-                Universe.get().getDefaultWorld() :
-                Universe.get().getWorld(worldId);
+            World world = "default".equals(worldId) ? Universe.get().getDefaultWorld()
+                    : Universe.get().getWorld(worldId);
             if (world == null) {
                 world = Universe.get().getDefaultWorld();
             }
-            if (world == null) continue;
+            if (world == null)
+                continue;
 
             final java.util.List<TamedAnimalData> finalAnimals = animals;
             world.execute(() -> {
@@ -168,7 +158,8 @@ public class RespawnManager {
                     int updated = 0;
                     for (TamedAnimalData data : finalAnimals) {
                         Object refObj = data.getEntityRef();
-                        if (refObj == null) continue;
+                        if (refObj == null)
+                            continue;
 
                         @SuppressWarnings("unchecked")
                         Ref<EntityStore> entityRef = (Ref<EntityStore>) refObj;
@@ -205,7 +196,8 @@ public class RespawnManager {
             });
         }
 
-        // Save after all worlds processed (with small delay to allow world.execute to complete)
+        // Save after all worlds processed (with small delay to allow world.execute to
+        // complete)
         if (!animalsByWorld.isEmpty()) {
             // Schedule save slightly later
             World defaultWorld = Universe.get().getDefaultWorld();
@@ -242,7 +234,8 @@ public class RespawnManager {
         }
 
         // Skip respawn checks during initialization grace period
-        // This prevents duplication on slow servers where entities load after plugin init
+        // This prevents duplication on slow servers where entities load after plugin
+        // init
         if (tamingManager.isInGracePeriod()) {
             logVerbose("[RespawnCheck] In initialization grace period - skipping respawn checks");
             return;
@@ -260,7 +253,10 @@ public class RespawnManager {
         for (TamedAnimalData data : allAnimals) {
             String worldId = data.getWorldId();
             if (worldId == null || worldId.isEmpty()) {
-                worldId = "default";
+                worldId = getWorldNameFromRef(data.getEntityRef());
+                if (worldId == null) {
+                    worldId = "default";
+                }
             }
             animalsByWorld.computeIfAbsent(worldId, k -> new java.util.ArrayList<>()).add(data);
         }
@@ -270,7 +266,8 @@ public class RespawnManager {
             String worldName = entry.getKey();
             java.util.List<TamedAnimalData> worldAnimals = entry.getValue();
 
-            World world = "default".equals(worldName) ? Universe.get().getDefaultWorld() : Universe.get().getWorld(worldName);
+            World world = "default".equals(worldName) ? Universe.get().getDefaultWorld()
+                    : Universe.get().getWorld(worldName);
             if (world == null) {
                 logVerbose("[RespawnCheck] World not found: " + worldName + ", trying default");
                 world = Universe.get().getDefaultWorld();
@@ -289,7 +286,8 @@ public class RespawnManager {
                 try {
                     Store<EntityStore> store = finalWorld.getEntityStore().getStore();
 
-                    // Phase 0: Scan all entities for HyTameComponent and build hytameId -> entityRef map
+                    // Phase 0: Scan all entities for HyTameComponent and build hytameId ->
+                    // entityRef map
                     Map<UUID, Ref<EntityStore>> entitiesByHytameId = new HashMap<>();
                     ComponentType<EntityStore, HyTameComponent> hyTameType = hyTameTypeSupplier != null
                             ? hyTameTypeSupplier.get()
@@ -301,7 +299,8 @@ public class RespawnManager {
                             for (int i = 0; i < chunkSize; i++) {
                                 try {
                                     HyTameComponent hyTameComp = chunk.getComponent(i, hyTameType);
-                                    if (hyTameComp != null && hyTameComp.isTamed() && hyTameComp.getHytameId() != null) {
+                                    if (hyTameComp != null && hyTameComp.isTamed()
+                                            && hyTameComp.getHytameId() != null) {
                                         Ref<EntityStore> ref = chunk.getReferenceTo(i);
                                         if (ref != null && ref.isValid()) {
                                             NPCEntity npc = store.getComponent(ref, EcsReflectionUtil.NPC_TYPE);
@@ -316,13 +315,18 @@ public class RespawnManager {
                                 }
                             }
                         });
-                        logVerbose("[RespawnCheck] World " + finalWorldName + ": Found " + entitiesByHytameId.size() + " entities with HyTameComponent");
+                        logVerbose("[RespawnCheck] World " + finalWorldName + ": Found " + entitiesByHytameId.size()
+                                + " entities with HyTameComponent");
                     }
 
                     // Phase 1: Update entity status for animals in this world
                     for (TamedAnimalData tamedData : finalWorldAnimals) {
                         if (tamedData.isDead()) {
                             continue;
+                        }
+
+                        if (_isFirstTimeRunning) {
+                            tamedData.setRespawnInProgress(false);
                         }
 
                         boolean entityExists = false;
@@ -339,13 +343,15 @@ public class RespawnManager {
                                     entityExists = true;
                                 }
                             } catch (ArrayIndexOutOfBoundsException e) {
-                                // Entity ref became stale between validity check and access - treat as not existing
+                                // Entity ref became stale between validity check and access - treat as not
+                                // existing
                             }
                         }
 
                         // Second check: scan by HytameId
                         if (!entityExists && hytameId != null) {
                             Ref<EntityStore> foundRef = entitiesByHytameId.get(hytameId);
+                            entitiesByHytameId.remove(hytameId);
                             if (foundRef != null && foundRef.isValid()) {
                                 try {
                                     tamedData.setEntityRef(foundRef);
@@ -383,6 +389,8 @@ public class RespawnManager {
                         }
                     }
 
+                    _isFirstTimeRunning = false;
+
                     // Phase 2: Respawn despawned animals near players in this world
                     for (Player player : finalWorld.getPlayers()) {
                         try {
@@ -397,8 +405,14 @@ public class RespawnManager {
                             for (TamedAnimalData tamedData : toRespawn) {
                                 // Filter by world
                                 String animalWorld = tamedData.getWorldId();
-                                if (animalWorld == null || animalWorld.isEmpty()) animalWorld = "default";
-                                if (!finalWorldName.equals(animalWorld)) continue;
+                                if (animalWorld == null || animalWorld.isEmpty()) {
+                                    animalWorld = getWorldNameFromRef(tamedData.getEntityRef());
+                                    if (animalWorld == null) {
+                                        animalWorld = "default";
+                                    }
+                                }
+                                if (!finalWorldName.equals(animalWorld))
+                                    continue;
 
                                 if (!tamedData.isDead()) {
                                     respawnTamedAnimal(finalWorld, store, tamedData);
@@ -427,18 +441,22 @@ public class RespawnManager {
         if (tamedData == null || !tamedData.isDespawned())
             return;
 
+        tamedData.setRespawnInProgress(true);
+
         AnimalType animalType = tamedData.getAnimalType();
         if (animalType == null)
             return;
 
-        // Check if animal is in coop/capture crate storage - don't respawn stored animals
+        // Check if animal is in coop/capture crate storage - don't respawn stored
+        // animals
         UUID animalUuid = tamedData.getAnimalUuid();
         if (CoopResidentTracker.isInStorage(animalUuid)) {
             logVerbose("[Respawn] Skipping - animal is in coop storage: " + tamedData.getCustomName());
             return;
         }
 
-        // Check if animal is captured in a capture crate - don't respawn captured animals
+        // Check if animal is captured in a capture crate - don't respawn captured
+        // animals
         if (tamedData.isCaptured()) {
             logVerbose("[Respawn] Skipping - animal is in capture crate: " + tamedData.getCustomName());
             return;
@@ -485,6 +503,7 @@ public class RespawnManager {
 
             Pair<Ref<EntityStore>, NPCEntity> newNpc = NPCPlugin.get().spawnEntity(store, roleIndex, spawnPos,
                     rotation, null, null);
+            tamedData.setRespawnInProgress(false);
 
             if (newNpc != null) {
                 Ref<EntityStore> entityRef = newNpc.first();
@@ -557,5 +576,53 @@ public class RespawnManager {
      */
     public static double getRespawnRadius() {
         return RESPAWN_RADIUS;
+    }
+
+    /**
+     * Get the world name by searching all worlds for the given entity.
+     * This is more reliable than trying to get world from store's external data.
+     */
+    private String getWorldNameFromRef(Ref<EntityStore> ref) {
+        if (ref == null)
+            return null;
+
+        try {
+            UUID entityUuid = EcsReflectionUtil.getUuidFromRef(ref);
+            if (entityUuid == null) {
+                logVerbose("[WorldDebug] Could not get UUID from ref");
+                return null;
+            }
+
+            logVerbose("[WorldDebug] Searching all worlds for entity UUID: " + entityUuid);
+
+            // Search all worlds for this entity
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                String worldName = entry.getKey();
+                World world = entry.getValue();
+
+                if (world == null)
+                    continue;
+
+                try {
+                    Store<EntityStore> store = world.getEntityStore().getStore();
+                    if (store == null)
+                        continue;
+
+                    // Check if this entity exists in this world's store
+                    // by comparing the store reference
+                    if (ref.getStore() == store) {
+                        logVerbose("[WorldDebug] Found entity in world: " + worldName);
+                        return worldName;
+                    }
+                } catch (Exception e) {
+                    // Skip this world if we can't access its store
+                }
+            }
+
+            logVerbose("[WorldDebug] Entity not found in any world");
+        } catch (Exception e) {
+            logVerbose("getWorldNameFromRef error: " + e.getMessage());
+        }
+        return null;
     }
 }

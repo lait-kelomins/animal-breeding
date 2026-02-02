@@ -10,6 +10,7 @@ import com.hypixel.hytale.server.core.modules.entity.component.TransformComponen
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.CustomAnimalConfig;
@@ -53,12 +54,16 @@ public class BreedingTickManager {
 
     // Logging
     private boolean verboseLogging = false;
-    private Consumer<String> logger;
-    private Consumer<String> warningLogger;
 
     public BreedingTickManager(BreedingManager breedingManager, ConfigManager configManager) {
         this.breedingManager = breedingManager;
         this.configManager = configManager;
+    }
+
+    private void logVerbose(String message) {
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atInfo().log(message);
+        }
     }
 
     /**
@@ -100,20 +105,6 @@ public class BreedingTickManager {
     }
 
     /**
-     * Set the logger for info messages.
-     */
-    public void setLogger(Consumer<String> logger) {
-        this.logger = logger;
-    }
-
-    /**
-     * Set the logger for warning messages.
-     */
-    public void setWarningLogger(Consumer<String> warningLogger) {
-        this.warningLogger = warningLogger;
-    }
-
-    /**
      * Main tick method to handle animals in love.
      * Should be called every second.
      */
@@ -122,8 +113,8 @@ public class BreedingTickManager {
         int trackedCount = breedingManager.getTrackedCount();
         int inLoveTotal = breedingManager.getInLoveCount();
 
-        if (inLoveTotal > 0 && verboseLogging && logger != null) {
-            logger.accept("[TickLove] Running: tracked=" + trackedCount + ", inLove=" + inLoveTotal);
+        if (inLoveTotal > 0 && verboseLogging) {
+            logVerbose("[TickLove] Running: tracked=" + trackedCount + ", inLove=" + inLoveTotal);
         }
 
         if (trackedCount == 0)
@@ -183,13 +174,13 @@ public class BreedingTickManager {
                 String worldName = worldEntry.getKey();
                 List<BreedingData> worldAnimals = worldEntry.getValue();
 
-                World world = "__default__".equals(worldName) ?
-                    Universe.get().getDefaultWorld() :
-                    Universe.get().getWorld(worldName);
+                World world = "__default__".equals(worldName) ? Universe.get().getDefaultWorld()
+                        : Universe.get().getWorld(worldName);
                 if (world == null) {
                     world = Universe.get().getDefaultWorld();
                 }
-                if (world == null) continue;
+                if (world == null)
+                    continue;
 
                 final World finalWorld = world;
                 final List<BreedingData> finalWorldAnimals = worldAnimals;
@@ -232,25 +223,28 @@ public class BreedingTickManager {
             // Group by world within this animal type
             Map<String, List<BreedingData>> typeByWorld = new HashMap<>();
             for (BreedingData data : animalsOfType) {
-                if (data.getEntityRef() == null) continue;
+                if (data.getEntityRef() == null)
+                    continue;
                 String worldName = data.getWorldName();
-                if (worldName == null) worldName = "__default__";
+                if (worldName == null)
+                    worldName = "__default__";
                 typeByWorld.computeIfAbsent(worldName, k -> new ArrayList<>()).add(data);
             }
 
             // Check breeding only within the same world
             for (Map.Entry<String, List<BreedingData>> worldEntry : typeByWorld.entrySet()) {
                 List<BreedingData> worldAnimals = worldEntry.getValue();
-                if (worldAnimals.size() < 2) continue;
+                if (worldAnimals.size() < 2)
+                    continue;
 
                 String worldName = worldEntry.getKey();
-                World world = "__default__".equals(worldName) ?
-                    Universe.get().getDefaultWorld() :
-                    Universe.get().getWorld(worldName);
+                World world = "__default__".equals(worldName) ? Universe.get().getDefaultWorld()
+                        : Universe.get().getWorld(worldName);
                 if (world == null) {
                     world = Universe.get().getDefaultWorld();
                 }
-                if (world == null) continue;
+                if (world == null)
+                    continue;
 
                 BreedingData animal1 = worldAnimals.get(0);
                 BreedingData animal2 = worldAnimals.get(1);
@@ -267,7 +261,7 @@ public class BreedingTickManager {
      * Check if two animals are close enough to breed.
      */
     private void checkBreedingDistance(World world, AnimalType animalType,
-                                       BreedingData animal1, BreedingData animal2) {
+            BreedingData animal1, BreedingData animal2) {
         final BreedingData finalAnimal1 = animal1;
         final BreedingData finalAnimal2 = animal2;
         final AnimalType finalType = animalType;
@@ -281,9 +275,8 @@ public class BreedingTickManager {
                 Vector3d pos2 = findEntityPositionByUuid(store, finalAnimal2);
 
                 if (pos1 == null || pos2 == null) {
-                    if (verboseLogging && logger != null) {
-                        logger.accept("[Breeding] Position lookup failed - pos1: " + (pos1 != null) + ", pos2: " + (pos2 != null));
-                    }
+                    logVerbose("[Breeding] Position lookup failed - pos1: " + (pos1 != null) + ", pos2: "
+                            + (pos2 != null));
                     return;
                 }
 
@@ -311,7 +304,8 @@ public class BreedingTickManager {
         for (BreedingManager.CustomAnimalLoveData data : breedingManager.getCustomAnimalsInLove()) {
             if (data.isInLove() && data.getEntityRef() != null) {
                 String worldName = data.getWorldName();
-                if (worldName == null) worldName = "__default__";
+                if (worldName == null)
+                    worldName = "__default__";
                 String key = worldName + ":" + data.getModelAssetId();
                 byTypeAndWorld.computeIfAbsent(key, k -> new ArrayList<>()).add(data);
             }
@@ -331,13 +325,13 @@ public class BreedingTickManager {
 
             // Get world from animal data
             String worldName = animal1.getWorldName();
-            World world = (worldName == null || "__default__".equals(worldName)) ?
-                Universe.get().getDefaultWorld() :
-                Universe.get().getWorld(worldName);
+            World world = (worldName == null || "__default__".equals(worldName)) ? Universe.get().getDefaultWorld()
+                    : Universe.get().getWorld(worldName);
             if (world == null) {
                 world = Universe.get().getDefaultWorld();
             }
-            if (world == null) continue;
+            if (world == null)
+                continue;
 
             final World finalWorld = world;
             final BreedingManager.CustomAnimalLoveData finalAnimal1 = animal1;
@@ -357,10 +351,8 @@ public class BreedingTickManager {
                     double distance = calculateDistance(pos1, pos2);
 
                     if (distance <= BREEDING_DISTANCE) {
-                        if (verboseLogging && logger != null) {
-                            logger.accept("[CustomBreed] Breeding " + modelAssetId + " at distance " +
-                                    String.format("%.1f", distance));
-                        }
+                        logVerbose("[CustomBreed] Breeding " + modelAssetId + " at distance " +
+                                String.format("%.1f", distance));
 
                         finalAnimal1.completeBreeding();
                         finalAnimal2.completeBreeding();
@@ -419,7 +411,7 @@ public class BreedingTickManager {
      * Also updates the entityRef in BreedingData for future use.
      *
      * @param store The entity store
-     * @param data The breeding data containing the animal UUID
+     * @param data  The breeding data containing the animal UUID
      * @return The entity's position, or null if not found
      */
     @SuppressWarnings("unchecked")
@@ -434,7 +426,8 @@ public class BreedingTickManager {
 
         try {
             store.forEachChunk((ArchetypeChunk<EntityStore> chunk, CommandBuffer<EntityStore> buffer) -> {
-                if (foundRef[0] != null) return; // Already found
+                if (foundRef[0] != null)
+                    return; // Already found
 
                 int chunkSize = chunk.size();
                 for (int i = 0; i < chunkSize; i++) {

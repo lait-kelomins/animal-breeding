@@ -1,5 +1,6 @@
 package com.laits.breeding.managers;
 
+import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.GrowthStage;
@@ -37,9 +38,6 @@ public class TamingManager {
     // Reference to persistence manager for dirty marking
     private PersistenceManager persistenceManager;
 
-    // Logger
-    private Consumer<String> logger;
-
     // Grace period tracking for preventing duplication on slow servers
     private volatile long initializationTime = 0;
     private int gracePeriodMs = 15000;  // Default 15 seconds
@@ -73,16 +71,9 @@ public class TamingManager {
         return (System.currentTimeMillis() - initializationTime) < gracePeriodMs;
     }
 
-    /**
-     * Set the logger for output messages.
-     */
-    public void setLogger(Consumer<String> logger) {
-        this.logger = logger;
-    }
-
     private void log(String message) {
-        if (logger != null) {
-            logger.accept(message);
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atInfo().log(message);
         }
     }
 
@@ -498,6 +489,9 @@ public class TamingManager {
             log("Tamed animal died: " + data.getCustomName() + " (marked as dead, not removed)");
         }
     }
+
+    // TODO: handle baby growing to animal (should keep name and baby should be removed from taming data so it doesnt respawn)
+    
 
     /**
      * Update position of a tamed animal (called periodically).

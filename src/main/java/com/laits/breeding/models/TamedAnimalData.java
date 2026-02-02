@@ -33,6 +33,7 @@ public class TamedAnimalData {
     // Taming metadata
     private long tamedTime;
     private boolean isDespawned;       // True if awaiting respawn (chunk unload, etc.)
+    private boolean isRespawning;      // Prevents race conditions from duplicating respawning animals
     private boolean isDead;            // True if animal died (for future revive mechanic)
     private long deathTime;            // When animal died
     private long despawnTime;          // When entity was marked despawned (for cleanup)
@@ -211,6 +212,16 @@ public class TamedAnimalData {
 
     public void setTamedTime(long tamedTime) {
         this.tamedTime = tamedTime;
+    }
+
+    public boolean isRespawning()
+    {
+        return isRespawning;
+    }
+
+    public void setRespawnInProgress(boolean respawning)
+    {
+        isRespawning = respawning;
     }
 
     public boolean isDespawned() {

@@ -7,6 +7,7 @@ import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.asset.type.model.config.Model;
 import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
 import com.hypixel.hytale.server.core.universe.Universe;
@@ -16,7 +17,7 @@ import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.assetstore.map.DefaultAssetMap;
 import com.hypixel.hytale.component.RemoveReason;
-
+import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.CustomAnimalConfig;
@@ -48,12 +49,6 @@ public class SpawningManager {
     private TamingManager tamingManager;
     private Supplier<ComponentType<EntityStore, HyTameComponent>> hyTameTypeSupplier;
 
-    // Logging
-    private boolean verboseLogging = false;
-    private Consumer<String> logger;
-    private Consumer<String> warningLogger;
-    private Consumer<String> errorLogger;
-
     // Helper for getting model asset ID from entity
     private Function<Object[], String> modelAssetIdGetter;
 
@@ -84,37 +79,21 @@ public class SpawningManager {
     // LOGGING CONFIGURATION
     // ========================================================================
 
-    public void setVerboseLogging(boolean verbose) {
-        this.verboseLogging = verbose;
-    }
-
-    public void setLogger(Consumer<String> logger) {
-        this.logger = logger;
-    }
-
-    public void setWarningLogger(Consumer<String> warningLogger) {
-        this.warningLogger = warningLogger;
-    }
-
-    public void setErrorLogger(Consumer<String> errorLogger) {
-        this.errorLogger = errorLogger;
-    }
-
     private void logVerbose(String message) {
-        if (verboseLogging && logger != null) {
-            logger.accept(message);
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atInfo().log(message);
         }
     }
 
     private void logWarning(String message) {
-        if (warningLogger != null) {
-            warningLogger.accept(message);
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atWarning().log(message);
         }
     }
 
     private void logError(String message) {
-        if (errorLogger != null) {
-            errorLogger.accept(message);
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atSevere().log(message);
         }
     }
 
@@ -151,7 +130,8 @@ public class SpawningManager {
      * @param parent2Id  UUID of second parent (pass null if unknown)
      * @param worldName  Name of the world to spawn in (null = default world)
      */
-    public void spawnBabyAnimal(AnimalType animalType, Vector3d position, UUID parent1Id, UUID parent2Id, String worldName) {
+    public void spawnBabyAnimal(AnimalType animalType, Vector3d position, UUID parent1Id, UUID parent2Id,
+            String worldName) {
         try {
             boolean hasBabyVariant = animalType.hasBabyVariant();
             String roleId = hasBabyVariant ? animalType.getBabyNpcRoleId() : animalType.getAdultNpcRoleId();
@@ -360,7 +340,8 @@ public class SpawningManager {
      * @param position     The spawn position
      * @param worldName    Name of the world to spawn in (null = default world)
      */
-    public void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position, String worldName) {
+    public void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position,
+            String worldName) {
         try {
             // Get world from name if provided, otherwise fall back to default
             World world = null;
@@ -464,7 +445,8 @@ public class SpawningManager {
      *
      * @param animalId   The animal's UUID
      * @param animalType The type of animal
-     * @param scale      The target scale (0.4 for baby, 0.7 for juvenile, 1.0 for adult)
+     * @param scale      The target scale (0.4 for baby, 0.7 for juvenile, 1.0 for
+     *                   adult)
      */
     public void updateEntityScale(UUID animalId, AnimalType animalType, float scale) {
         try {
@@ -477,8 +459,9 @@ public class SpawningManager {
             }
 
             Ref<EntityStore> entityRef = data.getEntityRef();
-            if (entityRef == null) {
-                logWarning("Cannot update scale - no entity ref for animal");
+            // Check for null OR invalid (stale) refs
+            if (entityRef == null || !entityRef.isValid()) {
+                logVerbose("Cannot update scale - entity ref is " + (entityRef == null ? "null" : "stale"));
                 return;
             }
 
@@ -556,7 +539,8 @@ public class SpawningManager {
                     Throwable cause = e;
                     if (e instanceof java.lang.reflect.InvocationTargetException) {
                         cause = ((java.lang.reflect.InvocationTargetException) e).getTargetException();
-                        if (cause == null) cause = e;
+                        if (cause == null)
+                            cause = e;
                     }
                     String errorMsg = cause.getMessage();
                     if (errorMsg == null) {
@@ -573,49 +557,54 @@ public class SpawningManager {
     }
 
     /**
-     * Transform a baby animal into an adult by removing the baby and spawning an adult NPC.
+     * Transform a baby animal into an adult by removing the baby and spawning an
+     * adult NPC.
      * Used for animals WITH baby variants (livestock).
      */
     public void transformBabyToAdult(UUID animalId, AnimalType animalType) {
         try {
-            logVerbose("Transforming baby " + animalType.getId() + " to adult");
+            logWarning("Transforming baby " + animalType.getId() + " to adult (animalId=" + animalId + ")");
+            logVerbose("Transforming baby " + animalType.getId() + " to adult (animalId=" + animalId + ")");
 
             BreedingData data = breedingManager.getData(animalId);
             if (data == null) {
-                logWarning("Cannot transform - no breeding data for animal");
+                logVerbose("Cannot transform - no breeding data for animalId=" + animalId);
                 return;
+            }
+
+            String entityWorldName = getWorldNameFromRef(data.getEntityRef());
+
+            if (entityWorldName != null && data.getWorldName() == null) {
+                data.setWorldName(entityWorldName);
             }
 
             Ref<EntityStore> entityRef = data.getEntityRef();
-            if (entityRef == null) {
-                entityRef = tryReacquireBabyRef(animalId, animalType, data.getWorldName());
-                if (entityRef != null) {
-                    data.setEntityRef(entityRef);
-                    logVerbose("Re-acquired entityRef for baby " + animalType.getId());
-                } else {
-                    // Silent fail
-                    // logWarning("Cannot transform - no entity ref for animal (re-acquisition failed)");
-                    return;
+
+            // Check for null OR invalid (stale) refs - both need reacquisition
+            // TODO: remove probably useless code
+            if (entityRef == null || !entityRef.isValid()) {
+                {
+                    Ref<EntityStore> safeEntityRef = tryReacquireBabyRef(animalId, animalType, data.getWorldName());
+                    if (safeEntityRef != null && safeEntityRef.isValid()) {
+                        data.setEntityRef(safeEntityRef);
+                        logVerbose("Re-acquired entityRef for baby " + animalType.getId());
+                    } else {
+                        logVerbose("Cannot transform - reacquisition failed for " + animalType.getId() +
+                                " in world=" + data.getWorldName());
+                        return;
+                    }
                 }
             }
 
-            // Get world from BreedingData, fall back to default
-            World world = null;
-            String worldName = data.getWorldName();
-            if (worldName != null) {
-                world = Universe.get().getWorld(worldName);
-            }
-            if (world == null) {
-                world = Universe.get().getDefaultWorld();
-            }
-            if (world == null) {
-                logWarning("Cannot transform - world is null");
+            if (data.getEntityRef() == null || !data.getEntityRef().isValid())
+            {
+                // failsafe in case we couldn't get valid entity ref
                 return;
             }
 
-            final World finalWorld = world;
+            final World finalWorld = Universe.get().getWorld(entityWorldName);
             String adultRoleId = animalType.getModelAssetId();
-            final Ref<EntityStore> finalEntityRef = entityRef;
+            final Ref<EntityStore> finalEntityRef = data.getEntityRef();
             final UUID finalAnimalId = animalId;
 
             finalWorld.execute(() -> {
@@ -644,7 +633,8 @@ public class SpawningManager {
                             return;
                         }
                         if (cause instanceof ArrayIndexOutOfBoundsException) {
-                            logVerbose("Baby entity ref is stale (ArrayIndexOutOfBounds wrapped) - removing tracking data");
+                            logVerbose(
+                                    "Baby entity ref is stale (ArrayIndexOutOfBounds wrapped) - removing tracking data");
                             breedingManager.removeData(finalAnimalId);
                             return;
                         }
@@ -664,6 +654,17 @@ public class SpawningManager {
                         return;
                     }
 
+                    // Check if baby is tamed - save data for transfer to adult
+                    UUID babyUuid = getUuidFromRef(finalEntityRef);
+                    TamedAnimalData tamedData = null;
+                    if (babyUuid != null && tamingManager != null) {
+                        tamedData = tamingManager.getTamedData(babyUuid);
+                        if (tamedData != null) {
+                            logVerbose("Baby is tamed - will transfer data to adult: " +
+                                tamedData.getCustomName() + " (owner=" + tamedData.getOwnerName() + ")");
+                        }
+                    }
+
                     // Remove the baby entity
                     try {
                         // Use reflection to find valid RemoveReason constant
@@ -679,7 +680,14 @@ public class SpawningManager {
                             despawnReason = RemoveReason.values()[0];
                         }
                         if (despawnReason != null) {
-                            store.removeEntity(finalEntityRef, despawnReason);
+                            // Use CommandBuffer for deferred removal to avoid race condition
+                            // where PositionCacheSystems tries to access invalidated entity ref
+                            final RemoveReason finalReason = despawnReason;
+                            store.forEachChunk((chunk, commandBuffer) -> {
+                                if (finalEntityRef.isValid()) {
+                                    commandBuffer.removeEntity(finalEntityRef, finalReason);
+                                }
+                            });
                         }
                     } catch (Exception e) {
                         // Silent
@@ -697,6 +705,63 @@ public class SpawningManager {
                             .spawnEntity(store, roleIndex, babyPosition, rotation, null, null);
 
                     if (result != null && result.first() != null) {
+                        Ref<EntityStore> adultRef = result.first();
+
+                        // Transfer taming data from baby to adult
+                        if (tamedData != null && babyUuid != null) {
+                            UUID adultUuid = getUuidFromRef(adultRef);
+                            if (adultUuid != null) {
+                                // Get taming info from baby's TamedAnimalData
+                                UUID ownerUuid = tamedData.getOwnerUuid();
+                                String ownerName = tamedData.getOwnerName();
+                                UUID hytameId = tamedData.getHytameId();
+                                String customName = tamedData.getCustomName();
+
+                                // Apply HyTameComponent to adult
+                                if (ownerUuid != null && hyTameTypeSupplier != null) {
+                                    ComponentType<EntityStore, HyTameComponent> hyTameType = hyTameTypeSupplier.get();
+                                    if (hyTameType != null) {
+                                        HyTameComponent hyTameComp = store.ensureAndGetComponent(adultRef, hyTameType);
+                                        if (hyTameComp != null) {
+                                            String effectiveOwnerName = (ownerName != null) ? ownerName : "Unknown";
+                                            hyTameComp.setTamed(ownerUuid, effectiveOwnerName);
+                                            if (hytameId != null) {
+                                                hyTameComp.setHytameId(hytameId);
+                                            }
+                                            logVerbose("Set HyTameComponent on adult: owner=" + effectiveOwnerName +
+                                                    ", hytameId=" + hytameId);
+                                        }
+                                    }
+                                }
+
+                                // Re-index persistence from baby UUID to adult UUID
+                                // This prevents DetectTamedDespawn from marking baby for respawn
+                                tamingManager.markRespawned(babyUuid, adultUuid, adultRef);
+
+                                // Update growth stage to ADULT in tamed data
+                                TamedAnimalData updatedTamedData = tamingManager.getTamedData(adultUuid);
+                                if (updatedTamedData != null) {
+                                    updatedTamedData.setGrowthStage(GrowthStage.ADULT);
+                                }
+
+                                // Restore nameplate
+                                if (customName != null && !customName.isEmpty()
+                                        && !customName.equalsIgnoreCase(NameplateUtil.UNDEFINED_NAME)) {
+                                    NameplateUtil.setEntityNameplate(adultRef, customName);
+                                }
+
+                                // Create BreedingData for adult with taming info
+                                BreedingData adultBreedingData = breedingManager.getOrCreateData(adultUuid, animalType);
+                                adultBreedingData.setTamed(true, ownerUuid);
+                                adultBreedingData.setCustomName(customName);
+                                adultBreedingData.setEntityRef(adultRef);
+                                adultBreedingData.setGrowthStage(GrowthStage.ADULT);
+
+                                logVerbose("Transferred taming data from baby to adult: " +
+                                    customName + " (owner=" + ownerName + ", hytameId=" + hytameId + ")");
+                            }
+                        }
+
                         logVerbose(capitalize(animalType.getId()) + " grew into an adult at " +
                                 String.format("%.0f, %.0f, %.0f", babyPosition.getX(),
                                         babyPosition.getY(), babyPosition.getZ()));
@@ -714,7 +779,8 @@ public class SpawningManager {
                     Throwable cause = e;
                     if (e instanceof java.lang.reflect.InvocationTargetException) {
                         cause = ((java.lang.reflect.InvocationTargetException) e).getTargetException();
-                        if (cause == null) cause = e;
+                        if (cause == null)
+                            cause = e;
                     }
                     // Handle wrapped ArrayIndexOutOfBoundsException
                     if (cause instanceof ArrayIndexOutOfBoundsException) {
@@ -735,6 +801,60 @@ public class SpawningManager {
         } catch (Exception e) {
             logError("Error in transformBabyToAdult: " + e.getMessage());
         }
+    }
+
+    /**
+     * Get the world name by searching all worlds for the given entity.
+     * This is more reliable than trying to get world from store's external data.
+     */
+    private String getWorldNameFromRef(Ref<EntityStore> ref) {
+        if (ref == null)
+            return null;
+
+        try {
+            UUID entityUuid = getUuidFromRef(ref);
+            if (entityUuid == null) {
+                logVerbose("[WorldDebug] Could not get UUID from ref");
+                return null;
+            }
+
+            logVerbose("[WorldDebug] Searching all worlds for entity UUID: " + entityUuid);
+
+            // Search all worlds for this entity
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                String worldName = entry.getKey();
+                World world = entry.getValue();
+
+                if (world == null)
+                    continue;
+
+                try {
+                    Store<EntityStore> store = world.getEntityStore().getStore();
+                    if (store == null)
+                        continue;
+
+                    // Check if this entity exists in this world's store
+                    // by comparing the store reference
+                    if (ref.getStore() == store) {
+                        logVerbose("[WorldDebug] Found entity in world: " + worldName);
+                        return worldName;
+                    }
+                } catch (Exception e) {
+                    // Skip this world if we can't access its store
+                }
+            }
+
+            logVerbose("[WorldDebug] Entity not found in any world");
+        } catch (Exception e) {
+            logVerbose("getWorldNameFromRef error: " + e.getMessage());
+        }
+        return null;
+    }
+
+    private UUID getUuidFromRef(Ref<EntityStore> ref) {
+        // Delegate to EcsReflectionUtil for consistent UUID handling across all systems
+        // This uses UUIDComponent first (stable), falling back to ref-based UUID
+        return ref != null ? EcsReflectionUtil.getUuidFromRef(ref) : null;
     }
 
     /**
@@ -780,20 +900,25 @@ public class SpawningManager {
                         modelAssetId = modelAssetIdGetter.apply(new Object[] { store, ref });
                     }
                     if (modelAssetId != null && modelAssetId.equalsIgnoreCase(babyModelId)) {
-                        UUID candidateId = UUID.nameUUIDFromBytes(ref.toString().getBytes());
-                        if (candidateId.equals(animalId)) {
-                            logVerbose("tryReacquireBabyRef: Found matching baby by UUID");
-                            return ref;
-                        }
+                        UUIDComponent uuidComponent = store.getComponent(ref, EcsReflectionUtil.UUID_TYPE);
 
-                        BreedingData foundData = breedingManager.findBabyByRef(ref);
-                        if (foundData != null && foundData.getAnimalId().equals(animalId)) {
-                            logVerbose("tryReacquireBabyRef: Found matching baby by ref comparison");
-                            return ref;
+                        if (uuidComponent != null) {
+                            UUID candidateId = uuidComponent.getUuid();
+                            if (candidateId.equals(animalId)) {
+                                logVerbose("tryReacquireBabyRef: Found matching baby by UUID");
+                                return ref;
+                            }
+
+                            BreedingData foundData = breedingManager.findBabyByRef(ref);
+                            if (foundData != null && foundData.getAnimalId().equals(animalId)) {
+                                logVerbose("tryReacquireBabyRef: Found matching baby by ref comparison");
+                                return ref;
+                            }
                         }
                     }
                 } catch (Exception e) {
                     // Skip invalid refs
+                    logVerbose("Error while reacquiring ref");
                 }
             }
 

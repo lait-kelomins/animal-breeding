@@ -1,5 +1,6 @@
 package com.laits.breeding.managers;
 
+import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.models.TamedAnimalData;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -54,7 +55,6 @@ public class PersistenceManager {
     private Path saveFilePath;
     private final Object saveLock = new Object();
     private boolean dirty = false;
-    private Consumer<String> logger;
 
     // Track if async save is in progress to prevent overlapping saves
     private final AtomicBoolean saveInProgress = new AtomicBoolean(false);
@@ -66,28 +66,21 @@ public class PersistenceManager {
     public PersistenceManager() {
     }
 
-    /**
-     * Set the logger for output messages.
-     */
-    public void setLogger(Consumer<String> logger) {
-        this.logger = logger;
-    }
-
     private void log(String message) {
-        if (logger != null) {
-            logger.accept(message);
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atInfo().log(message);
         }
     }
 
     private void logWarning(String message) {
-        if (logger != null) {
-            logger.accept("[WARNING] " + message);
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atWarning().log(message);
         }
     }
 
     private void logError(String message) {
-        if (logger != null) {
-            logger.accept("[ERROR] " + message);
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atSevere().log(message);
         }
     }
 

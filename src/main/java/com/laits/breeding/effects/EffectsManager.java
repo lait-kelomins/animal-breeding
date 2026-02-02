@@ -13,6 +13,7 @@ import com.hypixel.hytale.server.core.universe.world.ParticleUtil;
 import com.hypixel.hytale.server.core.universe.world.SoundUtil;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.util.EcsReflectionUtil;
 import com.laits.breeding.util.EntityUtil;
 
@@ -32,36 +33,22 @@ public class EffectsManager {
     // Height offset for particles above entities
     private static final double PARTICLE_HEIGHT_OFFSET = 1.5;
 
-    // Logging
-    private boolean verboseLogging = false;
-    private Consumer<String> logger;
-    private Consumer<String> warningLogger;
-
     // Position retriever for world thread operations
     private BiConsumer<Store<EntityStore>, Object> positionRetriever;
 
     public EffectsManager() {
     }
 
-    /**
-     * Set verbose logging mode.
-     */
-    public void setVerboseLogging(boolean verbose) {
-        this.verboseLogging = verbose;
+    private void logWarning(String message) {
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atWarning().log(message);
+        }
     }
 
-    /**
-     * Set the logger for info messages.
-     */
-    public void setLogger(Consumer<String> logger) {
-        this.logger = logger;
-    }
-
-    /**
-     * Set the logger for warning messages.
-     */
-    public void setWarningLogger(Consumer<String> warningLogger) {
-        this.warningLogger = warningLogger;
+    private void logVerbose(String message) {
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atInfo().log(message);
+        }
     }
 
     /**
@@ -191,31 +178,25 @@ public class EffectsManager {
     public void spawnHeartParticlesAtRef(Store<EntityStore> store, Object entityRef) {
         try {
             if (entityRef == null) {
-                if (warningLogger != null) {
-                    warningLogger.accept("[Hearts] entityRef is null");
-                }
+                logWarning("[Hearts] entityRef is null");
                 return;
             }
 
             Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
             if (!ref.isValid()) {
                 // Expected when entity despawned - not a real error
-                if (verboseLogging && logger != null) {
-                    logger.accept("[Hearts] ref is invalid (entity likely despawned)");
-                }
+                logVerbose("[Hearts] ref is invalid (entity likely despawned)");
                 return;
             }
 
             // Get position from transform component
             Vector3d position = getPositionFromRef(store, ref);
             if (position == null) {
-                if (warningLogger != null) {
-                    Store<EntityStore> refStore = ref.getStore();
-                    warningLogger.accept("[Hearts] position is null - ref.getStore()=" +
-                            (refStore != null ? "valid" : "NULL") +
-                            ", ref.isValid()=" + ref.isValid() +
-                            ", ref.getIndex()=" + ref.getIndex());
-                }
+                Store<EntityStore> refStore = ref.getStore();
+                logWarning("[Hearts] position is null - ref.getStore()=" +
+                        (refStore != null ? "valid" : "NULL") +
+                        ", ref.isValid()=" + ref.isValid() +
+                        ", ref.getIndex()=" + ref.getIndex());
                 return;
             }
 
@@ -226,9 +207,7 @@ public class EffectsManager {
             Vector3d heartsPos = new Vector3d(x, y, z);
             ParticleUtil.spawnParticleEffect(HEARTS_PARTICLE, heartsPos, store);
         } catch (Exception e) {
-            if (warningLogger != null) {
-                warningLogger.accept("[Hearts] Error in spawnHeartParticlesAtRef: " + e.getMessage());
-            }
+            logWarning("[Hearts] Error in spawnHeartParticlesAtRef: " + e.getMessage());
         }
     }
 
@@ -275,9 +254,8 @@ public class EffectsManager {
 
             return pos;
         } catch (Exception e) {
-            if (warningLogger != null) {
-                warningLogger.accept("[Hearts] getPositionFromRef error: " + e.getMessage() + " - ref is " + (ref != null ? "valid" : "NULL"));
-            }
+            logWarning("[Hearts] getPositionFromRef error: " + e.getMessage() + " - ref is "
+                    + (ref != null ? "valid" : "NULL"));
         }
         return null;
     }

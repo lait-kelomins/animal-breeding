@@ -119,7 +119,7 @@ import java.util.function.BiConsumer;
  */
 public class LaitsBreedingPlugin extends JavaPlugin {
 
-    public static final String VERSION = "1.4.4";
+    public static final String VERSION = "1.4.4-hotfix";
 
     private static LaitsBreedingPlugin instance;
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClassFull();
@@ -164,6 +164,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private ScheduledExecutorService tickScheduler;
     private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
     private NewAnimalSpawnDetector spawnDetector;
+
+    // Flag to track if first player has connected (for grace period start)
+    private volatile boolean firstPlayerConnected = false;
 
     // Getter for tick scheduler (used by commands)
     public ScheduledExecutorService getTickScheduler() {
@@ -312,10 +315,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Initialize config manager and load from file
         configManager = new ConfigManager();
-        configManager.setLogger(msg -> {
-            if (verboseLogging)
-                getLogger().atInfo().log(msg);
-        });
 
         // Load config from plugin's data directory (created automatically by the
         // server)
@@ -327,17 +326,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Initialize taming and persistence managers
         persistenceManager = new PersistenceManager();
-        persistenceManager.setLogger(msg -> {
-            if (verboseLogging)
-                LOGGER.atInfo().log("[Taming] " + msg);
-        });
         persistenceManager.initialize(getDataDirectory());
 
         tamingManager = new TamingManager();
-        tamingManager.setLogger(msg -> {
-            if (verboseLogging)
-                LOGGER.atInfo().log("[Taming] " + msg);
-        });
         tamingManager.setPersistenceManager(persistenceManager);
         // Set grace period from config (convert seconds to milliseconds)
         tamingManager.setGracePeriodMs(configManager.getInitializationGracePeriodSeconds() * 1000);
@@ -349,14 +340,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         // Initialize breeding tick manager
         breedingTickManager = new BreedingTickManager(breedingManager, configManager);
         breedingTickManager.setVerboseLogging(verboseLogging);
-        breedingTickManager.setLogger(msg -> getLogger().atInfo().log(msg));
-        breedingTickManager.setWarningLogger(msg -> getLogger().atWarning().log(msg));
 
         // Initialize effects manager
         effectsManager = new EffectsManager();
-        effectsManager.setVerboseLogging(verboseLogging);
-        effectsManager.setLogger(msg -> getLogger().atInfo().log(msg));
-        effectsManager.setWarningLogger(msg -> getLogger().atWarning().log(msg));
 
         // Initialize spawning manager
         spawningManager = new SpawningManager();
@@ -365,10 +351,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         spawningManager.setHyTameTypeSupplier(() -> hyTameComponentType);
         spawningManager.setModelAssetIdGetter(
                 args -> getEntityModelAssetId((Store<EntityStore>) args[0], (Ref<EntityStore>) args[1]));
-        spawningManager.setVerboseLogging(verboseLogging);
-        spawningManager.setLogger(msg -> getLogger().atInfo().log(msg));
-        spawningManager.setWarningLogger(msg -> getLogger().atWarning().log(msg));
-        spawningManager.setErrorLogger(msg -> getLogger().atSevere().log(msg));
 
         // Initialize respawn manager
         respawnManager = new RespawnManager();
@@ -376,9 +358,6 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         respawnManager.setBreedingManager(breedingManager);
         respawnManager.setHyTameTypeSupplier(() -> hyTameComponentType);
         respawnManager.setPositionGetter(ref -> EntityUtil.getPositionFromRef(ref));
-        respawnManager.setVerboseLogging(verboseLogging);
-        respawnManager.setLogger(msg -> getLogger().atInfo().log(msg));
-        respawnManager.setWarningLogger(msg -> getLogger().atWarning().log(msg));
 
         // Initialize interaction setup manager
         interactionSetupManager = new InteractionSetupManager(configManager, breedingManager);
@@ -386,14 +365,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         interactionSetupManager.setUseEntityBasedInteractions(USE_ENTITY_BASED_INTERACTIONS);
         interactionSetupManager.setUseLegacyFeedInteraction(USE_LEGACY_FEED_INTERACTION);
         interactionSetupManager.setShowAbility2HintsOnEntities(SHOW_ABILITY2_HINTS_ON_ENTITIES);
-        interactionSetupManager.setVerboseLogging(verboseLogging);
-        interactionSetupManager.setLogger(msg -> getLogger().atInfo().log(msg));
-        interactionSetupManager.setWarningLogger(msg -> getLogger().atWarning().log(msg));
 
         // Initialize mouse interaction handler
         mouseInteractionHandler = new MouseInteractionHandler(configManager, breedingManager, effectsManager, interactionSetupManager);
-        mouseInteractionHandler.setVerboseLogging(verboseLogging);
-        mouseInteractionHandler.setLogger(msg -> getLogger().atInfo().log(msg));
         mouseInteractionHandler.setTamingManager(tamingManager);
 
         // Set up breeding callbacks
@@ -486,7 +460,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
         // Set up growth callback - handle growth stage changes
         growthManager.setOnGrowthCallback(event -> {
+            logVerbose("New growth stage: " + event.getNewStage().toString());
             if (event.usesScaling()) {
+            logVerbose("Using scaling for: " + event.getAnimalType().toString());
                 // Creatures without baby variants: update scale at each stage
                 spawningManager.updateEntityScale(event.getAnimalId(), event.getAnimalType(), event.getTargetScale());
                 if (event.getNewStage() == GrowthStage.ADULT) {
@@ -494,7 +470,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     breedingManager.removeData(event.getAnimalId());
                 }
             } else {
-                // Animals with baby variants: replace entity when adult
+                // Animals with baby variants: replace entity
+            logVerbose("Using baby variant for: " + event.getAnimalType().toString());
                 if (event.getNewStage() == GrowthStage.ADULT) {
                     spawningManager.transformBabyToAdult(event.getAnimalId(), event.getAnimalType());
                 }
@@ -657,11 +634,16 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         // Attach Root_FeedAnimal interaction to all breedable animals
         attachInteractionsToAnimals();
 
-        // Mark taming manager as initialized after initial entity scanning
-        // This starts the grace period timer to prevent duplication on slow servers
-        if (tamingManager != null) {
-            tamingManager.markInitialized();
-        }
+        // Register first player connection handler to start grace period
+        // Grace period starts on first player connection, not server start
+        // This prevents respawning duplicates when world loads slowly
+        getEventRegistry().register(PlayerConnectEvent.class, event -> {
+            if (!firstPlayerConnected && tamingManager != null) {
+                firstPlayerConnected = true;
+                tamingManager.markInitialized();
+                logVerbose("First player connected - grace period started");
+            }
+        });
 
         // Register entity removal listener to clean up breeding data when animals die
         registerEntityRemovalListener();
@@ -765,6 +747,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                     // Silent
                 }
             }, 30, 30, TimeUnit.SECONDS));
+
+            // Periodically reset recently spawned animals (every 75 seconds)
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                try {
+                    respawnManager.clearRecentlySpawned();
+                } catch (Exception e) {
+                    // Silent
+                }
+            }, 75, 75, TimeUnit.SECONDS));
 
             // Periodically scan for untracked babies (every 30 seconds)
             // This catches babies that slipped through primary detection

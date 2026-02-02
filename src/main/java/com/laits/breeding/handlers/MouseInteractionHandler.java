@@ -14,6 +14,7 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.TamingManager;
 import com.laits.breeding.util.ConfigManager;
+import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.effects.EffectsManager;
 import com.laits.breeding.managers.InteractionSetupManager;
 import com.laits.breeding.listeners.CoopResidentTracker;
@@ -36,11 +37,8 @@ public class MouseInteractionHandler {
     private final InteractionSetupManager interactionSetupManager;
     private TamingManager tamingManager;
 
-    private boolean verboseLogging = false;
-    private Consumer<String> logger = msg -> {};
-
     public MouseInteractionHandler(ConfigManager configManager, BreedingManager breedingManager,
-                                   EffectsManager effectsManager, InteractionSetupManager interactionSetupManager) {
+            EffectsManager effectsManager, InteractionSetupManager interactionSetupManager) {
         this.configManager = configManager;
         this.breedingManager = breedingManager;
         this.effectsManager = effectsManager;
@@ -51,17 +49,9 @@ public class MouseInteractionHandler {
         this.tamingManager = tamingManager;
     }
 
-    public void setVerboseLogging(boolean verbose) {
-        this.verboseLogging = verbose;
-    }
-
-    public void setLogger(Consumer<String> logger) {
-        this.logger = logger;
-    }
-
     private void log(String message) {
-        if (verboseLogging) {
-            logger.accept(message);
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atInfo().log(message);
         }
     }
 
@@ -110,7 +100,8 @@ public class MouseInteractionHandler {
                                     UUID playerUuid = EntityUtil.getEntityUUID(player);
                                     if (playerUuid != null) {
                                         CoopResidentTracker.registerPendingCapture(entityId, playerUuid);
-                                        log("[CaptureCrate] Registered pending capture: animal=" + entityId + " player=" + playerUuid);
+                                        log("[CaptureCrate] Registered pending capture: animal=" + entityId + " player="
+                                                + playerUuid);
                                     }
                                 }
                             }

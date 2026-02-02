@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'com.laits'
-version = '1.4.4'
+version = '1.4.4-hotfix'
 
 java {
     toolchain {

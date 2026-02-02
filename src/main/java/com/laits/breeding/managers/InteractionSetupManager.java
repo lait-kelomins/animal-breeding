@@ -9,7 +9,7 @@ import com.hypixel.hytale.server.core.modules.interaction.Interactions;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
-
+import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.components.HyTameInteractionComponent;
 import com.laits.breeding.interactions.InteractionStateCache;
 import com.laits.breeding.models.AnimalType;
@@ -49,11 +49,6 @@ public class InteractionSetupManager {
 
     private static final String FEED_INTERACTION_ID = "Root_FeedAnimal";
 
-    // Logging
-    private boolean verboseLogging = false;
-    private Consumer<String> logger;
-    private Consumer<String> warningLogger;
-
     public InteractionSetupManager(ConfigManager configManager, BreedingManager breedingManager) {
         this.configManager = configManager;
         this.breedingManager = breedingManager;
@@ -80,27 +75,15 @@ public class InteractionSetupManager {
         this.modifyInteractionHints = modify;
     }
 
-    public void setVerboseLogging(boolean verbose) {
-        this.verboseLogging = verbose;
-    }
-
-    public void setLogger(Consumer<String> logger) {
-        this.logger = logger;
-    }
-
-    public void setWarningLogger(Consumer<String> warningLogger) {
-        this.warningLogger = warningLogger;
-    }
-
     private void logVerbose(String message) {
-        if (verboseLogging && logger != null) {
-            logger.accept(message);
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atInfo().log(message);
         }
     }
 
     private void logWarning(String message) {
-        if (warningLogger != null) {
-            warningLogger.accept(message);
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atWarning().log(message);
         }
     }
 

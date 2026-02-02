@@ -1,5 +1,6 @@
 package com.laits.breeding.util;
 
+import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.CustomAnimalConfig;
 import com.laits.breeding.models.GrowthStage;
@@ -54,7 +55,6 @@ public class ConfigManager {
     // File path for persistence
     private Path configFilePath;
     private Path presetsDirectory;
-    private Consumer<String> logger;
 
     // ==================== SAFE JSON EXTRACTION HELPERS ====================
 
@@ -250,16 +250,9 @@ public class ConfigManager {
         loadDefaults();
     }
 
-    /**
-     * Set the logger for debug output.
-     */
-    public void setLogger(Consumer<String> logger) {
-        this.logger = logger;
-    }
-
-    private void log(String message) {
-        if (logger != null) {
-            logger.accept(message);
+    private void logVerbose(String message) {
+        if (LaitsBreedingPlugin.isVerboseLogging()) {
+            LaitsBreedingPlugin.getInstance().getLogger().atInfo().log(message);
         }
     }
 
@@ -294,7 +287,7 @@ public class ConfigManager {
         initializePresets();
 
         if (!Files.exists(configPath)) {
-            log("Config file not found, creating with " + activePreset + " preset: " + configPath);
+            logVerbose("Config file not found, creating with " + activePreset + " preset: " + configPath);
             // Apply the default preset (default_extended) before saving
             applyPreset(activePreset);
             saveToFile();
@@ -304,11 +297,11 @@ public class ConfigManager {
         try {
             String json = Files.readString(configPath);
             loadFromJson(json);
-            log("Loaded config from: " + configPath);
+            logVerbose("Loaded config from: " + configPath);
             // Save to persist any format migrations (e.g., enabled -> breedingEnabled/tamingEnabled)
             saveToFile();
         } catch (Exception e) {
-            log("Error loading config: " + e.getMessage() + ", using defaults");
+            logVerbose("Error loading config: " + e.getMessage() + ", using defaults");
             loadDefaults();
         }
     }
@@ -320,7 +313,7 @@ public class ConfigManager {
         try {
             if (!Files.exists(presetsDirectory)) {
                 Files.createDirectories(presetsDirectory);
-                log("Created presets directory: " + presetsDirectory);
+                logVerbose("Created presets directory: " + presetsDirectory);
             }
 
             // Built-in presets to manage
@@ -331,17 +324,17 @@ public class ConfigManager {
                 if (!Files.exists(presetFile)) {
                     // Create new preset file
                     saveBuiltinPresetToFile(presetName, presetFile);
-                    log("Created " + presetName + " preset file: " + presetFile);
+                    logVerbose("Created " + presetName + " preset file: " + presetFile);
                 } else {
                     // Update existing preset with any missing animals
                     int added = updatePresetWithMissingAnimals(presetName, presetFile);
                     if (added > 0) {
-                        log("Updated " + presetName + " preset: added " + added + " new animals");
+                        logVerbose("Updated " + presetName + " preset: added " + added + " new animals");
                     }
                 }
             }
         } catch (Exception e) {
-            log("Error initializing presets: " + e.getMessage());
+            logVerbose("Error initializing presets: " + e.getMessage());
         }
     }
 
@@ -405,13 +398,13 @@ public class ConfigManager {
                 root.add("animals", animals);
                 Files.writeString(presetFile, GSON.toJson(root));
                 if (formatMigrated) {
-                    log("Migrated " + presetName + " preset to new format (breedingEnabled/tamingEnabled)");
+                    logVerbose("Migrated " + presetName + " preset to new format (breedingEnabled/tamingEnabled)");
                 }
             }
 
             return addedCount;
         } catch (Exception e) {
-            log("Error updating preset " + presetName + ": " + e.getMessage());
+            logVerbose("Error updating preset " + presetName + ": " + e.getMessage());
             return 0;
         }
     }
@@ -471,17 +464,17 @@ public class ConfigManager {
      */
     public boolean restorePreset(String presetName) {
         if (!isBuiltinPreset(presetName)) {
-            log("Cannot restore non-builtin preset: " + presetName);
+            logVerbose("Cannot restore non-builtin preset: " + presetName);
             return false;
         }
 
         try {
             Path presetFile = presetsDirectory.resolve(presetName + ".json");
             saveBuiltinPresetToFile(presetName, presetFile);
-            log("Restored " + presetName + " preset to default values");
+            logVerbose("Restored " + presetName + " preset to default values");
             return true;
         } catch (Exception e) {
-            log("Error restoring preset: " + e.getMessage());
+            logVerbose("Error restoring preset: " + e.getMessage());
             return false;
         }
     }
@@ -546,14 +539,14 @@ public class ConfigManager {
     public void loadFromResource(String resourcePath) {
         try (InputStream is = getClass().getResourceAsStream(resourcePath)) {
             if (is == null) {
-                log("Config resource not found: " + resourcePath + ", using defaults");
+                logVerbose("Config resource not found: " + resourcePath + ", using defaults");
                 return;
             }
             String json = new String(is.readAllBytes());
             loadFromJson(json);
-            log("Loaded config from resource: " + resourcePath);
+            logVerbose("Loaded config from resource: " + resourcePath);
         } catch (Exception e) {
-            log("Error loading config resource: " + e.getMessage() + ", using defaults");
+            logVerbose("Error loading config resource: " + e.getMessage() + ", using defaults");
         }
     }
 
@@ -619,8 +612,11 @@ public class ConfigManager {
                             }
                         }
 
-                        config.growthTimeMinutes = safeGetDouble(animalJson, "growthTimeMinutes", config.growthTimeMinutes);
-                        config.breedCooldownMinutes = safeGetDouble(animalJson, "breedCooldownMinutes", config.breedCooldownMinutes);
+                        // Use defaultGrowthTimeMinutes/defaultBreedCooldownMinutes as fallback, not 0.0
+                        config.growthTimeMinutes = safeGetDouble(animalJson, "growthTimeMinutes",
+                            config.growthTimeMinutes > 0 ? config.growthTimeMinutes : defaultGrowthTimeMinutes);
+                        config.breedCooldownMinutes = safeGetDouble(animalJson, "breedCooldownMinutes",
+                            config.breedCooldownMinutes > 0 ? config.breedCooldownMinutes : defaultBreedCooldownMinutes);
                     }
                 }
             }
@@ -663,15 +659,15 @@ public class ConfigManager {
                             babyNpcRole, adultNpcRole, mountable, breedingEnabled, tamingEnabled
                         );
                         customAnimals.put(modelAssetId, customConfig);
-                        log("Loaded custom animal: " + modelAssetId);
+                        logVerbose("Loaded custom animal: " + modelAssetId);
                     } catch (Exception e) {
-                        log("Error parsing custom animal " + modelAssetId + ": " + e.getMessage());
+                        logVerbose("Error parsing custom animal " + modelAssetId + ": " + e.getMessage());
                     }
                 }
-                log("Loaded " + customAnimals.size() + " custom animals");
+                logVerbose("Loaded " + customAnimals.size() + " custom animals");
             }
         } catch (Exception e) {
-            log("Error parsing config JSON: " + e.getMessage());
+            logVerbose("Error parsing config JSON: " + e.getMessage());
         }
     }
 
@@ -680,7 +676,7 @@ public class ConfigManager {
      */
     public void saveToFile() {
         if (configFilePath == null) {
-            log("No config file path set, cannot save");
+            logVerbose("No config file path set, cannot save");
             return;
         }
 
@@ -688,9 +684,9 @@ public class ConfigManager {
             String json = toJson();
             Files.createDirectories(configFilePath.getParent());
             Files.writeString(configFilePath, json);
-            log("Saved config to: " + configFilePath);
+            logVerbose("Saved config to: " + configFilePath);
         } catch (Exception e) {
-            log("Error saving config: " + e.getMessage());
+            logVerbose("Error saving config: " + e.getMessage());
         }
     }
 
@@ -789,7 +785,7 @@ public class ConfigManager {
                         presets.add(name);
                     });
             } catch (Exception e) {
-                log("Error listing presets: " + e.getMessage());
+                logVerbose("Error listing presets: " + e.getMessage());
             }
         }
         // Ensure default presets are always available
@@ -825,10 +821,10 @@ public class ConfigManager {
                 String json = Files.readString(presetFile);
                 loadFromJson(json);
                 activePreset = presetName;
-                log("Applied preset from file: " + presetFile);
+                logVerbose("Applied preset from file: " + presetFile);
                 return true;
             } catch (Exception e) {
-                log("Error loading preset file: " + e.getMessage());
+                logVerbose("Error loading preset file: " + e.getMessage());
             }
         }
 
@@ -855,7 +851,7 @@ public class ConfigManager {
                 activePreset = "all";
                 return true;
             default:
-                log("Preset not found: " + presetName);
+                logVerbose("Preset not found: " + presetName);
                 return false;
         }
     }
@@ -893,27 +889,27 @@ public class ConfigManager {
      */
     public boolean saveAsPreset(String presetName) {
         if (presetsDirectory == null) {
-            log("Presets directory not initialized");
+            logVerbose("Presets directory not initialized");
             return false;
         }
         // Validate preset name to prevent path traversal
         if (!isValidPresetName(presetName)) {
-            log("Invalid preset name: " + presetName + " (must be alphanumeric with underscores/hyphens only)");
+            logVerbose("Invalid preset name: " + presetName + " (must be alphanumeric with underscores/hyphens only)");
             return false;
         }
         try {
             Path presetFile = presetsDirectory.resolve(presetName + ".json");
             // Double-check that resolved path is within presets directory
             if (!presetFile.normalize().startsWith(presetsDirectory.normalize())) {
-                log("Security error: preset path escapes presets directory");
+                logVerbose("Security error: preset path escapes presets directory");
                 return false;
             }
             String json = toJson();
             Files.writeString(presetFile, json);
-            log("Saved preset: " + presetFile);
+            logVerbose("Saved preset: " + presetFile);
             return true;
         } catch (Exception e) {
-            log("Error saving preset: " + e.getMessage());
+            logVerbose("Error saving preset: " + e.getMessage());
             return false;
         }
     }
@@ -2130,7 +2126,9 @@ public class ConfigManager {
      */
     public long getGrowthTime(AnimalType type) {
         AnimalConfig config = animalConfigs.get(type);
-        double minutes = (config != null) ? config.growthTimeMinutes : defaultGrowthTimeMinutes;
+        double minutes = (config != null && config.growthTimeMinutes > 0)
+            ? config.growthTimeMinutes
+            : defaultGrowthTimeMinutes;
         return (long) (minutes * 60 * 1000);
     }
 
@@ -2345,7 +2343,7 @@ public class ConfigManager {
             true   // enabled by default
         );
         customAnimals.put(modelAssetId, config);
-        log("Added custom animal: " + modelAssetId + " with foods: " + breedingFoods);
+        logVerbose("Added custom animal: " + modelAssetId + " with foods: " + breedingFoods);
         return config;
     }
 
@@ -2372,7 +2370,7 @@ public class ConfigManager {
             true
         );
         customAnimals.put(modelAssetId, config);
-        log("Added custom animal: " + modelAssetId);
+        logVerbose("Added custom animal: " + modelAssetId);
         return config;
     }
 
@@ -2383,7 +2381,7 @@ public class ConfigManager {
     public boolean removeCustomAnimal(String modelAssetId) {
         CustomAnimalConfig removed = customAnimals.remove(modelAssetId);
         if (removed != null) {
-            log("Removed custom animal: " + modelAssetId);
+            logVerbose("Removed custom animal: " + modelAssetId);
             return true;
         }
         return false;
@@ -2507,7 +2505,7 @@ public class ConfigManager {
                 existing.isMountable(),
                 existing.isEnabled()
             ));
-            log("Set NPC role for " + modelAssetId + " to: " + roleId);
+            logVerbose("Set NPC role for " + modelAssetId + " to: " + roleId);
         }
     }
 
@@ -2531,7 +2529,7 @@ public class ConfigManager {
                 existing.isMountable(),
                 existing.isEnabled()
             ));
-            log("Set baby NPC role for " + modelAssetId + " to: " + babyRoleId);
+            logVerbose("Set baby NPC role for " + modelAssetId + " to: " + babyRoleId);
         }
     }
 
@@ -2554,7 +2552,7 @@ public class ConfigManager {
                 existing.isMountable(),
                 existing.isEnabled()
             ));
-            log("Set growth time for " + modelAssetId + " to: " + growthTimeMinutes + " min");
+            logVerbose("Set growth time for " + modelAssetId + " to: " + growthTimeMinutes + " min");
         }
     }
 
@@ -2577,7 +2575,7 @@ public class ConfigManager {
                 existing.isMountable(),
                 existing.isEnabled()
             ));
-            log("Set cooldown for " + modelAssetId + " to: " + cooldownMinutes + " min");
+            logVerbose("Set cooldown for " + modelAssetId + " to: " + cooldownMinutes + " min");
         }
     }
 
