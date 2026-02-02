@@ -13,6 +13,7 @@ import com.hypixel.hytale.server.core.event.events.player.PlayerInteractEvent;
 import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent;
 import com.hypixel.hytale.server.core.event.events.entity.EntityRemoveEvent;
 import com.hypixel.hytale.server.core.entity.Entity;
+import com.hypixel.hytale.server.core.entity.InteractionContext;
 import com.hypixel.hytale.server.core.entity.LivingEntity;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.inventory.Inventory;
@@ -94,8 +95,9 @@ import com.laits.breeding.commands.LegacyCommands;
 // Taming integration imports
 import com.tameableanimals.tame.HyTameComponent;
 import com.tameableanimals.tame.HyTameSystems;
-import com.tameableanimals.actions.BuilderActionHyTameOrFeed;
+import com.tameableanimals.actions.BuilderActionHyTameFeedInteraction;
 import com.tameableanimals.actions.BuilderActionRemovePlayerHeldItems;
+import com.tameableanimals.sensors.BuilderSensorIsTameable;
 import com.tameableanimals.sensors.BuilderSensorTamed;
 import com.hypixel.hytale.server.npc.role.support.WorldSupport;
 import java.lang.reflect.Field;
@@ -143,7 +145,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         return ATTITUDE_FIELD;
     }
 
-    // NOTE: Breeding constants (BREEDING_DISTANCE, LOVE_DURATION) moved to BreedingTickManager
+    // NOTE: Breeding constants (BREEDING_DISTANCE, LOVE_DURATION) moved to
+    // BreedingTickManager
 
     private ConfigManager configManager;
     private BreedingManager breedingManager;
@@ -253,7 +256,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // Legacy FeedAnimalInteraction system toggle
     // When true: Uses FeedAnimalInteraction to handle feeding via Use key on
     // animals
-    // When false: Disables interaction-based feeding (ActionHyTameOrFeed via
+    // When false: Disables interaction-based feeding (ActionHyTameFeedInteraction via
     // behavior tree)
     // Note: Action-based system had issues, reverted to legacy interaction system
     private static final boolean USE_LEGACY_FEED_INTERACTION = false;
@@ -271,7 +274,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Broadcast to all worlds for multi-world support
             for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
                 World world = entry.getValue();
-                if (world == null) continue;
+                if (world == null)
+                    continue;
 
                 world.getPlayers().forEach(player -> {
                     try {
@@ -398,7 +402,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         interactionSetupManager.setWarningLogger(msg -> getLogger().atWarning().log(msg));
 
         // Initialize mouse interaction handler
-        mouseInteractionHandler = new MouseInteractionHandler(configManager, breedingManager, effectsManager, interactionSetupManager);
+        mouseInteractionHandler = new MouseInteractionHandler(configManager, breedingManager, effectsManager,
+                interactionSetupManager);
         mouseInteractionHandler.setVerboseLogging(verboseLogging);
         mouseInteractionHandler.setLogger(msg -> getLogger().atInfo().log(msg));
         mouseInteractionHandler.setTamingManager(tamingManager);
@@ -426,7 +431,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 if (worldName == null) {
                     worldName = animals[1].getWorldName();
                 }
-                spawningManager.spawnBabyAnimal(type, midpoint, animals[0].getAnimalId(), animals[1].getAnimalId(), worldName);
+                spawningManager.spawnBabyAnimal(type, midpoint, animals[0].getAnimalId(), animals[1].getAnimalId(),
+                        worldName);
             }
         });
 
@@ -460,7 +466,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 if (entityStore != null) {
                     for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
                         World w = entry.getValue();
-                        if (w == null) continue;
+                        if (w == null)
+                            continue;
                         try {
                             if (w.getEntityStore().getStore() == entityStore) {
                                 targetWorld = w;
@@ -710,13 +717,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
             // Register NPC core components for behavior tree support (only when not using
             // legacy interactions)
-            // "HyTameOrFeed" routes feeding to taming (wild) or breeding (tamed)
+            // "HyTameFeedInteraction" routes feeding to taming (wild) or breeding (tamed)
             NPCPlugin.get().registerCoreComponentType("Tamed", BuilderSensorTamed::new);
+            NPCPlugin.get().registerCoreComponentType("IsTameable", BuilderSensorIsTameable::new);
+            NPCPlugin.get().registerCoreComponentType("HyTameFeedInteraction", BuilderActionHyTameFeedInteraction::new);
             if (!USE_LEGACY_FEED_INTERACTION) {
-                NPCPlugin.get().registerCoreComponentType("HyTameOrFeed", BuilderActionHyTameOrFeed::new);
                 NPCPlugin.get().registerCoreComponentType("RemovePlayerHeldItems",
                         BuilderActionRemovePlayerHeldItems::new);
-                logVerbose("NPC taming components registered (HyTameOrFeed, Tamed, RemovePlayerHeldItems)");
+                logVerbose("NPC taming components registered (HyTameFeedInteraction, Tamed, RemovePlayerHeldItems)");
             } else {
                 logVerbose("NPC taming components skipped (using legacy FeedAnimalInteraction)");
             }
@@ -724,18 +732,22 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Periodically update player UUIDs for the spawn detector to exclude players
             scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
                 try {
-                    if (spawnDetector == null) return;
+                    if (spawnDetector == null)
+                        return;
 
                     // Defensive null checks for early initialization
-                    if (Universe.get() == null) return;
+                    if (Universe.get() == null)
+                        return;
                     var worlds = Universe.get().getWorlds();
-                    if (worlds == null) return;
+                    if (worlds == null)
+                        return;
 
                     Set<UUID> currentPlayerUuids = ConcurrentHashMap.newKeySet();
                     // Collect player UUIDs from all worlds
                     for (java.util.Map.Entry<String, World> entry : worlds.entrySet()) {
                         World world = entry.getValue();
-                        if (world == null) continue;
+                        if (world == null)
+                            continue;
                         for (Player p : world.getPlayers()) {
                             UUID pUuid = EntityUtil.getEntityUUID(p);
                             if (pUuid != null) {
@@ -747,7 +759,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 } catch (Exception e) {
                     // Silent - may happen during early initialization
                 }
-            }, 2, 5, TimeUnit.SECONDS));  // Delay start by 2 seconds to allow initialization
+            }, 2, 5, TimeUnit.SECONDS)); // Delay start by 2 seconds to allow initialization
 
             // Periodically clear the processedEntities cache to prevent memory leak
             scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
@@ -823,7 +835,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      * but these events don't fire for natural animal spawns in Hytale.
      *
      * LEGACY: This method is disabled when USE_LEGACY_FEED_INTERACTION is false.
-     * The new ActionHyTameOrFeed system handles feeding/taming via NPC behavior
+     * The new ActionHyTameFeedInteraction system handles feeding/taming via NPC behavior
      * tree.
      */
     public void attachInteractionsToAnimals() {
@@ -838,13 +850,13 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         // Keep autoSetupNearbyAnimals() method for manual use via commands if needed
         //
         // getEventRegistry().register(PlayerConnectEvent.class, event -> {
-        //     tickScheduler.schedule(() -> autoSetupNearbyAnimals(), 1, TimeUnit.SECONDS);
-        //     tickScheduler.schedule(() -> autoSetupNearbyAnimals(), 3, TimeUnit.SECONDS);
-        //     tickScheduler.schedule(() -> autoSetupNearbyAnimals(), 5, TimeUnit.SECONDS);
+        // tickScheduler.schedule(() -> autoSetupNearbyAnimals(), 1, TimeUnit.SECONDS);
+        // tickScheduler.schedule(() -> autoSetupNearbyAnimals(), 3, TimeUnit.SECONDS);
+        // tickScheduler.schedule(() -> autoSetupNearbyAnimals(), 5, TimeUnit.SECONDS);
         // });
         //
         // scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
-        //     autoSetupNearbyAnimals();
+        // autoSetupNearbyAnimals();
         // }, 5, 5, TimeUnit.MINUTES));
     }
 
@@ -866,8 +878,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         return EcsReflectionUtil.getEntityModelAssetId(store, entityRef);
     }
 
-    // NOTE: setupEntityInteractions, setupCustomAnimalInteractions, updateAnimalInteractionState,
-    // updateTrackedAnimalStates, setupAbility2HintOnly, storeOriginalInteractionIdForCustom
+    // NOTE: setupEntityInteractions, setupCustomAnimalInteractions,
+    // updateAnimalInteractionState,
+    // updateTrackedAnimalStates, setupAbility2HintOnly,
+    // storeOriginalInteractionIdForCustom
     // moved to InteractionSetupManager
 
     /**
@@ -889,7 +903,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         Ref<EntityStore> debugRef = entity.getReference();
                         Integer debugRefIndex = (debugRef != null) ? debugRef.getIndex() : null;
                         boolean debugIsTamed = (tamingManager != null && tamingManager.isTamed(entityId));
-                        logVerbose("EntityRemoveEvent: entity removed - refIndex=" + debugRefIndex + ", uuid=" + entityId + ", isTamed=" + debugIsTamed);
+                        logVerbose("EntityRemoveEvent: entity removed - refIndex=" + debugRefIndex + ", uuid="
+                                + entityId + ", isTamed=" + debugIsTamed);
                     } catch (Exception e) {
                         // Silent
                     }
@@ -899,7 +914,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         // Check if animal is entering coop/capture crate storage
                         // If so, don't mark as despawned - it's stored, not gone
                         if (CoopResidentTracker.isInStorage(entityId)) {
-                            logVerbose("Tamed animal entering coop/crate storage (not marking as despawned): " + entityId);
+                            logVerbose(
+                                    "Tamed animal entering coop/crate storage (not marking as despawned): " + entityId);
                             // Don't remove breeding data for tamed animals in storage
                             return;
                         }
@@ -910,27 +926,33 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         if (capturingPlayer != null) {
                             // Track the capture for later restoration when released
                             CoopResidentTracker.trackCapture(capturingPlayer, entityId);
-                            logVerbose("Tamed animal captured by capture crate (player=" + capturingPlayer + "): " + entityId);
+                            logVerbose("Tamed animal captured by capture crate (player=" + capturingPlayer + "): "
+                                    + entityId);
                             // Don't remove breeding data, don't mark as despawned
                             return;
                         }
 
-                        // Method 2: Check CaptureCratePacketListener by ref index (packet-based detection)
+                        // Method 2: Check CaptureCratePacketListener by ref index (packet-based
+                        // detection)
                         try {
                             Ref<EntityStore> ref = entity.getReference();
                             if (ref != null) {
                                 Integer refIndex = ref.getIndex();
-                                logVerbose("EntityRemoveEvent: tamed animal removed, checking packet capture (refIndex=" + refIndex + ", entityId=" + entityId + ")");
+                                logVerbose("EntityRemoveEvent: tamed animal removed, checking packet capture (refIndex="
+                                        + refIndex + ", entityId=" + entityId + ")");
                                 if (refIndex != null) {
                                     var pendingCapture = CaptureCratePacketListener.consumePendingCapture(refIndex);
                                     if (pendingCapture != null) {
                                         // Track the capture for later restoration when released
                                         CoopResidentTracker.trackCapture(pendingCapture.playerUuid, entityId);
-                                        logVerbose("Tamed animal captured by capture crate via packet (player=" + pendingCapture.playerUuid + ", refIndex=" + refIndex + "): " + entityId);
+                                        logVerbose("Tamed animal captured by capture crate via packet (player="
+                                                + pendingCapture.playerUuid + ", refIndex=" + refIndex + "): "
+                                                + entityId);
                                         // Don't remove breeding data, don't mark as despawned
                                         return;
                                     } else {
-                                        logVerbose("EntityRemoveEvent: no pending capture found for refIndex=" + refIndex);
+                                        logVerbose(
+                                                "EntityRemoveEvent: no pending capture found for refIndex=" + refIndex);
                                     }
                                 }
                             } else {
@@ -1003,7 +1025,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             final Set<UUID> playerUuids = new HashSet<>();
             for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
                 World world = entry.getValue();
-                if (world == null) continue;
+                if (world == null)
+                    continue;
                 for (Player p : world.getPlayers()) {
                     UUID pUuid = EntityUtil.getEntityUUID(p);
                     if (pUuid != null) {
@@ -1020,7 +1043,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
                 String worldName = entry.getKey();
                 World world = entry.getValue();
-                if (world == null) continue;
+                if (world == null)
+                    continue;
 
                 if (verboseLogging)
                     getLogger().atInfo().log("[AutoScan] Scanning world: %s", worldName);
@@ -1028,7 +1052,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                 AnimalFinder.findAnimals(world, false, animals -> {
                     try {
                         if (verboseLogging)
-                            getLogger().atInfo().log("[AutoScan] Found %d animals in world %s", animals.size(), worldName);
+                            getLogger().atInfo().log("[AutoScan] Found %d animals in world %s", animals.size(),
+                                    worldName);
                         if (animals.isEmpty())
                             return;
 
@@ -1042,7 +1067,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
                         }
                     } catch (Exception e) {
                         // Log errors from animal processing
-                        logWarning("autoSetupNearbyAnimals callback error in " + worldName + ": " + e.getClass().getSimpleName() + ": "
+                        logWarning("autoSetupNearbyAnimals callback error in " + worldName + ": "
+                                + e.getClass().getSimpleName() + ": "
                                 + e.getMessage());
                         if (verboseLogging && e.getCause() != null) {
                             logWarning("  Caused by: " + e.getCause().getMessage());
@@ -1137,7 +1163,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         }
 
         // Skip if neither breeding nor taming is enabled
-        if (animalType != null && !configManager.isBreedingEnabled(animalType) && !configManager.isTamingEnabled(animalType)) {
+        if (animalType != null && !configManager.isBreedingEnabled(animalType)
+                && !configManager.isTamingEnabled(animalType)) {
             logVerbose("Skipping disabled animal: " + animalType);
             return;
         }
@@ -1209,8 +1236,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         }
     }
 
-    // NOTE: onMouseButton, onPlayerInteract, handleMouseClick, capitalize moved to MouseInteractionHandler
-    // NOTE: consumeHeldItem(), playFeedingSound(), isNameTagItem(), spawnBabyAnimal() - removed as unused
+    // NOTE: onMouseButton, onPlayerInteract, handleMouseClick, capitalize moved to
+    // MouseInteractionHandler
+    // NOTE: consumeHeldItem(), playFeedingSound(), isNameTagItem(),
+    // spawnBabyAnimal() - removed as unused
     // NOTE: Spawning moved to SpawningManager, breeding tick to BreedingTickManager
 
     /**
@@ -1229,10 +1258,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             // Scan all worlds for untracked babies
             for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
                 World world = entry.getValue();
-                if (world == null) continue;
+                if (world == null)
+                    continue;
 
                 Store<EntityStore> store = world.getEntityStore().getStore();
-                if (store == null) continue;
+                if (store == null)
+                    continue;
 
                 world.execute(() -> {
                     store.forEachChunk((ArchetypeChunk<EntityStore> chunk, CommandBuffer<EntityStore> buffer) -> {
@@ -1261,7 +1292,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
                                 // Found an untracked baby
                                 synchronized (untrackedBabies) {
-                                    untrackedBabies.add(new BreedingManager.UntrackedBaby(ref, modelAssetId, animalType));
+                                    untrackedBabies
+                                            .add(new BreedingManager.UntrackedBaby(ref, modelAssetId, animalType));
                                 }
                             } catch (Exception e) {
                                 // Skip invalid refs
@@ -1281,7 +1313,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
             if (registered > 0 || verboseLogging) {
                 if (registered > 0) {
-                    getLogger().atInfo().log("[BabyScan] Found %d untracked babies across all worlds, registered all", registered);
+                    getLogger().atInfo().log("[BabyScan] Found %d untracked babies across all worlds, registered all",
+                            registered);
                 }
             }
 

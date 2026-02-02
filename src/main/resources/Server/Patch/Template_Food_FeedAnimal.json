@@ -1,7 +1,0 @@
-{
-  "_comment": "Add FeedAnimal interaction to general food items - allows feeding animals with F key",
-  "BaseAssetPath": "Item/Items/Food/Template_Food",
-  "Interactions": {
-    "Use": "Root_FeedAnimal"
-  }
-}

@@ -50,6 +50,7 @@ import com.laits.breeding.models.BreedingData;
 import com.laits.breeding.models.CustomAnimalConfig;
 import com.laits.breeding.models.GrowthStage;
 import com.laits.breeding.models.TamedAnimalData;
+import com.laits.breeding.util.ConfigManager;
 import com.laits.breeding.util.EcsReflectionUtil;
 import com.laits.breeding.util.NameplateUtil;
 import com.laits.breeding.util.TameHelper;
@@ -62,6 +63,8 @@ import java.lang.reflect.Field;
 import java.util.UUID;
 import java.util.function.Predicate;
 import java.util.logging.Level;
+
+import org.checkerframework.checker.units.qual.C;
 
 /**
  * Custom interaction that fires when player feeds an animal.
@@ -155,6 +158,13 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     return;
                 }
 
+                ConfigManager configManager = plugin.getConfigManager();
+                if (configManager == null) {
+                    log("configManager is null");
+                    shouldFail = true;
+                    return;
+                }
+
                 // Safety check: Skip if target is a player (prevents treating players with
                 // animal models as animals)
                 // Option B: Just return without triggering fallback - let native Hytale
@@ -179,8 +189,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                 log("Animal type: " + (animalType != null ? animalType.name() : "null"));
 
                 // If not a known animal type, check for custom animal
-                if (animalType == null && modelAssetId != null && plugin.getConfigManager() != null) {
-                    customAnimal = plugin.getConfigManager().getCustomAnimal(modelAssetId);
+                if (animalType == null && modelAssetId != null && configManager != null) {
+                    customAnimal = configManager.getCustomAnimal(modelAssetId);
                     if (customAnimal != null) {
                         log("Found custom animal: " + customAnimal.getDisplayName());
                     }
@@ -222,9 +232,19 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
                 // === TAMING CHECK (before breeding) ===
                 // If animal is not tamed and food is taming food, tame it
-                if (animalType != null && itemId != null && plugin.getConfigManager() != null) {
-                    boolean isTamingFood = plugin.getConfigManager().isTamingFood(animalType, itemId);
+                if (animalType != null && itemId != null && configManager != null) {
+                    boolean isTamingFood = configManager.isTamingFood(animalType, itemId);
                     boolean isAlreadyTamed = TameHelper.isTamed(targetRef);
+
+                    if (!isAlreadyTamed) {
+                        if (animalType != null && !configManager.isTamingEnabled(animalType)) {
+                            return;
+                        }
+                        if (customAnimal != null
+                                && !configManager.isCustomAnimalTamingEnabled(customAnimal.getModelAssetId())) {
+                            return;
+                        }
+                    }
 
                     if (isTamingFood && !isAlreadyTamed) {
                         // Tame the animal - use existing helper methods for context
@@ -249,41 +269,43 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                             final Ref<EntityStore> finalTargetRef = targetRef;
 
                             // Use asset-based taming with role change (falls back to legacy if disabled)
-                            TameHelper.tameAnimalWithRoleChange(targetRef, tamerUuid, tamerName, world, (hyTameComp) -> {
-                                if (hyTameComp != null) {
-                                    log("Animal tamed successfully via HyTameComponent");
-                                    // Also register with TamingManager for persistence
-                                    UUID entityUuid = getUuidFromRef(finalTargetRef);
-                                    String animalName = NameplateUtil.UNDEFINED_NAME;
-                                    Vector3d pos = getPositionFromRef(finalTargetRef);
-                                    double posX = pos != null ? pos.getX() : 0;
-                                    double posY = pos != null ? pos.getY() : 0;
-                                    double posZ = pos != null ? pos.getZ() : 0;
+                            TameHelper.tameAnimalWithRoleChange(targetRef, tamerUuid, tamerName, world,
+                                    (hyTameComp) -> {
+                                        if (hyTameComp != null) {
+                                            log("Animal tamed successfully via HyTameComponent");
+                                            // Also register with TamingManager for persistence
+                                            UUID entityUuid = getUuidFromRef(finalTargetRef);
+                                            String animalName = NameplateUtil.UNDEFINED_NAME;
+                                            Vector3d pos = getPositionFromRef(finalTargetRef);
+                                            double posX = pos != null ? pos.getX() : 0;
+                                            double posY = pos != null ? pos.getY() : 0;
+                                            double posZ = pos != null ? pos.getZ() : 0;
 
-                                    // Get world name for multi-world support
-                                    String worldName = getWorldNameFromRef(finalTargetRef);
+                                            // Get world name for multi-world support
+                                            String worldName = getWorldNameFromRef(finalTargetRef);
 
-                                    TamedAnimalData tamedData = tamingManager.tameAnimal(
-                                            hyTameComp.getHytameId(),
-                                            entityUuid,
-                                            finalTamerUuid,
-                                            animalName,
-                                            finalAnimalType,
-                                            finalTargetRef,
-                                            posX, posY, posZ,
-                                            GrowthStage.ADULT,
-                                            worldName);
+                                            TamedAnimalData tamedData = tamingManager.tameAnimal(
+                                                    hyTameComp.getHytameId(),
+                                                    entityUuid,
+                                                    finalTamerUuid,
+                                                    animalName,
+                                                    finalAnimalType,
+                                                    finalTargetRef,
+                                                    posX, posY, posZ,
+                                                    GrowthStage.ADULT,
+                                                    worldName);
 
-                                    // Store owner name for respawn
-                                    if (tamedData != null) {
-                                        tamedData.setOwnerName(finalTamerName);
-                                    }
+                                            // Store owner name for respawn
+                                            if (tamedData != null) {
+                                                tamedData.setOwnerName(finalTamerName);
+                                            }
 
-                                    log("Successfully tamed " + finalAnimalType + " for player " + finalTamerName);
-                                } else {
-                                    log("Failed to tame animal - HyTameComponent is null");
-                                }
-                            });
+                                            log("Successfully tamed " + finalAnimalType + " for player "
+                                                    + finalTamerName);
+                                        } else {
+                                            log("Failed to tame animal - HyTameComponent is null");
+                                        }
+                                    });
 
                             // Success feedback (show immediately regardless of deferred)
                             spawnTamingParticles(targetRef);
@@ -299,9 +321,9 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                 boolean isCorrectFood = false;
                 if (animalType != null) {
                     // Regular animal type
-                    if (plugin.getConfigManager() != null) {
-                        isCorrectFood = itemId != null && plugin.getConfigManager().isBreedingFood(animalType, itemId);
-                        log("Valid foods: " + plugin.getConfigManager().getBreedingFoods(animalType)
+                    if (configManager != null) {
+                        isCorrectFood = itemId != null && configManager.isBreedingFood(animalType, itemId);
+                        log("Valid foods: " + configManager.getBreedingFoods(animalType)
                                 + ", isCorrectFood: " + isCorrectFood);
                     } else {
                         isCorrectFood = itemId != null && animalType.isBreedingFood(itemId);
@@ -330,8 +352,14 @@ public class FeedAnimalInteraction extends SimpleInteraction {
 
                 // Handle breeding differently for regular vs custom animals
                 if (animalType != null) {
+                    if (!configManager.isTamingEnabled(animalType))
+                    {
+                        return;
+                    }
+
                     // Regular animal - use full breeding system
-                    BreedingManager.FeedResult result = breeding.tryFeed(animalId, animalType, itemId, targetRef, worldName);
+                    BreedingManager.FeedResult result = breeding.tryFeed(animalId, animalType, itemId, targetRef,
+                            worldName);
 
                     switch (result) {
                         case SUCCESS:
@@ -350,10 +378,16 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                             return;
                     }
                 } else if (customAnimal != null) {
+                    if (!configManager.isCustomAnimalBreedingEnabled(customAnimal.getModelAssetId()))
+                    {
+                        return;
+                    }
+                    
                     // Custom animal - use full breeding system
                     log("Feeding custom animal: " + customAnimal.getDisplayName());
 
-                    BreedingManager.FeedResult result = breeding.tryFeedCustomAnimal(animalId, modelAssetId, targetRef, worldName);
+                    BreedingManager.FeedResult result = breeding.tryFeedCustomAnimal(animalId, modelAssetId, targetRef,
+                            worldName);
 
                     switch (result) {
                         case SUCCESS:
@@ -686,7 +720,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                 if (pluginInstance != null && pluginInstance.getSpawningManager() != null) {
                     // Get world name from parent entity for multi-world support
                     String worldName = getWorldNameFromRef(targetRef);
-                    pluginInstance.getSpawningManager().spawnBabyAnimal(animalType, midpoint, animalId, otherId, worldName);
+                    pluginInstance.getSpawningManager().spawnBabyAnimal(animalType, midpoint, animalId, otherId,
+                            worldName);
                 }
                 return;
             }
@@ -767,7 +802,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
      * If babyNpcRoleId is set, spawn using that role at full scale.
      * Otherwise, use scaling fallback: spawn adult NPC at 40% scale.
      */
-    private void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position, String worldName) {
+    private void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position,
+            String worldName) {
         try {
             // Get world by name, fallback to default if not found
             World world = null;
@@ -921,7 +957,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
             // Search all worlds for players
             for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
                 World world = entry.getValue();
-                if (world == null) continue;
+                if (world == null)
+                    continue;
 
                 for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
                     UUID playerUuid = getPlayerUuidFromPlayer(player);
@@ -1024,7 +1061,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
             // Look up the player by UUID from all worlds
             for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
                 World world = entry.getValue();
-                if (world == null) continue;
+                if (world == null)
+                    continue;
 
                 for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
                     // Compare UUIDs
@@ -1104,17 +1142,21 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     }
 
     /**
-     * Get the World object from an entity ref by matching its store to world stores.
+     * Get the World object from an entity ref by matching its store to world
+     * stores.
      */
     private World getWorldFromRef(Ref<EntityStore> ref) {
-        if (ref == null) return null;
+        if (ref == null)
+            return null;
         try {
             Store<EntityStore> entityStore = ref.getStore();
-            if (entityStore == null) return null;
+            if (entityStore == null)
+                return null;
 
             for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
                 World world = entry.getValue();
-                if (world == null) continue;
+                if (world == null)
+                    continue;
                 try {
                     Store<EntityStore> worldStore = world.getEntityStore().getStore();
                     if (worldStore == entityStore) {
@@ -1135,7 +1177,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
      * This is more reliable than trying to get world from store's external data.
      */
     private String getWorldNameFromRef(Ref<EntityStore> ref) {
-        if (ref == null) return null;
+        if (ref == null)
+            return null;
 
         try {
             UUID entityUuid = getUuidFromRef(ref);
@@ -1151,11 +1194,13 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                 String worldName = entry.getKey();
                 World world = entry.getValue();
 
-                if (world == null) continue;
+                if (world == null)
+                    continue;
 
                 try {
                     Store<EntityStore> store = world.getEntityStore().getStore();
-                    if (store == null) continue;
+                    if (store == null)
+                        continue;
 
                     // Check if this entity exists in this world's store
                     // by comparing the store reference

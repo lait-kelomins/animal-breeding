@@ -29,7 +29,7 @@
         ]
     },
     "Interactions": {
-        "Primary": {
+        "Ability2": {
             "Interactions": [
                 {
                     "Type": "NameAnimal"
