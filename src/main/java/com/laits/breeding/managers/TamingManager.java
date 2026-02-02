@@ -490,9 +490,6 @@ public class TamingManager {
         }
     }
 
-    // TODO: handle baby growing to animal (should keep name and baby should be removed from taming data so it doesnt respawn)
-    
-
     /**
      * Update position of a tamed animal (called periodically).
      */
