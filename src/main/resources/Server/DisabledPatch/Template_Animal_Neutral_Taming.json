@@ -1,6 +1,8 @@
 {
     "_comment": "Add taming/feeding to all animals with LovedItems, including harvestable/mountable ones",
     "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "_op": "replace",
+    "_find": "$[InteractionInstruction]",
     "InteractionInstruction": {
         "Enabled": {
             "Compute": "IsHarvestable || IsMountable || !isEmptyStringArray(LovedItems)"
@@ -8,7 +10,6 @@
         "Instructions": [
             {
                 "_comment": "Block 0: Simple tameable animals (not mountable, not harvestable)",
-                "_op": "addBefore",
                 "Enabled": {
                     "Compute": "!isEmptyStringArray(LovedItems) && !IsMountable && !IsHarvestable"
                 },
@@ -60,16 +61,9 @@
             },
             {
                 "_comment": "Block 1: Modify harvestable block - add tame/feed checks BEFORE harvest logic",
-                "_find": {
-                    "Enabled": {
-                        "Compute": "IsHarvestable"
-                    }
-                },
                 "Instructions": [
                     {
                         "_comment": "NEW: Wild harvestable + player has loved item = Tame",
-                        "_op": "add",
-                        "_index": 0,
                         "Enabled": {
                             "Compute": "!isEmptyStringArray(LovedItems)"
                         },
@@ -107,12 +101,6 @@
                     },
                     {
                         "_comment": "NEW: Tamed harvestable + player has loved item = Feed",
-                        "_op": "add",
-                        "_find": {
-                            "Enabled": {
-                                "Compute": "IsMountable"
-                            }
-                        },
                         "Enabled": {
                             "Compute": "!isEmptyStringArray(LovedItems)"
                         },
@@ -159,15 +147,9 @@
             },
             {
                 "_comment": "Block 2: Modify mountable block - add tame/feed checks BEFORE mount logic",
-                "_find": {
-                    "Enabled": {
-                        "Compute": "IsMountable"
-                    }
-                },
                 "Instructions": [
                     {
                         "_comment": "NEW: Wild mountable + player has loved item = Tame (STOP to prevent mounting)",
-                        "_op": "addBefore",
                         "Enabled": {
                             "Compute": "!isEmptyStringArray(LovedItems)"
                         },
@@ -182,16 +164,19 @@
                                     }
                                 },
                                 {
-                                    "Type": "Player",
-                                    "Range": 5,
-                                    "Filters": [
-                                        {
-                                            "Type": "ItemInHand",
-                                            "Items": {
-                                                "Compute": "LovedItems"
+                                    "Type": "Not",
+                                    "Sensor": {
+                                        "Type": "Player",
+                                        "Range": 5,
+                                        "Filters": [
+                                            {
+                                                "Type": "ItemInHand",
+                                                "Items": {
+                                                    "Compute": "LovedItems"
+                                                }
                                             }
-                                        }
-                                    ]
+                                        ]
+                                    }
                                 }
                             ]
                         },
@@ -205,8 +190,6 @@
                     },
                     {
                         "_comment": "NEW: Tamed mountable + player has loved item = Feed (STOP to prevent mounting)",
-                        "_op": "addAfter",
-                        "_index": 0,
                         "Enabled": {
                             "Compute": "!isEmptyStringArray(LovedItems)"
                         },

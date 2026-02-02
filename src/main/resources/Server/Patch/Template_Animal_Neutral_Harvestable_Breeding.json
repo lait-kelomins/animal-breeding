@@ -1,0 +1,89 @@
+{
+    "$Comment": "Add breeding behavior to harvestable animals with LovedItems",
+    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "InteractionInstruction": {
+        "Instructions": [
+            {
+                "_find": { "Enabled": { "Compute": "IsHarvestable" } },
+                "$Comment": "Modify harvestable block - add breeding checks BEFORE harvest logic",
+                "Instructions": [
+                    {
+                        "_op": "addBefore",
+                        "_index": 0,
+                        "$Comment": "BLOCK 1: Breeding Logic (Tamed Animals with LovedItems)",
+                        "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Tamed",
+                                    "Set": true
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": true
+                            }
+                        ]
+                    },
+                    {
+                        "_op": "add",
+                        "_index": 1,
+                        "Sensor": {
+                            "Type": "HasInteracted"
+                        },
+                        "Actions": [
+                            {
+                                "Type": "HyTameFeedInteraction"
+                            }
+                        ]
+                    },
+                    {
+                        "_op": "add",
+                        "_index": 2,
+                        "$Comment": "STOPPER: Prevent negative check from overriding when breeding conditions met",
+                        "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Tamed",
+                                    "Set": true
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "Actions": []
+                    }
+                ]
+            }
+        ]
+    }
+}

@@ -4,9 +4,7 @@
   "InteractionInstruction": {
     "Instructions": [
       {
-        "_find": {
-          "Enabled": { "Compute": "IsHarvestable" }
-        },
+        "_find": { "Enabled": { "Compute": "IsHarvestable" } },
         "Instructions": [
           {
             "_op": "replace",
@@ -23,13 +21,9 @@
                   "Set": true
                 },
                 {
-                  "Enabled": {
-                    "Compute": "!isEmpty(HarvestInteractionContext)"
-                  },
+                  "Enabled": { "Compute": "!isEmpty(HarvestInteractionContext)" },
                   "Type": "InteractionContext",
-                  "Context": {
-                    "Compute": "HarvestInteractionContext"
-                  }
+                  "Context": { "Compute": "HarvestInteractionContext" }
                 },
                 {
                   "Type": "Alarm",
@@ -39,10 +33,7 @@
               ]
             },
             "Actions": [
-              {
-                "Type": "State",
-                "State": "$Harvest"
-              }
+              { "Type": "State", "State": "$Harvest" }
             ]
           }
         ]

@@ -1,0 +1,94 @@
+{
+    "$Comment": "Add taming to wild mountable animals with LovedItems",
+    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "InteractionInstruction": {
+        "Instructions": [
+            {
+                "_find": { "Enabled": { "Compute": "IsMountable" } },
+                "Instructions": [
+                    {
+                        "_op": "addBefore",
+                        "_index": 0,
+                        "$Comment": "Taming: Wild mountable + player holding LovedItems",
+                        "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Not",
+                                    "Sensor": {
+                                        "Type": "Tamed",
+                                        "Set": true
+                                    }
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": true
+                            }
+                        ]
+                    },
+                    {
+                        "_op": "add",
+                        "_index": 1,
+                        "Sensor": {
+                            "Type": "HasInteracted"
+                        },
+                        "Actions": [
+                            {
+                                "Type": "HyTameFeedInteraction"
+                            }
+                        ]
+                    },
+                    {
+                        "_op": "add",
+                        "_index": 2,
+                        "$Comment": "STOPPER: Prevent mount logic when taming conditions met",
+                        "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Not",
+                                    "Sensor": {
+                                        "Type": "Tamed",
+                                        "Set": true
+                                    }
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "Actions": []
+                    }
+                ]
+            }
+        ]
+    }
+}

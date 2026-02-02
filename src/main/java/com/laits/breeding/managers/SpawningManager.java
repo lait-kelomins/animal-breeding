@@ -679,7 +679,14 @@ public class SpawningManager {
                             despawnReason = RemoveReason.values()[0];
                         }
                         if (despawnReason != null) {
-                            store.removeEntity(finalEntityRef, despawnReason);
+                            // Use CommandBuffer for deferred removal to avoid race condition
+                            // where PositionCacheSystems tries to access invalidated entity ref
+                            final RemoveReason finalReason = despawnReason;
+                            store.forEachChunk((chunk, commandBuffer) -> {
+                                if (finalEntityRef.isValid()) {
+                                    commandBuffer.removeEntity(finalEntityRef, finalReason);
+                                }
+                            });
                         }
                     } catch (Exception e) {
                         // Silent
