@@ -910,26 +910,20 @@ public class FeedAnimalInteraction extends SimpleInteraction {
     /**
      * Check if an entity ref corresponds to a player (prevents treating players
      * with animal models as animals).
-     * Searches all worlds for multi-world support.
+     *
+     * Simply checks if the entity has a PlayerRef component - this is
+     * thread-safe and does not require iterating over worlds/players.
      */
     private boolean isPlayerEntity(Ref<EntityStore> ref) {
         try {
-            UUID entityUuid = getUuidFromRef(ref);
-            if (entityUuid == null)
-                return false;
+            if (ref == null || !ref.isValid()) return false;
 
-            // Search all worlds for players
-            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
-                World world = entry.getValue();
-                if (world == null) continue;
+            Store<EntityStore> store = ref.getStore();
+            if (store == null) return false;
 
-                for (com.hypixel.hytale.server.core.entity.entities.Player player : world.getPlayers()) {
-                    UUID playerUuid = getPlayerUuidFromPlayer(player);
-                    if (entityUuid.equals(playerUuid)) {
-                        return true;
-                    }
-                }
-            }
+            // Check if entity has PlayerRef component - only players have this
+            PlayerRef playerRef = store.getComponent(ref, EcsReflectionUtil.PLAYER_REF_TYPE);
+            return playerRef != null;
         } catch (Exception e) {
             // Silent - assume not a player if we can't check
         }
