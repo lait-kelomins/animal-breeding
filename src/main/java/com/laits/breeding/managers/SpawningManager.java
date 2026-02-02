@@ -678,7 +678,7 @@ public class SpawningManager {
                         if (despawnReason == null && RemoveReason.values().length > 0) {
                             despawnReason = RemoveReason.values()[0];
                         }
-                        if (despawnReason != null) {
+                        if (despawnReason != null && finalEntityRef.isValid()) {
                             store.removeEntity(finalEntityRef, despawnReason);
                         }
                     } catch (Exception e) {
