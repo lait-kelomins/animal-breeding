@@ -1,5 +1,5 @@
 {
-    "$Comment": "Only tamed mountable animals can be mounted - wild ones must be tamed first",
+    "$Comment": "Require taming before mounting - modify vanilla Mount sensor to include Tamed check",
     "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
     "InteractionInstruction": {
         "Instructions": [
@@ -7,22 +7,31 @@
                 "_find": { "Enabled": { "Compute": "IsMountable" } },
                 "Instructions": [
                     {
-                        "_op": "addBefore",
-                        "_index": 0,
-                        "$Comment": "Block mounting if wild (not tamed)",
-                        "Sensor": {
-                            "Type": "Not",
-                            "Sensor": {
-                                "Type": "Tamed",
-                                "Set": true
-                            }
+                        "_op": "replace",
+                        "_find": {
+                            "Sensor": { "Type": "HasInteracted" },
+                            "Actions": [{
+                                "Type": "Mount",
+                                "AnchorX": { "Compute": "MountAnchorX" },
+                                "AnchorY": { "Compute": "MountAnchorY" },
+                                "AnchorZ": { "Compute": "MountAnchorZ" },
+                                "MovementConfig": { "Compute": "MountMovementConfig" }
+                            }]
                         },
-                        "Actions": [
-                            {
-                                "Type": "SetInteractable",
-                                "Interactable": false
-                            }
-                        ]
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                { "Type": "Tamed", "Set": true },
+                                { "Type": "HasInteracted" }
+                            ]
+                        },
+                        "Actions": [{
+                            "Type": "Mount",
+                            "AnchorX": { "Compute": "MountAnchorX" },
+                            "AnchorY": { "Compute": "MountAnchorY" },
+                            "AnchorZ": { "Compute": "MountAnchorZ" },
+                            "MovementConfig": { "Compute": "MountMovementConfig" }
+                        }]
                     }
                 ]
             }
