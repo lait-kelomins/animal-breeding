@@ -441,6 +441,14 @@ public class RespawnManager {
         if (tamedData == null || !tamedData.isDespawned())
             return;
 
+        // Skip respawning babies - they are temporary entities that grow naturally
+        // If a baby despawns before growing, it's lost (acceptable for short-lived entities)
+        GrowthStage growthStage = tamedData.getGrowthStage();
+        if (growthStage == GrowthStage.BABY || growthStage == GrowthStage.JUVENILE) {
+            logVerbose("[Respawn] Skipping - animal is a baby/juvenile: " + tamedData.getCustomName());
+            return;
+        }
+
         tamedData.setRespawnInProgress(true);
 
         AnimalType animalType = tamedData.getAnimalType();
