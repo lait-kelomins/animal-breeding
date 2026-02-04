@@ -1,6 +1,7 @@
 {
     "$Comment": "Add breeding to tamed mountable animals with LovedItems",
     "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "_priority": 99,
     "InteractionInstruction": {
         "Instructions": [
             {
@@ -11,13 +12,14 @@
                 },
                 "Instructions": [
                     {
-                        "_op": "addBefore",
+                        "_op": "add",
                         "_index": 0,
-                        "$Comment": "Breeding: Show prompt when tamed + LovedItems",
+                        "_priority": 99,
+                        "$Comment": "[HYTAME] Mountable Breeding: Show prompt when tamed + LovedItems",
+                        "Continue": true,
                         "Enabled": {
                             "Compute": "!isEmptyStringArray(LovedItems)"
                         },
-                        "Continue": true,
                         "Sensor": {
                             "Type": "And",
                             "Sensors": [
@@ -44,12 +46,44 @@
                         },
                         "Actions": [
                             {
+                                "Type": "HyTameFeedInteraction"
+                            }
+                        ]
+                    },
+                    {
+                        "_op": "add",
+                        "_priority": 99,
+                        "_index": 1,
+                        "$Comment": "[HYTAME] Mountable Breeding: Show prompt when tamed + LovedItems",
+                        "Enabled": {
+                            "Compute": "!isEmptyStringArray(LovedItems)"
+                        },
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Tamed",
+                                    "Set": true
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
                                 "Type": "SetInteractable",
                                 "Interactable": true,
                                 "ShowPrompt": true
-                            },
-                            {
-                                "Type": "HyTameFeedInteraction"
                             }
                         ]
                     }
