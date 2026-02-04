@@ -319,7 +319,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         getLogger().atInfo().log("=== Lait's Animal Breeding v%s ===", BuildConfig.VERSION);
         getLogger().atInfo().log("Build variant: %s", BuildConfig.VARIANT);
         getLogger().atInfo().log("Feeding mode: %s",
-                USE_ENTITY_BASED_INTERACTIONS ? "Entity-based (F key)" : "Item Ability2 (E key)");
+                USE_LEGACY_FEED_INTERACTION ? (USE_ENTITY_BASED_INTERACTIONS ? "Entity-based (F key)" : "Item Ability2 (E key)") : "Asset-based patches (F key)");
 
         // Initialize config manager and load from file
         configManager = new ConfigManager();
@@ -1182,7 +1182,9 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         }
 
         // Set up interactions for adults (babies can't breed)
-        if (!animal.isBaby()) {
+        // NOTE: Disabled - asset-based patches now handle all interactions via InteractionInstruction + HyTameFeedInteraction
+        // Legacy code preserved but not executed
+        if (!animal.isBaby() && USE_LEGACY_FEED_INTERACTION) {
             @SuppressWarnings("unchecked")
             Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
             Store<EntityStore> refStore = ref.getStore();

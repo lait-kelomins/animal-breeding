@@ -81,7 +81,8 @@ def buildConfigFile = file("${buildConfigDir}/com/laits/breeding/BuildConfig.jav
 
 // For entity-based (default): USE_ENTITY_BASED_INTERACTIONS = true
 // For experimental (E key): USE_ENTITY_BASED_INTERACTIONS = false
-def useEntityBased = !isExperimental
+// DISABLED: Asset-based patches now handle all interactions via InteractionInstruction + HyTameFeedInteraction
+def useEntityBased = false
 
 tasks.register('generateBuildConfig') {
     description = 'Generate BuildConfig.java for the current build variant'

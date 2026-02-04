@@ -91,11 +91,13 @@ public class ActionHyTameFeedInteraction extends ActionBase {
     @Override
     public boolean canExecute(@Nonnull Ref<EntityStore> ref, @Nonnull Role role, InfoProvider sensorInfo, double dt,
             @Nonnull Store<EntityStore> store) {
+        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+
+        plugin.getLogger().at(Level.INFO).log("CanExecute called for HyTameFeedInteraction");
         ModelComponent modelComponent = store.getComponent(ref, EcsReflectionUtil.MODEL_TYPE);
         String modelAssetId = modelComponent.getModel().getModelAssetId();
         AnimalType animalType = modelAssetId != null ? AnimalType.fromModelAssetId(modelAssetId) : null;
         CustomAnimalConfig customAnimal = null;
-        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
         ConfigManager configManager = plugin.getConfigManager();
 
         // If not a known animal type, check for custom animal

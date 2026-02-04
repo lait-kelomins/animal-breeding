@@ -409,18 +409,34 @@ public class BreedingConfigCommand extends AbstractCommand {
     private static void handleToggle(CommandContext ctx, ConfigManager config, String target, boolean enable) {
         String statusColor = enable ? "#55FF55" : "#FF5555";
         String statusWord = enable ? "Enabled" : "Disabled";
+        // When enabling breeding, also enable taming (you need to tame before you can breed wild animals)
+        String featureText = enable ? " breeding+taming for " : " breeding for ";
 
         // Check if it's ALL
         if (target.equalsIgnoreCase("ALL")) {
             for (AnimalType type : AnimalType.values()) {
                 config.setAnimalEnabled(type, enable);
+                if (enable) {
+                    config.setTamingEnabled(type, true);
+                }
             }
             // Also enable/disable all custom animals
             for (String customId : config.getCustomAnimals().keySet()) {
                 config.setCustomAnimalEnabled(customId, enable);
+                if (enable) {
+                    config.setCustomAnimalTamingEnabled(customId, true);
+                }
             }
             ctx.sendMessage(Message.raw(statusWord).color(statusColor)
-                    .insert(Message.raw(" breeding for ALL animals (including custom).").color("#AAAAAA")));
+                    .insert(Message.raw(featureText + "ALL animals (including custom).").color("#AAAAAA")));
+            // Rescan nearby animals to add Interactable component to existing entities
+            if (enable) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin != null) {
+                    plugin.autoSetupNearbyAnimals();
+                    ctx.sendMessage(Message.raw("Rescanned nearby animals for interaction setup.").color("#AAAAAA"));
+                }
+            }
             return;
         }
 
@@ -431,12 +447,23 @@ public class BreedingConfigCommand extends AbstractCommand {
             for (AnimalType type : AnimalType.values()) {
                 if (type.getCategory() == cat) {
                     config.setAnimalEnabled(type, enable);
+                    if (enable) {
+                        config.setTamingEnabled(type, true);
+                    }
                     count++;
                 }
             }
             ctx.sendMessage(Message.raw(statusWord).color(statusColor)
-                    .insert(Message.raw(" breeding for " + count + " " + cat.name() + " animals.")
+                    .insert(Message.raw(featureText + count + " " + cat.name() + " animals.")
                             .color("#AAAAAA")));
+            // Rescan nearby animals to add Interactable component to existing entities
+            if (enable) {
+                LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+                if (plugin != null) {
+                    plugin.autoSetupNearbyAnimals();
+                    ctx.sendMessage(Message.raw("Rescanned nearby animals for interaction setup.").color("#AAAAAA"));
+                }
+            }
             return;
         } catch (IllegalArgumentException ignored) {
         }
@@ -445,8 +472,11 @@ public class BreedingConfigCommand extends AbstractCommand {
         ConfigManager.AnimalLookupResult lookup = config.lookupAnimal(target);
         if (lookup != null) {
             config.setAnyAnimalEnabled(target, enable);
+            if (enable) {
+                config.setAnyAnimalTamingEnabled(target, true);
+            }
             ctx.sendMessage(Message.raw(statusWord).color(statusColor)
-                    .insert(Message.raw(" breeding for ").color("#AAAAAA"))
+                    .insert(Message.raw(featureText).color("#AAAAAA"))
                     .insert(Message.raw(lookup.getDisplayName()).color("#FFFFFF")));
         } else {
             ctx.sendMessage(Message.raw("Unknown animal or category: ").color("#FF5555")
@@ -454,6 +484,16 @@ public class BreedingConfigCommand extends AbstractCommand {
             ctx.sendMessage(Message.raw("Animals: COW, PIG, CHICKEN, or custom animal names").color("#AAAAAA"));
             ctx.sendMessage(Message.raw("Categories: ").color("#AAAAAA")
                     .insert(Message.raw(Arrays.toString(AnimalType.Category.values())).color("#FFFFFF")));
+            return; // Don't rescan if nothing was enabled
+        }
+
+        // When enabling, rescan nearby animals to add Interactable component to existing entities
+        if (enable) {
+            LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+            if (plugin != null) {
+                plugin.autoSetupNearbyAnimals();
+                ctx.sendMessage(Message.raw("Rescanned nearby animals for interaction setup.").color("#AAAAAA"));
+            }
         }
     }
 

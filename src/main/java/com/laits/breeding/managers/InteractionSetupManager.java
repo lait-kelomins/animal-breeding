@@ -209,9 +209,10 @@ public class InteractionSetupManager {
                 }
             }
 
-            // Set up interactions for adults
-            // Must use world.execute() because store is processing during onEntityAdded callback
-            if (!isBaby && world != null) {
+            // Set up interactions for adults (only if using legacy feed interaction system)
+            // NOTE: When useLegacyFeedInteraction=false, asset-based patches handle interactions,
+            // so we skip scheduling world.execute() entirely to avoid startup slowdown.
+            if (!isBaby && world != null && useLegacyFeedInteraction) {
                 final Ref<EntityStore> finalEntityRef = entityRef;
                 final AnimalType finalAnimalType = animalType;
                 final CustomAnimalConfig finalCustomAnimal = customAnimal;
@@ -253,9 +254,29 @@ public class InteractionSetupManager {
     }
 
     /**
+     * Ensure Interactable component exists on an entity.
+     * This is needed for animals using asset-based InteractionInstruction patches,
+     * especially for templates that don't natively have InteractionInstruction (e.g. Template_Predator).
+     */
+    public void ensureInteractableComponent(Store<EntityStore> store, Ref<EntityStore> entityRef) {
+        try {
+            if (EntityUtil.isPlayerEntity(entityRef)) {
+                return;
+            }
+            store.ensureAndGetComponent(entityRef, EcsReflectionUtil.INTERACTABLE_TYPE);
+            logVerbose("[EnsureInteractable] Added Interactable component to entity");
+        } catch (Exception e) {
+            // Silent - component may already exist or entity doesn't support it
+        }
+    }
+
+    /**
      * Set up breeding interactions on a single entity.
      */
     public void setupEntityInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef, AnimalType animalType) {
+        // NOTE: ensureInteractableComponent() removed - asset-based SetInteractable actions handle this now.
+        // The JSON patches (Template_Predator_Taming.json etc.) use SetInteractable which creates the component.
+
         if (!useLegacyFeedInteraction) {
             return;
         }
@@ -270,13 +291,6 @@ public class InteractionSetupManager {
             if (modelAssetId != null && AnimalType.isBabyVariant(modelAssetId)) {
                 logVerbose("[SetupInteraction] Skipping baby animal: " + modelAssetId);
                 return;
-            }
-
-            // Ensure Interactable component
-            try {
-                store.ensureAndGetComponent(entityRef, EcsReflectionUtil.INTERACTABLE_TYPE);
-            } catch (Exception e) {
-                // Silent
             }
 
             Interactions interactions = store.getComponent(entityRef, EcsReflectionUtil.INTERACTIONS_TYPE);
@@ -347,6 +361,8 @@ public class InteractionSetupManager {
      */
     public void setupCustomAnimalInteractions(Store<EntityStore> store, Ref<EntityStore> entityRef,
             CustomAnimalConfig customAnimal) {
+        // NOTE: ensureInteractableComponent() removed - asset-based SetInteractable actions handle this now.
+
         if (!useLegacyFeedInteraction) {
             return;
         }

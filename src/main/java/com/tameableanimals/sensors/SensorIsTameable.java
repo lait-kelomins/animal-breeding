@@ -38,6 +38,14 @@ public class SensorIsTameable extends SensorBase {
 
         AnimalType animalType = AnimalType.fromModelAssetId(modelAssetId);
 
+        // Debug logging (only when debug mode enabled)
+        if (configManager.isDebugMode()) {
+            boolean breedingEnabled = animalType != null && configManager.isBreedingEnabled(animalType);
+            boolean tamingEnabled = animalType != null && configManager.isTamingEnabled(animalType);
+            plugin.getLogger().atInfo().log("[IsTameable] modelAssetId=%s, animalType=%s, breedingEnabled=%s, tamingEnabled=%s",
+                      modelAssetId, animalType, breedingEnabled, tamingEnabled);
+        }
+
         if (animalType != null && (configManager.isBreedingEnabled(animalType)
                 || configManager.isTamingEnabled(animalType))) {
             return super.matches(ref, role, dt, store);

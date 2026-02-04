@@ -7,10 +7,10 @@
         },
         "Instructions": [
             {
-                "_comment": "Block 0: Simple tameable animals (not mountable, not harvestable)",
-                "_op": "addBefore",
+                "_comment": "Block for simple tameable animals - added LAST so harvestable/mountable blocks run first",
+                "_op": "add",
                 "Enabled": {
-                    "Compute": "!isEmptyStringArray(LovedItems) && !IsMountable && !IsHarvestable"
+                    "Compute": "!isEmptyStringArray(LovedItems)"
                 },
                 "Instructions": [
                     {

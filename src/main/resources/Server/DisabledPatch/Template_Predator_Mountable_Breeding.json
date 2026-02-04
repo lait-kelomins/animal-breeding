@@ -1,0 +1,36 @@
+{
+    "$Comment": "Add breeding to mountable predators (if another mod adds mounting)",
+    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Predator",
+    "InteractionInstruction": {
+        "Instructions": [
+            {
+                "_find": { "Enabled": { "Compute": "IsMountable" } },
+                "Instructions": [
+                    {
+                        "_op": "addBefore",
+                        "_index": 0,
+                        "$Comment": "Breeding: Tamed + LovedItems + F-key",
+                        "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                { "Type": "Tamed", "Set": true },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [{ "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }]
+                                },
+                                { "Type": "HasInteracted" }
+                            ]
+                        },
+                        "Actions": [
+                            { "Type": "SetInteractable", "Interactable": true, "ShowPrompt": true },
+                            { "Type": "HyTameFeedInteraction" }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

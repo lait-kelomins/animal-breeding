@@ -1,0 +1,9 @@
+{
+    "$Comment": "Default LovedItems for predators",
+    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Predator",
+    "Parameters": {
+        "LovedItems": {
+            "Value": ["Food_Wildmeat_Raw", "Food_Wildmeat_Cooked", "Food_Fish_Raw"]
+        }
+    }
+}
