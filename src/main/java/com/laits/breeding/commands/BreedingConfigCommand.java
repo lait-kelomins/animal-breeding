@@ -11,6 +11,7 @@ import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.CustomAnimalConfig;
+import com.laits.breeding.patches.PatchSyncService;
 import com.laits.breeding.util.ConfigManager;
 
 import java.util.Arrays;
@@ -97,6 +98,27 @@ public class BreedingConfigCommand extends AbstractCommand {
     private static ConfigManager getConfig() {
         LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
         return plugin != null ? plugin.getConfigManager() : null;
+    }
+
+    /**
+     * Sync asset patch for an animal after food changes.
+     * Updates the LovedItems parameter in the generated asset pack.
+     */
+    private static void syncPatchForAnimal(ConfigManager.AnimalLookupResult lookup) {
+        if (lookup == null) return;
+
+        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+        if (plugin == null) return;
+
+        PatchSyncService patchSyncService = plugin.getPatchSyncService();
+        if (patchSyncService == null) return;
+
+        // Only sync for built-in animals (custom animals may not have NPC role paths)
+        if (lookup.isBuiltIn()) {
+            AnimalType type = lookup.getBuiltInType();
+            patchSyncService.syncForAnimal(type);
+        }
+        // TODO: Support custom animals with npcRolePath field
     }
 
     private static void showConfigSummary(CommandContext ctx, ConfigManager config) {
@@ -757,6 +779,10 @@ public class BreedingConfigCommand extends AbstractCommand {
                     .insert(Message.raw(" to " + lookup.getDisplayName() + " breeding foods.").color("#55FF55")));
             ctx.sendMessage(Message.raw("Foods: ").color("#AAAAAA")
                     .insert(Message.raw(String.join(", ", config.getAnyAnimalFoods(animalId))).color("#FFFFFF")));
+
+            // Sync asset patch for this animal
+            syncPatchForAnimal(lookup);
+
             return CompletableFuture.completedFuture(null);
         }
     }
@@ -821,6 +847,10 @@ public class BreedingConfigCommand extends AbstractCommand {
                     .insert(Message.raw(" from " + lookup.getDisplayName() + " breeding foods.").color("#55FF55")));
             ctx.sendMessage(Message.raw("Foods: ").color("#AAAAAA")
                     .insert(Message.raw(String.join(", ", config.getAnyAnimalFoods(animalId))).color("#FFFFFF")));
+
+            // Sync asset patch for this animal
+            syncPatchForAnimal(lookup);
+
             return CompletableFuture.completedFuture(null);
         }
     }

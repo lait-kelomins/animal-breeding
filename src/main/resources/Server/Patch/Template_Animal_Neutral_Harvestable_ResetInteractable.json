@@ -1,0 +1,19 @@
+{
+    "$Comment": "Add breeding behavior to harvestable animals with LovedItems",
+    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "_priority": 97,
+    "InteractionInstruction": {
+        "Instructions": [
+            {
+                "_find": {
+                    "Enabled": {
+                        "Compute": "IsHarvestable"
+                    }
+                },
+                "$Comment": "[HYTAME] Harvestable: Reset interactable after breed and taming checks",
+                "Instructions": [
+                ]
+            }
+        ]
+    }
+}

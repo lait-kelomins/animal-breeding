@@ -62,6 +62,7 @@ import com.laits.breeding.managers.TamedRoleManager;
 import com.laits.breeding.handlers.MouseInteractionHandler;
 import com.laits.breeding.managers.TamingManager;
 import com.laits.breeding.managers.PersistenceManager;
+import com.laits.breeding.patches.PatchSyncService;
 import com.laits.breeding.models.TamedAnimalData;
 import com.laits.breeding.ui.NametagUIPage;
 import com.laits.breeding.listeners.UseBlockHandler;
@@ -122,7 +123,7 @@ import java.util.function.BiConsumer;
  */
 public class LaitsBreedingPlugin extends JavaPlugin {
 
-    public static final String VERSION = "1.4.3-hotfix";
+    public static final String VERSION = "1.5.0";
 
     private static LaitsBreedingPlugin instance;
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClassFull();
@@ -160,6 +161,7 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     private InteractionSetupManager interactionSetupManager;
     private MouseInteractionHandler mouseInteractionHandler;
     private TamedRoleManager tamedRoleManager;
+    private PatchSyncService patchSyncService;
 
     // Asset-based taming feature flag
     // When true: Uses RoleChangeSystem to apply tamed roles (persistent behavior)
@@ -332,6 +334,10 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         // server)
         java.nio.file.Path configPath = getDataDirectory().resolve("config.json");
         configManager.loadFromFile(configPath);
+
+        // Initialize patch sync service (syncs LovedItems from config to asset patches)
+        patchSyncService = new PatchSyncService();
+        patchSyncService.initialize(configManager);
 
         breedingManager = new BreedingManager(configManager);
         growthManager = new GrowthManager(configManager, breedingManager);
@@ -823,6 +829,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         } catch (Exception e) {
             logWarning("ECS system registration failed: " + e.getMessage());
             spawnDetector = null;
+        }
+
+        // Start deferred patch sync (waits 10 seconds for server to fully initialize)
+        if (patchSyncService != null) {
+            patchSyncService.syncAllPatchesDeferred(10);
         }
 
         getLogger().atInfo().log("[Lait:AnimalBreeding] Plugin started! Commands: /laitsbreeding, /breedstatus");
@@ -1426,6 +1437,14 @@ public class LaitsBreedingPlugin extends JavaPlugin {
      */
     public boolean shouldUseAssetBasedTaming() {
         return useAssetBasedTaming && tamedRoleManager != null && tamedRoleManager.isInitialized();
+    }
+
+    /**
+     * Get the PatchSyncService for syncing LovedItems patches.
+     * Used by commands to trigger patch sync after food changes.
+     */
+    public PatchSyncService getPatchSyncService() {
+        return patchSyncService;
     }
 
 }
