@@ -3,7 +3,11 @@ package com.laits.breeding.commands;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.command.system.AbstractCommand;
 import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.laits.breeding.LaitsBreedingPlugin;
+import com.laits.breeding.commands.HytamePermissions;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -39,12 +43,57 @@ public class BreedCommand extends AbstractCommand {
 
     @Override
     protected CompletableFuture<Void> execute(CommandContext ctx) {
+        // Check Hytalor requirement - blocks non-admins if missing
+        if (showHytalorWarningIfNeeded(ctx)) {
+            return CompletableFuture.completedFuture(null);
+        }
         // Show deprecation warning then help
         ctx.sendMessage(DEPRECATION_WARNING);
         ctx.sendMessage(Message.raw(""));
         // Show help from HytameCommand
         showDeprecatedHelp(ctx);
         return CompletableFuture.completedFuture(null);
+    }
+
+    // Track if we've shown the Hytalor warning this session
+    private static final java.util.Set<UUID> hytalorWarningShown = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * Check Hytalor and show appropriate message.
+     * @return true if command should be blocked (non-admin without Hytalor)
+     */
+    private static boolean showHytalorWarningIfNeeded(CommandContext ctx) {
+        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+        if (plugin == null || plugin.isHytalorInstalled()) {
+            return false;
+        }
+
+        // Check if sender is admin
+        boolean isAdmin = !(ctx.sender() instanceof Player) ||
+                          HytamePermissions.hasAdminAccess((Player) ctx.sender());
+
+        if (isAdmin) {
+            UUID playerUuid = null;
+            if (ctx.sender() instanceof Player player) {
+                try {
+                    playerUuid = player.getUuid();
+                } catch (Exception e) { }
+            }
+
+            if (playerUuid == null || !hytalorWarningShown.contains(playerUuid)) {
+                ctx.sendMessage(Message.raw("WARNING: HYTALOR NOT DETECTED - HyTame requires Hytalor!").color("#FF5555"));
+                ctx.sendMessage(Message.raw("Install from: curseforge.com/hytale/mods/hytalor").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw(""));
+                if (playerUuid != null) {
+                    hytalorWarningShown.add(playerUuid);
+                }
+            }
+            return true; // Block command - Hytalor is required
+        } else {
+            ctx.sendMessage(Message.raw("[HyTame] This feature is currently unavailable.").color("#FF5555"));
+            ctx.sendMessage(Message.raw("Server needs Hytalor installed.").color("#AAAAAA"));
+            return true; // Block non-admin
+        }
     }
 
     private static void showDeprecatedHelp(CommandContext ctx) {
@@ -99,6 +148,9 @@ public class BreedCommand extends AbstractCommand {
 
         @Override
         protected final CompletableFuture<Void> execute(CommandContext ctx) {
+            if (showHytalorWarningIfNeeded(ctx)) {
+                return CompletableFuture.completedFuture(null);
+            }
             ctx.sendMessage(DEPRECATION_WARNING);
             ctx.sendMessage(Message.raw(""));
             return executeDeprecated(ctx);

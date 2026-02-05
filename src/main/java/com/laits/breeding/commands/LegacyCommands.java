@@ -10,6 +10,7 @@ import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 
 import com.laits.breeding.LaitsBreedingPlugin;
+import com.laits.breeding.commands.HytamePermissions;
 import com.laits.breeding.interactions.InteractionStateCache;
 import com.laits.breeding.managers.BreedingManager;
 import com.laits.breeding.managers.GrowthManager;
@@ -30,6 +31,47 @@ import java.util.concurrent.TimeUnit;
  */
 public class LegacyCommands {
 
+    // Track if we've shown the Hytalor warning this session
+    private static final Set<UUID> hytalorWarningShown = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Check Hytalor and show appropriate message.
+     * @return true if command should be blocked (non-admin without Hytalor)
+     */
+    private static boolean checkHytalorWarning(CommandContext ctx) {
+        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+        if (plugin == null || plugin.isHytalorInstalled()) {
+            return false;
+        }
+
+        // Check if sender is admin
+        boolean isAdmin = !(ctx.sender() instanceof Player) ||
+                          HytamePermissions.hasAdminAccess((Player) ctx.sender());
+
+        if (isAdmin) {
+            UUID playerUuid = null;
+            if (ctx.sender() instanceof Player player) {
+                try {
+                    playerUuid = player.getUuid();
+                } catch (Exception e) { }
+            }
+
+            if (playerUuid == null || !hytalorWarningShown.contains(playerUuid)) {
+                ctx.sendMessage(Message.raw("WARNING: HYTALOR NOT DETECTED - HyTame requires Hytalor!").color("#FF5555"));
+                ctx.sendMessage(Message.raw("Install from: https://www.curseforge.com/hytale/mods/hytalor").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw(""));
+                if (playerUuid != null) {
+                    hytalorWarningShown.add(playerUuid);
+                }
+            }
+            return true; // Block command - Hytalor is required
+        } else {
+            ctx.sendMessage(Message.raw("[HyTame] This feature is currently unavailable.").color("#FF5555"));
+            ctx.sendMessage(Message.raw("Server needs Hytalor installed.").color("#AAAAAA"));
+            return true; // Block non-admin
+        }
+    }
+
     /**
      * Show taming info and list tamed animals.
      * Usage: /taminginfo
@@ -42,6 +84,7 @@ public class LegacyCommands {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkHytalorWarning(ctx)) return CompletableFuture.completedFuture(null);
             ctx.sendMessage(Message.raw("[Deprecated] Use /breed info instead").color("#FFAA00"));
             ctx.sendMessage(Message.raw(""));
 
@@ -100,6 +143,7 @@ public class LegacyCommands {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkHytalorWarning(ctx)) return CompletableFuture.completedFuture(null);
             ctx.sendMessage(Message.raw("[Deprecated] Use /breed instead").color("#FFAA00"));
             ctx.sendMessage(Message.raw(""));
             ctx.sendMessage(Message.raw("=== Lait's Animal Breeding v" + LaitsBreedingPlugin.VERSION + " ===").color("#FF9900"));
@@ -137,6 +181,7 @@ public class LegacyCommands {
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
+            if (checkHytalorWarning(ctx)) return CompletableFuture.completedFuture(null);
             ctx.sendMessage(Message.raw("[Deprecated] Use /breed status instead").color("#FFAA00"));
             ctx.sendMessage(Message.raw(""));
 

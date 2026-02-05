@@ -168,6 +168,11 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // When false: Uses legacy reflection-based approach (InteractionSetupManager)
     private boolean useAssetBasedTaming = true;
 
+    // Hytalor detection - some features require Hytalor for asset patching
+    // If Hytalor is not installed, patches in Server/Patch/ are not applied
+    private boolean hytalorInstalled = false;
+    private static final String HYTALOR_WARNING = "[Warning] Hytalor not detected. Some features like taming hints and asset-based roles require Hytalor to be installed.";
+
     // HyTameComponent type for ECS integration
     private ComponentType<EntityStore, HyTameComponent> hyTameComponentType;
     // HyTameInteractionComponent type for persisting original interactions across
@@ -308,6 +313,52 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         LOGGER.atWarning().log("[Lait:AnimalBreeding] " + message);
     }
 
+    /**
+     * Check if Hytalor is installed by searching the PluginManager.
+     * Hytalor applies patches from Server/Patch/ directory - without it, patches are ignored.
+     */
+    private boolean detectHytalor() {
+        try {
+            com.hypixel.hytale.server.core.plugin.PluginManager pm = HytaleServer.get().getPluginManager();
+            if (pm == null) {
+                getLogger().atInfo().log("PluginManager not available for Hytalor detection");
+                return false;
+            }
+
+            // Search for Hytalor plugin by name
+            for (com.hypixel.hytale.server.core.plugin.PluginBase plugin : pm.getPlugins()) {
+                String name = plugin.getName();
+                if (name != null && name.toLowerCase().contains("hytalor")) {
+                    getLogger().atInfo().log("Hytalor plugin detected: %s", name);
+                    return true;
+                }
+            }
+
+            // Hytalor not found in plugin list
+            return false;
+        } catch (Exception e) {
+            getLogger().atWarning().log("Failed to detect Hytalor: %s", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Check if Hytalor is installed. Returns cached result.
+     */
+    public boolean isHytalorInstalled() {
+        return hytalorInstalled;
+    }
+
+    /**
+     * Log a warning about Hytalor not being installed (called once per feature).
+     */
+    public void warnHytalorRequired(String feature) {
+        if (!hytalorInstalled) {
+            getLogger().atWarning().log("[HyTame] Feature '%s' requires Hytalor to be installed.", feature);
+            getLogger().atWarning().log("[HyTame] Without Hytalor, asset patches in Server/Patch/ are not applied.");
+        }
+    }
+
     // NOTE: logError() and devLog() removed - unused dead code
 
     public LaitsBreedingPlugin(JavaPluginInit init) {
@@ -322,6 +373,8 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         getLogger().atInfo().log("Build variant: %s", BuildConfig.VARIANT);
         getLogger().atInfo().log("Feeding mode: %s",
                 USE_LEGACY_FEED_INTERACTION ? (USE_ENTITY_BASED_INTERACTIONS ? "Entity-based (F key)" : "Item Ability2 (E key)") : "Asset-based patches (F key)");
+
+        // Note: Hytalor detection moved to start() - PluginManager not ready during setup()
 
         // Initialize config manager and load from file
         configManager = new ConfigManager();
@@ -641,6 +694,15 @@ public class LaitsBreedingPlugin extends JavaPlugin {
 
     @Override
     protected void start() {
+        // Detect Hytalor for patch-dependent features
+        // Must be done in start() because PluginManager is not fully populated during setup()
+        hytalorInstalled = detectHytalor();
+        if (hytalorInstalled) {
+            getLogger().atInfo().log("Hytalor detected - asset patching enabled");
+        } else {
+            getLogger().atWarning().log(HYTALOR_WARNING);
+        }
+
         // Configure RootInteraction chain (after assets are loaded)
         RootInteraction rootInt = RootInteraction.getRootInteractionOrUnknown("Root_FeedAnimal");
         String[] ids = rootInt.getInteractionIds();
