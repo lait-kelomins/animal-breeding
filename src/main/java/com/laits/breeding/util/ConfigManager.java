@@ -708,9 +708,12 @@ public class ConfigManager {
                             ? safeGetBoolean(customJson, "tamingEnabled", true)
                             : legacyEnabled;
 
+                        String npcRolePath = safeGetString(customJson, "npcRolePath", null);
+
                         CustomAnimalConfig customConfig = new CustomAnimalConfig(
                             modelAssetId, displayName, foods, growthTime, breedCooldown,
-                            babyNpcRole, adultNpcRole, mountable, breedingEnabled, tamingEnabled
+                            babyNpcRole, adultNpcRole, mountable, breedingEnabled, tamingEnabled,
+                            npcRolePath
                         );
                         customAnimals.put(modelAssetId, customConfig);
                         log("Loaded custom animal: " + modelAssetId);
@@ -807,6 +810,9 @@ public class ConfigManager {
                 }
                 if (!custom.getAdultNpcRoleId().equals(custom.getModelAssetId())) {
                     customJson.addProperty("adultNpcRoleId", custom.getAdultNpcRoleId());
+                }
+                if (custom.getNpcRolePath() != null) {
+                    customJson.addProperty("npcRolePath", custom.getNpcRolePath());
                 }
                 if (custom.isMountable()) {
                     customJson.addProperty("mountable", true);
@@ -1859,7 +1865,9 @@ public class ConfigManager {
                     existing.getBabyNpcRoleId(),
                     existing.getAdultNpcRoleId(),
                     existing.isMountable(),
-                    existing.isEnabled()
+                    existing.isBreedingEnabled(),
+                    existing.isTamingEnabled(),
+                    existing.getNpcRolePath()
                 ));
             }
         }
@@ -2465,7 +2473,8 @@ public class ConfigManager {
                 existing.getAdultNpcRoleId(),
                 existing.isMountable(),
                 enabled,
-                existing.isTamingEnabled()
+                existing.isTamingEnabled(),
+                existing.getNpcRolePath()
             ));
         }
     }
@@ -2486,7 +2495,8 @@ public class ConfigManager {
                 existing.getAdultNpcRoleId(),
                 existing.isMountable(),
                 existing.isBreedingEnabled(),
-                enabled
+                enabled,
+                existing.getNpcRolePath()
             ));
         }
     }
@@ -2509,7 +2519,9 @@ public class ConfigManager {
                     existing.getBabyNpcRoleId(),
                     existing.getAdultNpcRoleId(),
                     existing.isMountable(),
-                    existing.isEnabled()
+                    existing.isBreedingEnabled(),
+                    existing.isTamingEnabled(),
+                    existing.getNpcRolePath()
                 ));
             }
         }
@@ -2532,7 +2544,9 @@ public class ConfigManager {
                     existing.getBabyNpcRoleId(),
                     existing.getAdultNpcRoleId(),
                     existing.isMountable(),
-                    existing.isEnabled()
+                    existing.isBreedingEnabled(),
+                    existing.isTamingEnabled(),
+                    existing.getNpcRolePath()
                 ));
             }
         }
@@ -2555,7 +2569,9 @@ public class ConfigManager {
                 existing.getBabyNpcRoleId(),
                 roleId,  // Set the new adult NPC role ID
                 existing.isMountable(),
-                existing.isEnabled()
+                existing.isBreedingEnabled(),
+                existing.isTamingEnabled(),
+                existing.getNpcRolePath()
             ));
             log("Set NPC role for " + modelAssetId + " to: " + roleId);
         }
@@ -2579,7 +2595,9 @@ public class ConfigManager {
                 babyRoleId,  // Set the new baby NPC role ID
                 existing.getAdultNpcRoleId(),
                 existing.isMountable(),
-                existing.isEnabled()
+                existing.isBreedingEnabled(),
+                existing.isTamingEnabled(),
+                existing.getNpcRolePath()
             ));
             log("Set baby NPC role for " + modelAssetId + " to: " + babyRoleId);
         }
@@ -2602,7 +2620,9 @@ public class ConfigManager {
                 existing.getBabyNpcRoleId(),
                 existing.getAdultNpcRoleId(),
                 existing.isMountable(),
-                existing.isEnabled()
+                existing.isBreedingEnabled(),
+                existing.isTamingEnabled(),
+                existing.getNpcRolePath()
             ));
             log("Set growth time for " + modelAssetId + " to: " + growthTimeMinutes + " min");
         }
@@ -2625,7 +2645,9 @@ public class ConfigManager {
                 existing.getBabyNpcRoleId(),
                 existing.getAdultNpcRoleId(),
                 existing.isMountable(),
-                existing.isEnabled()
+                existing.isBreedingEnabled(),
+                existing.isTamingEnabled(),
+                existing.getNpcRolePath()
             ));
             log("Set cooldown for " + modelAssetId + " to: " + cooldownMinutes + " min");
         }

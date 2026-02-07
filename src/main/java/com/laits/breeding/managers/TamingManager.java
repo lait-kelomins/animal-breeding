@@ -590,6 +590,70 @@ public class TamingManager {
     }
 
     /**
+     * Update entity reference for a tamed animal by hytameId.
+     * Used after baby grows into adult (new entity spawned).
+     */
+    public void updateEntityRef(UUID hytameId, Ref<EntityStore> entityRef, boolean isHytameId) {
+        if (!isHytameId) {
+            updateEntityRef(hytameId, entityRef);
+            return;
+        }
+        // Search by hytameId
+        for (TamedAnimalData data : tamedAnimalsByUuid.values()) {
+            if (hytameId.equals(data.getHytameId())) {
+                data.setEntityRef(entityRef);
+                log("Updated entity ref for hytameId: " + hytameId);
+                return;
+            }
+        }
+    }
+
+    /**
+     * Re-key tamedAnimalsByUuid after baby→adult growth.
+     * Removes old baby UUID key, inserts new adult UUID key, updates animalUuid field.
+     */
+    public void updateEntityAfterGrowth(UUID hytameId, UUID newEntityUuid, Ref<EntityStore> newEntityRef) {
+        TamedAnimalData data = tamedByHytameId.get(hytameId);
+        if (data == null) {
+            log("updateEntityAfterGrowth: No data for hytameId " + hytameId);
+            return;
+        }
+
+        // Remove old UUID key
+        UUID oldUuid = data.getAnimalUuid();
+        if (oldUuid != null) {
+            tamedAnimalsByUuid.remove(oldUuid);
+        }
+
+        // Update data fields
+        data.setAnimalUuid(newEntityUuid);
+        data.setEntityRef(newEntityRef);
+        data.setGrowthStage(GrowthStage.ADULT);
+
+        // Insert under new UUID key
+        tamedAnimalsByUuid.put(newEntityUuid, data);
+        markDirty();
+
+        log("updateEntityAfterGrowth: Re-keyed " + oldUuid + " → " + newEntityUuid);
+    }
+
+    /**
+     * Update growth stage for a tamed animal by hytameId.
+     * Called when baby grows to next stage.
+     */
+    public void updateGrowthStage(UUID hytameId, GrowthStage newStage) {
+        // Search by hytameId
+        for (TamedAnimalData data : tamedAnimalsByUuid.values()) {
+            if (hytameId.equals(data.getHytameId())) {
+                data.setGrowthStage(newStage);
+                log("Updated growth stage for hytameId " + hytameId + " to " + newStage);
+                return;
+            }
+        }
+        log("Could not find animal with hytameId: " + hytameId + " for growth stage update");
+    }
+
+    /**
      * Get despawned tamed animals within range of a position.
      * @param x Center X
      * @param z Center Z

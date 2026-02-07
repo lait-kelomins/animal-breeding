@@ -22,6 +22,7 @@ public class CustomAnimalConfig {
     private final boolean mountable;
     private final boolean breedingEnabled;   // Can this animal breed
     private final boolean tamingEnabled;     // Can this animal be tamed/named
+    private final String npcRolePath;        // Optional: full NPC role asset path (fallback for reflection)
 
     /**
      * Full constructor with separate breeding/taming flags.
@@ -36,7 +37,8 @@ public class CustomAnimalConfig {
             String adultNpcRoleId,
             boolean mountable,
             boolean breedingEnabled,
-            boolean tamingEnabled
+            boolean tamingEnabled,
+            String npcRolePath
     ) {
         this.modelAssetId = modelAssetId;
         this.displayName = displayName != null ? displayName : modelAssetId;
@@ -48,6 +50,7 @@ public class CustomAnimalConfig {
         this.mountable = mountable;
         this.breedingEnabled = breedingEnabled;
         this.tamingEnabled = tamingEnabled;
+        this.npcRolePath = npcRolePath;
     }
 
     /**
@@ -66,7 +69,7 @@ public class CustomAnimalConfig {
             boolean enabled
     ) {
         this(modelAssetId, displayName, breedingFoods, growthTimeMinutes, breedCooldownMinutes,
-             babyNpcRoleId, adultNpcRoleId, mountable, enabled, enabled);
+             babyNpcRoleId, adultNpcRoleId, mountable, enabled, enabled, null);
     }
 
     public String getModelAssetId() {
@@ -99,6 +102,10 @@ public class CustomAnimalConfig {
 
     public String getAdultNpcRoleId() {
         return adultNpcRoleId;
+    }
+
+    public String getNpcRolePath() {
+        return npcRolePath;
     }
 
     public boolean hasBabyVariant() {

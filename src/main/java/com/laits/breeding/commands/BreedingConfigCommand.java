@@ -113,12 +113,30 @@ public class BreedingConfigCommand extends AbstractCommand {
         PatchSyncService patchSyncService = plugin.getPatchSyncService();
         if (patchSyncService == null) return;
 
-        // Only sync for built-in animals (custom animals may not have NPC role paths)
         if (lookup.isBuiltIn()) {
-            AnimalType type = lookup.getBuiltInType();
-            patchSyncService.syncForAnimal(type);
+            patchSyncService.syncForAnimal(lookup.getBuiltInType());
+        } else {
+            patchSyncService.syncForCustomAnimal(lookup.getCustomConfig());
         }
-        // TODO: Support custom animals with npcRolePath field
+    }
+
+    /**
+     * Sync growth time patch for an animal after growth time changes.
+     */
+    private static void syncGrowthPatchForAnimal(ConfigManager.AnimalLookupResult lookup) {
+        if (lookup == null) return;
+
+        LaitsBreedingPlugin plugin = LaitsBreedingPlugin.getInstance();
+        if (plugin == null) return;
+
+        PatchSyncService patchSyncService = plugin.getPatchSyncService();
+        if (patchSyncService == null) return;
+
+        if (lookup.isBuiltIn()) {
+            patchSyncService.syncGrowthForAnimal(lookup.getBuiltInType());
+        } else {
+            patchSyncService.syncGrowthForCustomAnimal(lookup.getCustomConfig());
+        }
     }
 
     private static void showConfigSummary(CommandContext ctx, ConfigManager config) {
@@ -698,6 +716,8 @@ public class BreedingConfigCommand extends AbstractCommand {
                                 .insert(Message.raw(displayName).color("#FFFFFF"))
                                 .insert(Message.raw(" growth time to: ").color("#55FF55"))
                                 .insert(Message.raw(minutes + " min").color("#FFFF55")));
+                        // Sync growth time patch
+                        syncGrowthPatchForAnimal(lookup);
                     } catch (NumberFormatException e) {
                         ctx.sendMessage(Message.raw("Invalid number: ").color("#FF5555")
                                 .insert(Message.raw(value).color("#FFFFFF")));

@@ -626,14 +626,19 @@ public enum AnimalType {
     }
 
     /**
-     * Check if the modelAssetId is a baby variant.
+     * Check if the identifier is a baby variant (matches babyModelAssetId or babyNpcRoleId).
      */
-    public static boolean isBabyVariant(String modelAssetId) {
-        if (modelAssetId == null) {
+    public static boolean isBabyVariant(String identifier) {
+        if (identifier == null) {
             return false;
         }
         for (AnimalType type : values()) {
-            if (type.babyModelAssetId != null && type.babyModelAssetId.equalsIgnoreCase(modelAssetId)) {
+            // Check babyModelAssetId (e.g., "Lamb")
+            if (type.babyModelAssetId != null && type.babyModelAssetId.equalsIgnoreCase(identifier)) {
+                return true;
+            }
+            // Check babyNpcRoleId (e.g., "Sheep_Lamb")
+            if (type.babyNpcRoleId != null && type.babyNpcRoleId.equalsIgnoreCase(identifier)) {
                 return true;
             }
         }

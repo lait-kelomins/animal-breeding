@@ -98,8 +98,11 @@ import com.tameableanimals.tame.HyTameComponent;
 import com.tameableanimals.tame.HyTameSystems;
 import com.tameableanimals.actions.BuilderActionHyTameFeedInteraction;
 import com.tameableanimals.actions.BuilderActionRemovePlayerHeldItems;
+import com.tameableanimals.actions.BuilderActionGrowToNextStage;
 import com.tameableanimals.sensors.BuilderSensorIsTameable;
 import com.tameableanimals.sensors.BuilderSensorTamed;
+import com.tameableanimals.sensors.BuilderSensorGrowthReady;
+import com.tameableanimals.sensors.BuilderSensorScaledBaby;
 import com.hypixel.hytale.server.npc.role.support.WorldSupport;
 import java.lang.reflect.Field;
 
@@ -274,6 +277,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
     // When false: No hints on animals (player must know to use Ability2)
     // Only applies when USE_ENTITY_BASED_INTERACTIONS is false
     private static final boolean SHOW_ABILITY2_HINTS_ON_ENTITIES = true;
+
+    // Java-based growth system toggle (legacy)
+    // When true: Uses GrowthManager.tickGrowth() for baby animal growth (Java timing)
+    // When false: Uses alarm-based growth via patches (Growth_Ready alarm + GrowToNextStage action)
+    // Default: false (alarm-based system is preferred)
+    private static final boolean USE_JAVA_BASED_GROWTH = false;
 
     /** Broadcast a message to all online players in chat (all worlds) */
     private void broadcastToChat(String message) {
@@ -565,22 +574,26 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             }
         });
 
-        // Set up growth callback - handle growth stage changes
-        growthManager.setOnGrowthCallback(event -> {
-            if (event.usesScaling()) {
-                // Creatures without baby variants: update scale at each stage
-                spawningManager.updateEntityScale(event.getAnimalId(), event.getAnimalType(), event.getTargetScale());
-                if (event.getNewStage() == GrowthStage.ADULT) {
-                    // Clean up tracking data when fully grown
-                    breedingManager.removeData(event.getAnimalId());
+        // Set up growth callback - handle growth stage changes (Java-based growth system)
+        // Only active when USE_JAVA_BASED_GROWTH is true
+        // When disabled, growth is handled by alarm-based system via ActionGrowToNextStage
+        if (USE_JAVA_BASED_GROWTH) {
+            growthManager.setOnGrowthCallback(event -> {
+                if (event.usesScaling()) {
+                    // Creatures without baby variants: update scale at each stage
+                    spawningManager.updateEntityScale(event.getAnimalId(), event.getAnimalType(), event.getTargetScale());
+                    if (event.getNewStage() == GrowthStage.ADULT) {
+                        // Clean up tracking data when fully grown
+                        breedingManager.removeData(event.getAnimalId());
+                    }
+                } else {
+                    // Animals with baby variants: replace entity when adult
+                    if (event.getNewStage() == GrowthStage.ADULT) {
+                        spawningManager.transformBabyToAdult(event.getAnimalId(), event.getAnimalType());
+                    }
                 }
-            } else {
-                // Animals with baby variants: replace entity when adult
-                if (event.getNewStage() == GrowthStage.ADULT) {
-                    spawningManager.transformBabyToAdult(event.getAnimalId(), event.getAnimalType());
-                }
-            }
-        });
+            });
+        }
 
         // *** IMPORTANT: Register events in setup(), not start() ***
         // Per docs: "Setup Phase - Register commands, events, and initialize resources
@@ -729,7 +742,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
         scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
             try {
                 breedingManager.tickPregnancies();
-                growthManager.tickGrowth();
+                // Java-based growth (legacy) - controlled by USE_JAVA_BASED_GROWTH flag
+                // When disabled, growth is handled by alarm-based system:
+                // See Template_Baby_Growth.json and Template_Scaled_Baby_Growth.json patches
+                if (USE_JAVA_BASED_GROWTH) {
+                    growthManager.tickGrowth();
+                }
                 breedingTickManager.tick(); // Handle love mode, heart particles, breeding
                 interactionSetupManager.updateTrackedAnimalStates(); // Dynamic hint switching
             } catch (Exception e) {
@@ -796,6 +814,12 @@ public class LaitsBreedingPlugin extends JavaPlugin {
             } else {
                 logVerbose("NPC taming components skipped (using legacy FeedAnimalInteraction)");
             }
+
+            // Register baby growth sensors and action for alarm-based growth system
+            NPCPlugin.get().registerCoreComponentType("GrowthReady", BuilderSensorGrowthReady::new);
+            NPCPlugin.get().registerCoreComponentType("ScaledBaby", BuilderSensorScaledBaby::new);
+            NPCPlugin.get().registerCoreComponentType("GrowToNextStage", BuilderActionGrowToNextStage::new);
+            logVerbose("Baby growth components registered (GrowthReady, ScaledBaby, GrowToNextStage)");
 
             // Periodically update player UUIDs for the spawn detector to exclude players
             scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {

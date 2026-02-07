@@ -18,7 +18,9 @@ import com.hypixel.hytale.server.npc.role.support.WorldSupport;
 import com.hypixel.hytale.server.npc.systems.RoleBuilderSystem;
 import com.laits.breeding.LaitsBreedingPlugin;
 import com.laits.breeding.managers.BreedingManager;
+import com.laits.breeding.models.AnimalType;
 import com.laits.breeding.models.BreedingData;
+import com.laits.breeding.models.GrowthStage;
 import com.laits.breeding.util.ConfigManager;
 import com.tameableanimals.utils.Debug;
 
@@ -97,6 +99,18 @@ public class HyTameSystems {
 
             // Setup taming - ensure HyTameComponent exists
             HyTameComponent hyTameComponent = holder.ensureAndGetComponent(this.hyTameComponentType);
+
+            // Set growthStage = BABY for baby NPC variants (e.g., Bunny, Sheep_Lamb, Cow_Calf)
+            // This ensures the GrowthReady sensor returns true and Growth_Ready alarm gets set
+            if (hyTameComponent.getGrowthStage() == GrowthStage.ADULT) {
+                // Check if this is a baby variant by role name
+                String roleName = npcEntity.getRoleName();
+                if (roleName != null && AnimalType.isBabyVariant(roleName)) {
+                    hyTameComponent.setGrowthStage(GrowthStage.BABY);
+                    Debug.log("Set growthStage=BABY for baby variant: " + roleName, Level.INFO);
+                }
+            }
+
             if (hyTameComponent.isTamed()) {
                 try {
                     LaitsBreedingPlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);

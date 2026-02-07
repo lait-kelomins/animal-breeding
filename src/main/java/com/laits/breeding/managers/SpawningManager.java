@@ -251,6 +251,18 @@ public class SpawningManager {
                         UUID babyId = EcsReflectionUtil.getUuidFromRef(babyRefForUuid);
                         breedingManager.registerBaby(babyId, finalAnimalType, entityRef);
 
+                        // Set HyTameComponent.growthStage = BABY for alarm-based growth system
+                        if (hyTameTypeSupplier != null) {
+                            ComponentType<EntityStore, HyTameComponent> hyTameType = hyTameTypeSupplier.get();
+                            if (hyTameType != null) {
+                                HyTameComponent hyTameComp = store.ensureAndGetComponent(entityRef, hyTameType);
+                                if (hyTameComp != null) {
+                                    hyTameComp.setGrowthStage(GrowthStage.BABY);
+                                    logVerbose("Set HyTameComponent.growthStage = BABY for new baby");
+                                }
+                            }
+                        }
+
                         // Auto-tame baby if BOTH parents are tamed
                         autoTameBabyIfParentsTamed(store, entityRef, babyId, finalAnimalType, spawnPos,
                                 finalParent1Id, finalParent2Id, finalWorldName);
