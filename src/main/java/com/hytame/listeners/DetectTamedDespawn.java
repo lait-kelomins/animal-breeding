@@ -102,9 +102,10 @@ public class DetectTamedDespawn extends EntityTickingSystem<EntityStore> {
     }
 
     private void log(String message) {
+        if (!HyTamePlugin.isVerboseLogging()) return;
         HyTamePlugin plugin = HyTamePlugin.getInstance();
         if (plugin != null) {
-            plugin.getLogger().atInfo().log("[DetectTamedDeath] " + message);
+            plugin.getLogger().atInfo().log("[DetectTamedDespawn] " + message);
         }
     }
 }

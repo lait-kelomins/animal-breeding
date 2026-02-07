@@ -44,6 +44,7 @@ import com.hypixel.hytale.server.npc.systems.RoleBuilderSystem;
 import com.hytame.HyTamePlugin;
 import com.hytame.interactions.InteractionStateCache;
 import com.hytame.managers.BreedingManager;
+import com.hytame.managers.GrowthManager;
 import com.hytame.managers.TamingManager;
 import com.hytame.models.AnimalType;
 import com.hytame.models.BreedingData;
@@ -204,12 +205,29 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     return;
                 }
 
-                // Skip babies - they can't breed
-                // TODO: make sure it works for animals without baby variant model
+                // Skip babies - they can't breed or be tamed
                 if (modelAssetId != null && AnimalType.isBabyVariant(modelAssetId)) {
-                    log("Target is a baby animal, skipping feed interaction");
+                    log("Target is a baby variant animal, skipping feed interaction");
                     shouldFail = true;
                     return;
+                }
+
+                // Also check for scaled-down babies (share adult modelAssetId)
+                UUID targetUuid = getUuidFromRef(targetRef);
+                if (targetUuid != null) {
+                    GrowthManager growthMgr = plugin.getGrowthManager();
+                    if (growthMgr != null && !growthMgr.isFullyGrown(targetUuid)) {
+                        log("Target is a growing baby animal, skipping feed interaction");
+                        shouldFail = true;
+                        return;
+                    }
+                    BreedingData babyData = plugin.getBreedingManager().getData(targetUuid);
+                    if (babyData != null && babyData.getGrowthStage() != null
+                            && babyData.getGrowthStage() != GrowthStage.ADULT) {
+                        log("Target is a scaled baby animal, skipping feed interaction");
+                        shouldFail = true;
+                        return;
+                    }
                 }
 
                 // Check interaction permission for tamed animals
@@ -263,6 +281,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                             }
 
                             // Capture variables for callback
+                            // IMPORTANT: Capture UUID BEFORE deferred callback - ref may be stale inside callback
+                            final UUID finalEntityUuid = getUuidFromRef(targetRef);
                             final UUID finalTamerUuid = tamerUuid;
                             final String finalTamerName = tamerName;
                             final AnimalType finalAnimalType = animalType;
@@ -273,8 +293,8 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                                     (hyTameComp) -> {
                                         if (hyTameComp != null) {
                                             log("Animal tamed successfully via HyTameComponent");
-                                            // Also register with TamingManager for persistence
-                                            UUID entityUuid = getUuidFromRef(finalTargetRef);
+                                            // Use pre-captured UUID (ref may be stale by now)
+                                            UUID entityUuid = finalEntityUuid;
                                             String animalName = NameplateUtil.UNDEFINED_NAME;
                                             Vector3d pos = getPositionFromRef(finalTargetRef);
                                             double posX = pos != null ? pos.getX() : 0;

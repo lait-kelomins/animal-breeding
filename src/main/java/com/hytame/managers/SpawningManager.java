@@ -278,6 +278,29 @@ public class SpawningManager {
         logVerbose("Parent1 UUID: " + parent1Id + " -> data: " + (parent1Data != null ? "found" : "NOT FOUND"));
         logVerbose("Parent2 UUID: " + parent2Id + " -> data: " + (parent2Data != null ? "found" : "NOT FOUND"));
 
+        // Fallback: if direct UUID lookup fails, search by animal type near spawn position
+        // This handles UUID mismatch from stale refs during deferred taming callbacks
+        if (parent1Data == null || parent2Data == null) {
+            for (TamedAnimalData candidate : tamingManager.getAllTamedAnimals()) {
+                if (candidate.getAnimalType() != animalType) continue;
+
+                double dx = candidate.getLastX() - spawnPos.getX();
+                double dy = candidate.getLastY() - spawnPos.getY();
+                double dz = candidate.getLastZ() - spawnPos.getZ();
+                double dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                if (dist > 10.0) continue;
+
+                if (parent1Data == null) {
+                    parent1Data = candidate;
+                    logVerbose("Fallback: found parent1 by proximity (" + String.format("%.1f", dist) + " blocks)");
+                } else if (parent2Data == null && candidate != parent1Data) {
+                    parent2Data = candidate;
+                    logVerbose("Fallback: found parent2 by proximity (" + String.format("%.1f", dist) + " blocks)");
+                    break;
+                }
+            }
+        }
+
         // Both parents must be tamed for baby to be auto-tamed
         if (parent1Data == null || parent2Data == null) {
             return;

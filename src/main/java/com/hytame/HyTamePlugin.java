@@ -165,6 +165,7 @@ public class HyTamePlugin extends JavaPlugin {
     private MouseInteractionHandler mouseInteractionHandler;
     private TamedRoleManager tamedRoleManager;
     private PatchSyncService patchSyncService;
+    private java.nio.file.Path configDirectory;
 
     // Asset-based taming feature flag
     // When true: Uses RoleChangeSystem to apply tamed roles (persistent behavior)
@@ -391,10 +392,9 @@ public class HyTamePlugin extends JavaPlugin {
         // Initialize config manager and load from file
         configManager = new ConfigManager();
 
-        // Load config from plugin's data directory (created automatically by the
-        // server)
-        java.nio.file.Path configPath = getDataDirectory().resolve("config.json");
-        configManager.loadFromFile(configPath);
+        // Resolve config directory: Config_HyTame, with migration from Lait_AnimalBreeding
+        configDirectory = resolveConfigDirectory();
+        configManager.loadFromFile(configDirectory.resolve("config.json"));
 
         // Initialize patch sync service (syncs LovedItems from config to asset patches)
         patchSyncService = new PatchSyncService();
@@ -405,7 +405,7 @@ public class HyTamePlugin extends JavaPlugin {
 
         // Initialize taming and persistence managers
         persistenceManager = new PersistenceManager();
-        persistenceManager.initialize(getDataDirectory());
+        persistenceManager.initialize(configDirectory);
 
         tamingManager = new TamingManager();
         tamingManager.setPersistenceManager(persistenceManager);
@@ -1413,6 +1413,56 @@ public class HyTamePlugin extends JavaPlugin {
         return registered;
     }
 
+    /**
+     * Resolve the config directory: Config_HyTame, with migration from Lait_AnimalBreeding.
+     */
+    private java.nio.file.Path resolveConfigDirectory() {
+        java.nio.file.Path parent = getDataDirectory().getParent();
+        java.nio.file.Path configDir = parent.resolve("Config_HyTame");
+        java.nio.file.Path oldDir = parent.resolve("Lait_AnimalBreeding");
+
+        if (!java.nio.file.Files.exists(configDir) && java.nio.file.Files.exists(oldDir)) {
+            try {
+                // Migrate: copy all files from old to new
+                java.nio.file.Files.createDirectories(configDir);
+                try (var stream = java.nio.file.Files.walk(oldDir)) {
+                    stream.forEach(source -> {
+                        java.nio.file.Path target = configDir.resolve(oldDir.relativize(source));
+                        try {
+                            if (java.nio.file.Files.isDirectory(source)) {
+                                java.nio.file.Files.createDirectories(target);
+                            } else {
+                                java.nio.file.Files.copy(source, target,
+                                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                            }
+                        } catch (java.io.IOException e) {
+                            getLogger().atWarning().log("Failed to migrate file: " + source + " -> " + e.getMessage());
+                        }
+                    });
+                }
+                getLogger().atInfo().log("Migrated config from Lait_AnimalBreeding to Config_HyTame");
+
+                // Delete old directory after successful migration
+                try (var stream = java.nio.file.Files.walk(oldDir)) {
+                    stream.sorted(java.util.Comparator.reverseOrder())
+                            .forEach(path -> {
+                                try { java.nio.file.Files.delete(path); } catch (java.io.IOException e) { /* skip */ }
+                            });
+                }
+                getLogger().atInfo().log("Deleted old Lait_AnimalBreeding directory");
+            } catch (java.io.IOException e) {
+                getLogger().atWarning().log("Config migration failed: " + e.getMessage());
+            }
+        }
+
+        try {
+            java.nio.file.Files.createDirectories(configDir);
+        } catch (java.io.IOException e) {
+            getLogger().atWarning().log("Failed to create config directory: " + e.getMessage());
+        }
+        return configDir;
+    }
+
     @Override
     protected void shutdown() {
         getLogger().atInfo().log("[HyTame] Plugin shutdown");
@@ -1456,6 +1506,10 @@ public class HyTamePlugin extends JavaPlugin {
 
     public static HyTamePlugin getInstance() {
         return instance;
+    }
+
+    public java.nio.file.Path getConfigDirectory() {
+        return configDirectory;
     }
 
     public ConfigManager getConfigManager() {

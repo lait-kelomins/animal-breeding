@@ -29,13 +29,15 @@ public final class Debug {
         return false;
     }
 
-    public static void log(String message, Level level) { LOGGER.at(level).log(message); }
+    public static void log(String message, Level level) {
+        // INFO logs only when verbose logging is enabled
+        if (level == Level.INFO && !HyTamePlugin.isVerboseLogging()) return;
+        LOGGER.at(level).log(message);
+    }
 
     public static void msg(PlayerRef player, String message, Level level) {
         log(message, level);
 
-        // TODO: Add debugChatMessages config option to ConfigManager
-        // For now, always send debug messages to player
         if (player == null) return;
 
         Message msg = switch (level.getName()) {

@@ -193,7 +193,7 @@ public class BreedingConfigCommand extends AbstractCommand {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
                 return CompletableFuture.completedFuture(null);
             }
-            config.loadFromFile(HyTamePlugin.getInstance().getDataDirectory().resolve("config.json"));
+            config.loadFromFile(HyTamePlugin.getInstance().getConfigDirectory().resolve("config.json"));
             ctx.sendMessage(Message.raw("Config reloaded from file.").color("#55FF55"));
             return CompletableFuture.completedFuture(null);
         }
@@ -706,6 +706,8 @@ public class BreedingConfigCommand extends AbstractCommand {
                     ctx.sendMessage(Message.raw("(This replaces all foods. Use ").color("#AAAAAA")
                             .insert(Message.raw("/breed config addfood").color("#FFFFFF"))
                             .insert(Message.raw(" to add more.)").color("#AAAAAA")));
+                    config.saveToFile();
+                    syncPatchForAnimal(lookup);
                     break;
 
                 case "growth":
@@ -716,7 +718,7 @@ public class BreedingConfigCommand extends AbstractCommand {
                                 .insert(Message.raw(displayName).color("#FFFFFF"))
                                 .insert(Message.raw(" growth time to: ").color("#55FF55"))
                                 .insert(Message.raw(minutes + " min").color("#FFFF55")));
-                        // Sync growth time patch
+                        config.saveToFile();
                         syncGrowthPatchForAnimal(lookup);
                     } catch (NumberFormatException e) {
                         ctx.sendMessage(Message.raw("Invalid number: ").color("#FF5555")
@@ -732,6 +734,7 @@ public class BreedingConfigCommand extends AbstractCommand {
                                 .insert(Message.raw(displayName).color("#FFFFFF"))
                                 .insert(Message.raw(" cooldown to: ").color("#55FF55"))
                                 .insert(Message.raw(minutes + " min").color("#FFFF55")));
+                        config.saveToFile();
                     } catch (NumberFormatException e) {
                         ctx.sendMessage(Message.raw("Invalid number: ").color("#FF5555")
                                 .insert(Message.raw(value).color("#FFFFFF")));
@@ -800,7 +803,7 @@ public class BreedingConfigCommand extends AbstractCommand {
             ctx.sendMessage(Message.raw("Foods: ").color("#AAAAAA")
                     .insert(Message.raw(String.join(", ", config.getAnyAnimalFoods(animalId))).color("#FFFFFF")));
 
-            // Sync asset patch for this animal
+            config.saveToFile();
             syncPatchForAnimal(lookup);
 
             return CompletableFuture.completedFuture(null);
@@ -868,7 +871,7 @@ public class BreedingConfigCommand extends AbstractCommand {
             ctx.sendMessage(Message.raw("Foods: ").color("#AAAAAA")
                     .insert(Message.raw(String.join(", ", config.getAnyAnimalFoods(animalId))).color("#FFFFFF")));
 
-            // Sync asset patch for this animal
+            config.saveToFile();
             syncPatchForAnimal(lookup);
 
             return CompletableFuture.completedFuture(null);

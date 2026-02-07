@@ -5,6 +5,9 @@ import com.hytame.util.ConfigManager;
 import com.hytame.util.EcsReflectionUtil;
 import com.hytame.models.AnimalType;
 import com.hytame.models.CustomAnimalConfig;
+import com.hypixel.hytale.common.plugin.PluginManifest;
+import com.hypixel.hytale.common.semver.Semver;
+import com.hypixel.hytale.server.core.asset.AssetModule;
 import com.hypixel.hytale.server.core.plugin.PluginManager;
 
 import java.io.IOException;
@@ -78,7 +81,8 @@ public class PatchSyncService {
     }
 
     /**
-     * Create the asset pack structure if it doesn't exist.
+     * Create the asset pack structure and register it with AssetModule
+     * so Hytalor discovers and hot-reloads patches from it.
      */
     private void ensureAssetPackExists() {
         try {
@@ -91,8 +95,46 @@ public class PatchSyncService {
                 Files.writeString(manifestPath, MANIFEST_TEMPLATE);
                 logVerbose("Created asset pack manifest: " + manifestPath);
             }
+
+            // Register as an asset pack so Hytalor picks up Server/Patch/
+            registerAssetPack();
         } catch (IOException e) {
             logWarning("Failed to create asset pack structure: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Register HyTameConfig as an asset pack with AssetModule.
+     * Hytalor iterates registered asset packs and loads patches from each pack's Server/Patch/.
+     * Without this registration, Hytalor doesn't know our patch directory exists.
+     */
+    private void registerAssetPack() {
+        try {
+            PluginManifest manifest = new PluginManifest(
+                    "com.hytame",
+                    ASSET_PACK_NAME,
+                    Semver.fromString("1.0.0"),
+                    "Auto-generated asset patches from HyTame config",
+                    new ArrayList<>(),  // authors
+                    "",                 // website
+                    null,               // serverVersion
+                    null,               // source
+                    new HashMap<>(),    // dependencies
+                    new HashMap<>(),    // optionalDependencies
+                    new HashMap<>(),    // conflicts
+                    new ArrayList<>(),  // subPlugins
+                    false               // disabledByDefault
+            );
+
+            AssetModule.get().registerPack(
+                    "com.hytame:" + ASSET_PACK_NAME,
+                    assetPackRoot,
+                    manifest
+            );
+
+            logVerbose("Registered asset pack: com.hytame:" + ASSET_PACK_NAME + " at " + assetPackRoot.toAbsolutePath());
+        } catch (Exception e) {
+            logWarning("Failed to register asset pack: " + e.getMessage());
         }
     }
 

@@ -68,7 +68,7 @@ public class LaitDamageDisabler extends DeathSystems {
     
 
     private void log(String message) {
-        
+            if (!HyTamePlugin.isVerboseLogging()) return;
             HyTamePlugin plugin = HyTamePlugin.getInstance();
             if (plugin != null) {
                 plugin.getLogger().atInfo()

@@ -93,7 +93,7 @@ public class ActionHyTameFeedInteraction extends ActionBase {
             @Nonnull Store<EntityStore> store) {
         HyTamePlugin plugin = HyTamePlugin.getInstance();
 
-        plugin.getLogger().at(Level.INFO).log("CanExecute called for HyTameFeedInteraction");
+        Debug.log("CanExecute called for HyTameFeedInteraction", Level.INFO);
         ModelComponent modelComponent = store.getComponent(ref, EcsReflectionUtil.MODEL_TYPE);
         String modelAssetId = modelComponent.getModel().getModelAssetId();
         AnimalType animalType = modelAssetId != null ? AnimalType.fromModelAssetId(modelAssetId) : null;
@@ -174,6 +174,28 @@ public class ActionHyTameFeedInteraction extends ActionBase {
         // Get held item
         String itemId = getHeldItemId(player);
         boolean isTamed = hyTame.isTamed();
+
+        // === BABY CHECK ===
+        // Skip babies - they can't be tamed or bred
+        if (modelAssetId != null && AnimalType.isBabyVariant(modelAssetId)) {
+            Debug.log("Target is a baby variant, skipping feed interaction", Level.INFO);
+            return false;
+        }
+        UUID animalUuid = EcsReflectionUtil.getUuidFromRef(ref);
+        if (animalUuid != null) {
+            com.hytame.managers.GrowthManager growthMgr = plugin.getGrowthManager();
+            if (growthMgr != null && !growthMgr.isFullyGrown(animalUuid)) {
+                Debug.log("Target is a growing baby, skipping feed interaction", Level.INFO);
+                return false;
+            }
+            BreedingData babyData = plugin.getBreedingManager() != null
+                    ? plugin.getBreedingManager().getData(animalUuid) : null;
+            if (babyData != null && babyData.getGrowthStage() != null
+                    && babyData.getGrowthStage() != GrowthStage.ADULT) {
+                Debug.log("Target is a scaled baby, skipping feed interaction", Level.INFO);
+                return false;
+            }
+        }
 
         // === ROUTING LOGIC ===
         if (animalType != null) {

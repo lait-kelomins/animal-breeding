@@ -116,6 +116,7 @@ public class DetectTamedDeath extends OnDeathSystem {
     }
 
     private void log(String message) {
+        if (!HyTamePlugin.isVerboseLogging()) return;
         HyTamePlugin plugin = HyTamePlugin.getInstance();
         if (plugin != null) {
             plugin.getLogger().atInfo().log("[DetectTamedDeath] " + message);
