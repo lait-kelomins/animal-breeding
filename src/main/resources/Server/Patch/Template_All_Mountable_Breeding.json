@@ -1,0 +1,37 @@
+{
+    "$Comment": "Add breeding to mountable creatures (if another mod adds mounting)",
+    "_BaseAssetPath": "regex:Server/NPC/Roles/_Core/Templates/Template_(?!Animal_Neutral\\b).+\\.json",
+    "_priority": 100,
+    "InteractionInstruction": {
+        "Instructions": [
+            {
+                "_find": { "Enabled": { "Compute": "IsMountable" } },
+                "Instructions": [
+                    {
+                        "_op": "addBefore",
+                        "_index": 0,
+                        "$Comment": "Breeding: Tamed + LovedItems + F-key",
+                        "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                { "Type": "Tamed", "Set": true },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [{ "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }]
+                                },
+                                { "Type": "HasInteracted" }
+                            ]
+                        },
+                        "Actions": [
+                            { "Type": "SetInteractable", "Interactable": true, "ShowPrompt": true },
+                            { "Type": "HyTameFeedInteraction" }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

@@ -1,0 +1,58 @@
+{
+  "_comment": "Add taming/feeding support to passive critters",
+  "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Beasts_Passive_Critter",
+  "Parameters": {
+    "LovedItems": {
+      "Value": ["Plant_Fruit_Berries_Red", "Plant_Crop_Wheat_Item"],
+      "TypeHint": "String",
+      "Description": "Items that can be used to tame/feed this animal"
+    }
+  },
+  "InteractionInstruction": {
+    "Enabled": {
+      "Compute": "!isEmptyStringArray(LovedItems)"
+    },
+    "Instructions": [
+      {
+        "Enabled": {
+          "Compute": "!isEmptyStringArray(LovedItems)"
+        },
+        "Instructions": [
+          {
+            "_comment": "Wild critter = Tame hint",
+            "Continue": true,
+            "Sensor": {
+              "Type": "Not",
+              "Sensor": {
+                "Type": "Tamed",
+                "Set": true
+              }
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "animalbreeding.interactionHints.tame"
+              }
+            ]
+          },
+          {
+            "_comment": "Tamed critter = Feed hint",
+            "Continue": true,
+            "Sensor": {
+              "Type": "Tamed",
+              "Set": true
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "animalbreeding.interactionHints.feed"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

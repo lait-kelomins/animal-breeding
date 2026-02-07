@@ -18,7 +18,9 @@ import com.hypixel.hytale.server.npc.role.support.WorldSupport;
 import com.hypixel.hytale.server.npc.systems.RoleBuilderSystem;
 import com.hytame.HyTamePlugin;
 import com.hytame.managers.BreedingManager;
+import com.hytame.models.AnimalType;
 import com.hytame.models.BreedingData;
+import com.hytame.models.GrowthStage;
 import com.hytame.util.ConfigManager;
 import com.hytame.tame.utils.Debug;
 
@@ -59,7 +61,14 @@ public class HyTameSystems {
             this.query = Query.and(npcComponentType, Query.not(NPCMountComponent.getComponentType()));
             this.dependencies = Set.of(new SystemDependency<>(Order.AFTER, RoleBuilderSystem.class));
             // Use Laits ConfigManager for tameable animal groups
-            this.validGroups = HyTamePlugin.getInstance().getConfigManager().getTameableAnimalGroups();
+            // Defensive null check for early initialization
+            HyTamePlugin plugin = HyTamePlugin.getInstance();
+            if (plugin != null && plugin.getConfigManager() != null) {
+                this.validGroups = plugin.getConfigManager().getTameableAnimalGroups();
+            } else {
+                // Fallback to default groups if plugin not ready
+                this.validGroups = Set.of("Livestock", "PreyBig", "Prey");
+            }
         }
 
         @Nonnull
@@ -90,11 +99,27 @@ public class HyTameSystems {
 
             // Setup taming - ensure HyTameComponent exists
             HyTameComponent hyTameComponent = holder.ensureAndGetComponent(this.hyTameComponentType);
+
+            // Set growthStage = BABY for baby NPC variants (e.g., Bunny, Sheep_Lamb, Cow_Calf)
+            // This ensures the GrowthReady sensor returns true and Growth_Ready alarm gets set
+            if (hyTameComponent.getGrowthStage() == GrowthStage.ADULT) {
+                // Check if this is a baby variant by role name
+                String roleName = npcEntity.getRoleName();
+                if (roleName != null && AnimalType.isBabyVariant(roleName)) {
+                    hyTameComponent.setGrowthStage(GrowthStage.BABY);
+                    Debug.log("Set growthStage=BABY for baby variant: " + roleName, Level.INFO);
+                }
+            }
+
             if (hyTameComponent.isTamed()) {
                 try {
                     HyTamePlugin.getAttitudeField().set(worldSupport, Attitude.REVERED);
                 } catch (IllegalAccessException e) {
-                    HyTamePlugin.getInstance().getLogger().atSevere().log("Failed to override attitude for NPC", e);
+                    // Defensive null check for logging
+                    HyTamePlugin pluginRef = HyTamePlugin.getInstance();
+                    if (pluginRef != null) {
+                        pluginRef.getLogger().atSevere().log("Failed to override attitude for NPC", e);
+                    }
                 }
 
                 // Remove from over population tracking

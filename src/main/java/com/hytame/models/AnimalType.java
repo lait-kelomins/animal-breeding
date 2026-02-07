@@ -317,7 +317,58 @@ public enum AnimalType {
         KWEEBEC,    // Plant people
         OUTLANDER,  // Human bandits/cultists
         VOID,       // Void creatures
-        MISC        // Other creatures
+        MISC;       // Other creatures
+
+        /**
+         * Get the Hytale NPC role path prefix for this category.
+         * Returns the base path without the modelAssetId.
+         * @return Path prefix like "NPC/Roles/Creature/Livestock" or null if unknown
+         */
+        public String getNpcRolePathPrefix() {
+            switch (this) {
+                case LIVESTOCK:
+                    return "NPC/Roles/Creature/Livestock";
+                case MAMMAL:
+                    return "NPC/Roles/Creature/Mammal";
+                case CRITTER:
+                    return "NPC/Roles/Creature/Critter";
+                case REPTILE:
+                    return "NPC/Roles/Creature/Reptile";
+                case VERMIN:
+                    return "NPC/Roles/Creature/Vermin";
+                case AVIAN:
+                    return "NPC/Roles/Avian/Aerial"; // Most birds are aerial
+                case AQUATIC:
+                    return "NPC/Roles/Aquatic/Freshwater"; // Default to freshwater
+                case UNDEAD:
+                    return "NPC/Roles/Undead";
+                case GOBLIN:
+                    return "NPC/Roles/Intelligent/Aggressive/Goblin";
+                case TRORK:
+                    return "NPC/Roles/Intelligent/Aggressive/Trork";
+                case OUTLANDER:
+                    return "NPC/Roles/Intelligent/Aggressive/Outlander";
+                case KWEEBEC:
+                    return "NPC/Roles/Intelligent/Neutral/Kweebec";
+                case SCARAK:
+                    return "NPC/Roles/Intelligent/Aggressive/Scarak";
+                case MYTHIC:
+                    return "NPC/Roles/Creature/Mythic";
+                case DINOSAUR:
+                    return "NPC/Roles/Creature/Reptile"; // Dinosaurs use Reptile path
+                case BOSS:
+                    return "NPC/Roles/Boss";
+                case GOLEM:
+                    return "NPC/Roles/Elemental/Golem";
+                case SPIRIT:
+                    return "NPC/Roles/Elemental/Spirit";
+                case VOID:
+                    return "NPC/Roles/Void";
+                case MISC:
+                default:
+                    return null; // No standard path, needs special handling
+            }
+        }
     }
 
     private final Category category;
@@ -442,6 +493,90 @@ public enum AnimalType {
     }
 
     /**
+     * Get the full Hytale NPC role path for this animal.
+     * Used for generating asset patches (e.g., to set LovedItems).
+     * Format: "NPC/Roles/Category/Subcategory/AnimalName"
+     *
+     * @return Full NPC role path or null if unknown
+     */
+    public String getNpcRolePath() {
+        // Handle animals that don't follow the standard category path
+        switch (this) {
+            // Ground birds use Fowl, not Aerial
+            case DUCK:
+            case PIGEON:
+                return "NPC/Roles/Avian/Fowl/" + modelAssetId;
+
+            // Marine aquatic creatures
+            case CLOWNFISH:
+            case CRAB:
+            case JELLYFISH_BLUE:
+            case JELLYFISH_CYAN:
+            case JELLYFISH_GREEN:
+            case JELLYFISH_MAN_OF_WAR:
+            case JELLYFISH_RED:
+            case JELLYFISH_YELLOW:
+            case LOBSTER:
+            case PUFFERFISH:
+            case TANG_BLUE:
+            case TANG_CHEVRON:
+            case TANG_LEMON_PEEL:
+            case TANG_SAILFIN:
+                return "NPC/Roles/Aquatic/Marine/" + modelAssetId;
+
+            // Abyssal aquatic creatures
+            case EEL_MORAY:
+            case SHARK_HAMMERHEAD:
+            case SHELLFISH_LAVA:
+            case TRILOBITE:
+            case TRILOBITE_BLACK:
+            case WHALE_HUMPBACK:
+                return "NPC/Roles/Aquatic/Abyssal/" + modelAssetId;
+
+            // Undead have type-based subfolders
+            case SKELETON:
+            case SKELETON_BURNT:
+            case SKELETON_FROST:
+            case SKELETON_SAND:
+            case SKELETON_PIRATE:
+            case SKELETON_INCANDESCENT:
+                return "NPC/Roles/Undead/Skeleton/" + modelAssetId;
+            case ZOMBIE:
+            case ZOMBIE_BURNT:
+            case ZOMBIE_FROST:
+            case ZOMBIE_SAND:
+            case ZOMBIE_ABERRANT:
+                return "NPC/Roles/Undead/Zombie/" + modelAssetId;
+            case GHOUL:
+                return "NPC/Roles/Undead/Ghoul/" + modelAssetId;
+            case WRAITH:
+                return "NPC/Roles/Undead/Wraith/" + modelAssetId;
+            case WEREWOLF:
+                return "NPC/Roles/Undead/Werewolf/" + modelAssetId;
+            case SHADOW_KNIGHT:
+                return "NPC/Roles/Undead/Shadow_Knight/" + modelAssetId;
+            case HORSE_SKELETON:
+                return "NPC/Roles/Undead/Horse_Skeleton/" + modelAssetId;
+            case HOUND_BLEACHED:
+                return "NPC/Roles/Undead/Hound_Bleached/" + modelAssetId;
+            case CHICKEN_UNDEAD:
+                return "NPC/Roles/Undead/Chicken_Undead/" + modelAssetId;
+            case COW_UNDEAD:
+                return "NPC/Roles/Undead/Cow_Undead/" + modelAssetId;
+            case PIG_UNDEAD:
+                return "NPC/Roles/Undead/Pig_Undead/" + modelAssetId;
+
+            default:
+                // Use category-based path prefix
+                String prefix = category.getNpcRolePathPrefix();
+                if (prefix == null) {
+                    return null;
+                }
+                return prefix + "/" + modelAssetId;
+        }
+    }
+
+    /**
      * Check if this animal has a dedicated baby NPC variant.
      * If true: spawn baby NPC, replace with adult when grown.
      * If false: spawn adult at small scale, scale up when grown.
@@ -491,14 +626,19 @@ public enum AnimalType {
     }
 
     /**
-     * Check if the modelAssetId is a baby variant.
+     * Check if the identifier is a baby variant (matches babyModelAssetId or babyNpcRoleId).
      */
-    public static boolean isBabyVariant(String modelAssetId) {
-        if (modelAssetId == null) {
+    public static boolean isBabyVariant(String identifier) {
+        if (identifier == null) {
             return false;
         }
         for (AnimalType type : values()) {
-            if (type.babyModelAssetId != null && type.babyModelAssetId.equalsIgnoreCase(modelAssetId)) {
+            // Check babyModelAssetId (e.g., "Lamb")
+            if (type.babyModelAssetId != null && type.babyModelAssetId.equalsIgnoreCase(identifier)) {
+                return true;
+            }
+            // Check babyNpcRoleId (e.g., "Sheep_Lamb")
+            if (type.babyNpcRoleId != null && type.babyNpcRoleId.equalsIgnoreCase(identifier)) {
                 return true;
             }
         }

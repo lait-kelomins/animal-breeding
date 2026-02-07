@@ -1,0 +1,75 @@
+{
+    "$Comment": "Add taming/feeding support to all templates (except Animal_Neutral which has its own handling)",
+    "_BaseAssetPath": "regex:Server/NPC/Roles/_Core/Templates/Template_(?!Animal_Neutral\\b).+\\.json",
+    "_priority": 100,
+    "Parameters": {
+        "LovedItems": {
+            "Value": [],
+            "TypeHint": "String",
+            "Description": "Items that can be used to tame/feed this creature"
+        }
+    },
+    "InteractionInstruction": {
+        "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+        "Instructions": [
+            {
+                "$Comment": "Block for simple creatures (not mountable, not harvestable)",
+                "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+                "Instructions": [
+                    {
+                        "$Comment": "Always create Interactable component (required for interaction system)",
+                        "Continue": true,
+                        "Sensor": { "Type": "Any" },
+                        "Actions": [
+                            { "Type": "SetInteractable", "Interactable": true, "ShowPrompt": true }
+                        ]
+                    },
+                    {
+                        "$Comment": "Taming hint: Wild + IsTameable + player has LovedItems",
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                { "Type": "IsTameable", "Set": true },
+                                { "Type": "Not", "Sensor": { "Type": "Tamed", "Set": true } },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [{ "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            { "Type": "SetInteractable", "Interactable": true, "ShowPrompt": true }
+                        ]
+                    },
+                    {
+                        "$Comment": "Breeding hint: Tamed + player has LovedItems",
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                { "Type": "Tamed", "Set": true },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [{ "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            { "Type": "SetInteractable", "Interactable": true, "ShowPrompt": true }
+                        ]
+                    },
+                    {
+                        "$Comment": "Execute taming/breeding action on F-key",
+                        "Sensor": { "Type": "HasInteracted" },
+                        "Actions": [
+                            { "Type": "HyTameFeedInteraction" }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

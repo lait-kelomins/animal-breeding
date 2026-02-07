@@ -1,0 +1,63 @@
+{
+    "_comment": "Add taming/feeding to all animals with LovedItems, including harvestable/mountable ones",
+    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "InteractionInstruction": {
+        "Enabled": {
+            "Compute": "IsHarvestable || IsMountable || !isEmptyStringArray(LovedItems)"
+        },
+        "Instructions": [
+            {
+                "_comment": "Block for simple tameable animals - added LAST so harvestable/mountable blocks run first",
+                "_op": "add",
+                "Enabled": {
+                    "Compute": "!isEmptyStringArray(LovedItems)"
+                },
+                "Instructions": [
+                    {
+                        "_comment": "Wild animal = Tame",
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "Not",
+                            "Sensor": {
+                                "Type": "Tamed",
+                                "Set": true
+                            }
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": false
+                            }
+                        ]
+                    },
+                    {
+                        "_comment": "Tamed animal = Feed",
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "Tamed",
+                            "Set": true
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": false
+                            }
+                        ]
+                    },
+                    {
+                        "Sensor": {
+                            "Type": "HasInteracted"
+                        },
+                        "Actions": [
+                            {
+                                "Type": "HyTameFeedInteraction"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

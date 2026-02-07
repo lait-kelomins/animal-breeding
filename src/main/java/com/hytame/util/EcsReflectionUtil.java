@@ -18,6 +18,9 @@ import com.hypixel.hytale.server.core.modules.interaction.Interactions;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 import com.hypixel.hytale.server.core.universe.world.World;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.npc.NPCPlugin;
+import com.hypixel.hytale.server.npc.asset.builder.BuilderInfo;
+import com.hypixel.hytale.server.npc.asset.builder.BuilderManager;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.builtin.adventure.farming.component.CoopResidentComponent;
 import com.hypixel.hytale.server.core.modules.entity.tracker.NetworkId;
@@ -238,6 +241,43 @@ public final class EcsReflectionUtil {
 
         // Last resort: generate from entity toString
         return UUID.nameUUIDFromBytes(entity.toString().getBytes());
+    }
+
+    /**
+     * Resolve full NPC role asset path from a role name.
+     * Uses NPCPlugin -> BuilderManager -> BuilderInfo.getPath()
+     *
+     * @param roleName The NPC role name (e.g., "Mosshorn", "Rabbit")
+     * @return Asset path like "NPC/Roles/Creature/Livestock/Rabbit", or null if unresolvable
+     */
+    public static String resolveNpcRolePath(String roleName) {
+        try {
+            NPCPlugin npcPlugin = NPCPlugin.get();
+            int index = npcPlugin.getIndex(roleName);
+            if (index < 0) return null;
+
+            BuilderManager builderManager = npcPlugin.getBuilderManager();
+            BuilderInfo builderInfo = builderManager.tryGetBuilderInfo(index);
+            if (builderInfo == null) return null;
+
+            java.nio.file.Path path = builderInfo.getPath();
+            if (path == null) return null;
+
+            // Convert filesystem path to asset path
+            // e.g., "...\\Server\\NPC\\Roles\\Creature\\Livestock\\Rabbit.json"
+            //     -> "NPC/Roles/Creature/Livestock/Rabbit"
+            String pathStr = path.toString().replace('\\', '/');
+            int npcIdx = pathStr.indexOf("NPC/Roles/");
+            if (npcIdx < 0) return null;
+
+            String assetPath = pathStr.substring(npcIdx);
+            if (assetPath.endsWith(".json")) {
+                assetPath = assetPath.substring(0, assetPath.length() - 5);
+            }
+            return assetPath;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**

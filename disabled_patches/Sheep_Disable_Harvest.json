@@ -1,0 +1,6 @@
+{
+  "BaseAssetPath": "NPC/Roles/Creature/Livestock/Sheep",
+  "Modify": {
+    "IsHarvestable": false
+  }
+}

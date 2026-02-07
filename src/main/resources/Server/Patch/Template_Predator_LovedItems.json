@@ -1,0 +1,60 @@
+{
+    "$Comment": "Add LovedItems following behavior to predators - makes them follow players holding food instead of attacking",
+    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Predator",
+
+    "Parameters": {
+        "LovedItems": {
+            "Value": ["Food_Wildmeat_Raw", "Food_Wildmeat_Cooked", "Food_Fish_Raw"]
+        },
+        "FriendlyOverrideTimeWithAttractiveItem": {
+            "Value": 300,
+            "Description": "Duration of friendly attitude when target holds LovedItems (seconds)"
+        }
+    },
+
+    "Instructions": [
+        {
+            "_op": "add",
+            "_index": 0,
+            "Continue": true,
+            "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+            "$Comment": "[HyTame] Hearts once per detection",
+            "Sensor": {
+                "Type": "Player",
+                "Range": { "Compute": "AlertedRange" },
+                "Once": true,
+                "Filters": [
+                    { "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }
+                ]
+            },
+            "Actions": [
+                { "Type": "SpawnParticles", "Offset": [0, 1, 0], "ParticleSystem": "Hearts" }
+            ]
+        },
+        {
+            "_op": "add",
+            "_index": 1,
+            "Continue": true,
+            "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+            "$Comment": "[HyTame] If player holds LovedItems, become friendly and follow",
+            "Sensor": {
+                "Type": "Player",
+                "Range": { "Compute": "AlertedRange" },
+                "LockOnTarget": true,
+                "Filters": [
+                    { "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }
+                ]
+            },
+            "Actions": [
+                { "Type": "OverrideAttitude", "Attitude": "Friendly", "Duration": { "Compute": "FriendlyOverrideTimeWithAttractiveItem" } }
+            ],
+            "HeadMotion": { "Type": "Watch" },
+            "BodyMotion": {
+                "Type": "Seek",
+                "SlowDownDistance": 3.5,
+                "StopDistance": 2,
+                "RelativeSpeed": 0.7
+            }
+        }
+    ]
+}

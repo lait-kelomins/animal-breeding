@@ -1,0 +1,9 @@
+{
+    "$Comment": "Default LovedItems for passive critters",
+    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Beasts_Passive_Critter",
+    "Parameters": {
+        "LovedItems": {
+            "Value": ["Plant_Fruit_Berries_Red", "Plant_Crop_Wheat_Item"]
+        }
+    }
+}

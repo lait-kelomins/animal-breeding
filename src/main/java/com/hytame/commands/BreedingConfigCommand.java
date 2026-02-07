@@ -11,6 +11,7 @@ import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hytame.HyTamePlugin;
 import com.hytame.models.AnimalType;
 import com.hytame.models.CustomAnimalConfig;
+import com.hytame.patch.PatchSyncService;
 import com.hytame.util.ConfigManager;
 
 import java.util.Arrays;
@@ -97,6 +98,45 @@ public class BreedingConfigCommand extends AbstractCommand {
     private static ConfigManager getConfig() {
         HyTamePlugin plugin = HyTamePlugin.getInstance();
         return plugin != null ? plugin.getConfigManager() : null;
+    }
+
+    /**
+     * Sync asset patch for an animal after food changes.
+     * Updates the LovedItems parameter in the generated asset pack.
+     */
+    private static void syncPatchForAnimal(ConfigManager.AnimalLookupResult lookup) {
+        if (lookup == null) return;
+
+        HyTamePlugin plugin = HyTamePlugin.getInstance();
+        if (plugin == null) return;
+
+        PatchSyncService patchSyncService = plugin.getPatchSyncService();
+        if (patchSyncService == null) return;
+
+        if (lookup.isBuiltIn()) {
+            patchSyncService.syncForAnimal(lookup.getBuiltInType());
+        } else {
+            patchSyncService.syncForCustomAnimal(lookup.getCustomConfig());
+        }
+    }
+
+    /**
+     * Sync growth time patch for an animal after growth time changes.
+     */
+    private static void syncGrowthPatchForAnimal(ConfigManager.AnimalLookupResult lookup) {
+        if (lookup == null) return;
+
+        HyTamePlugin plugin = HyTamePlugin.getInstance();
+        if (plugin == null) return;
+
+        PatchSyncService patchSyncService = plugin.getPatchSyncService();
+        if (patchSyncService == null) return;
+
+        if (lookup.isBuiltIn()) {
+            patchSyncService.syncGrowthForAnimal(lookup.getBuiltInType());
+        } else {
+            patchSyncService.syncGrowthForCustomAnimal(lookup.getCustomConfig());
+        }
     }
 
     private static void showConfigSummary(CommandContext ctx, ConfigManager config) {
@@ -409,18 +449,34 @@ public class BreedingConfigCommand extends AbstractCommand {
     private static void handleToggle(CommandContext ctx, ConfigManager config, String target, boolean enable) {
         String statusColor = enable ? "#55FF55" : "#FF5555";
         String statusWord = enable ? "Enabled" : "Disabled";
+        // When enabling breeding, also enable taming (you need to tame before you can breed wild animals)
+        String featureText = enable ? " breeding+taming for " : " breeding for ";
 
         // Check if it's ALL
         if (target.equalsIgnoreCase("ALL")) {
             for (AnimalType type : AnimalType.values()) {
                 config.setAnimalEnabled(type, enable);
+                if (enable) {
+                    config.setTamingEnabled(type, true);
+                }
             }
             // Also enable/disable all custom animals
             for (String customId : config.getCustomAnimals().keySet()) {
                 config.setCustomAnimalEnabled(customId, enable);
+                if (enable) {
+                    config.setCustomAnimalTamingEnabled(customId, true);
+                }
             }
             ctx.sendMessage(Message.raw(statusWord).color(statusColor)
-                    .insert(Message.raw(" breeding for ALL animals (including custom).").color("#AAAAAA")));
+                    .insert(Message.raw(featureText + "ALL animals (including custom).").color("#AAAAAA")));
+            // Rescan nearby animals to add Interactable component to existing entities
+            if (enable) {
+                HyTamePlugin plugin = HyTamePlugin.getInstance();
+                if (plugin != null) {
+                    plugin.autoSetupNearbyAnimals();
+                    ctx.sendMessage(Message.raw("Rescanned nearby animals for interaction setup.").color("#AAAAAA"));
+                }
+            }
             return;
         }
 
@@ -431,12 +487,23 @@ public class BreedingConfigCommand extends AbstractCommand {
             for (AnimalType type : AnimalType.values()) {
                 if (type.getCategory() == cat) {
                     config.setAnimalEnabled(type, enable);
+                    if (enable) {
+                        config.setTamingEnabled(type, true);
+                    }
                     count++;
                 }
             }
             ctx.sendMessage(Message.raw(statusWord).color(statusColor)
-                    .insert(Message.raw(" breeding for " + count + " " + cat.name() + " animals.")
+                    .insert(Message.raw(featureText + count + " " + cat.name() + " animals.")
                             .color("#AAAAAA")));
+            // Rescan nearby animals to add Interactable component to existing entities
+            if (enable) {
+                HyTamePlugin plugin = HyTamePlugin.getInstance();
+                if (plugin != null) {
+                    plugin.autoSetupNearbyAnimals();
+                    ctx.sendMessage(Message.raw("Rescanned nearby animals for interaction setup.").color("#AAAAAA"));
+                }
+            }
             return;
         } catch (IllegalArgumentException ignored) {
         }
@@ -445,8 +512,11 @@ public class BreedingConfigCommand extends AbstractCommand {
         ConfigManager.AnimalLookupResult lookup = config.lookupAnimal(target);
         if (lookup != null) {
             config.setAnyAnimalEnabled(target, enable);
+            if (enable) {
+                config.setAnyAnimalTamingEnabled(target, true);
+            }
             ctx.sendMessage(Message.raw(statusWord).color(statusColor)
-                    .insert(Message.raw(" breeding for ").color("#AAAAAA"))
+                    .insert(Message.raw(featureText).color("#AAAAAA"))
                     .insert(Message.raw(lookup.getDisplayName()).color("#FFFFFF")));
         } else {
             ctx.sendMessage(Message.raw("Unknown animal or category: ").color("#FF5555")
@@ -454,6 +524,16 @@ public class BreedingConfigCommand extends AbstractCommand {
             ctx.sendMessage(Message.raw("Animals: COW, PIG, CHICKEN, or custom animal names").color("#AAAAAA"));
             ctx.sendMessage(Message.raw("Categories: ").color("#AAAAAA")
                     .insert(Message.raw(Arrays.toString(AnimalType.Category.values())).color("#FFFFFF")));
+            return; // Don't rescan if nothing was enabled
+        }
+
+        // When enabling, rescan nearby animals to add Interactable component to existing entities
+        if (enable) {
+            HyTamePlugin plugin = HyTamePlugin.getInstance();
+            if (plugin != null) {
+                plugin.autoSetupNearbyAnimals();
+                ctx.sendMessage(Message.raw("Rescanned nearby animals for interaction setup.").color("#AAAAAA"));
+            }
         }
     }
 
@@ -636,6 +716,8 @@ public class BreedingConfigCommand extends AbstractCommand {
                                 .insert(Message.raw(displayName).color("#FFFFFF"))
                                 .insert(Message.raw(" growth time to: ").color("#55FF55"))
                                 .insert(Message.raw(minutes + " min").color("#FFFF55")));
+                        // Sync growth time patch
+                        syncGrowthPatchForAnimal(lookup);
                     } catch (NumberFormatException e) {
                         ctx.sendMessage(Message.raw("Invalid number: ").color("#FF5555")
                                 .insert(Message.raw(value).color("#FFFFFF")));
@@ -717,6 +799,10 @@ public class BreedingConfigCommand extends AbstractCommand {
                     .insert(Message.raw(" to " + lookup.getDisplayName() + " breeding foods.").color("#55FF55")));
             ctx.sendMessage(Message.raw("Foods: ").color("#AAAAAA")
                     .insert(Message.raw(String.join(", ", config.getAnyAnimalFoods(animalId))).color("#FFFFFF")));
+
+            // Sync asset patch for this animal
+            syncPatchForAnimal(lookup);
+
             return CompletableFuture.completedFuture(null);
         }
     }
@@ -781,6 +867,10 @@ public class BreedingConfigCommand extends AbstractCommand {
                     .insert(Message.raw(" from " + lookup.getDisplayName() + " breeding foods.").color("#55FF55")));
             ctx.sendMessage(Message.raw("Foods: ").color("#AAAAAA")
                     .insert(Message.raw(String.join(", ", config.getAnyAnimalFoods(animalId))).color("#FFFFFF")));
+
+            // Sync asset patch for this animal
+            syncPatchForAnimal(lookup);
+
             return CompletableFuture.completedFuture(null);
         }
     }

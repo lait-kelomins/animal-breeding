@@ -1,0 +1,91 @@
+{
+    "$Comment": "Add breeding behavior to harvestable animals with LovedItems",
+    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "_priority": 99,
+    "InteractionInstruction": {
+        "Instructions": [
+            {
+                "_find": {
+                    "Enabled": {
+                        "Compute": "IsHarvestable"
+                    }
+                },
+                "$Comment": "[HYTAME] Harvestable Breeding: Modify harvestable block - add breeding checks BEFORE harvest logic",
+                "Instructions": [
+                    {
+                        "_op": "add",
+                        "_index": 0,
+                        "_priority": 99,
+                        "$Comment": "[HYTAME] Harvestable Breeding: Execute taming/breeding action on interaction",
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Tamed",
+                                    "Set": true
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Type": "HasInteracted"
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "HyTameFeedInteraction"
+                            }
+                        ]
+                    },
+                    {
+                        "_op": "add",
+                        "_index": 1,
+                        "_priority": 99,
+                        "$Comment": "[HYTAME] Harvestable Breeding: Show prompt when tamed + LovedItems",
+                        "Enabled": {
+                            "Compute": "!isEmptyStringArray(LovedItems)"
+                        },
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Tamed",
+                                    "Set": true
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": true
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

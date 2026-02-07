@@ -1,0 +1,58 @@
+{
+  "_comment": "Add taming/feeding support to intelligent NPCs",
+  "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Intelligent",
+  "Parameters": {
+    "LovedItems": {
+      "Value": [],
+      "TypeHint": "String",
+      "Description": "Items that can be used to tame/feed this NPC"
+    }
+  },
+  "InteractionInstruction": {
+    "Enabled": {
+      "Compute": "!isEmptyStringArray(LovedItems)"
+    },
+    "Instructions": [
+      {
+        "Enabled": {
+          "Compute": "!isEmptyStringArray(LovedItems)"
+        },
+        "Instructions": [
+          {
+            "_comment": "Wild NPC = Tame hint",
+            "Continue": true,
+            "Sensor": {
+              "Type": "Not",
+              "Sensor": {
+                "Type": "Tamed",
+                "Set": true
+              }
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "animalbreeding.interactionHints.tame"
+              }
+            ]
+          },
+          {
+            "_comment": "Tamed NPC = Feed hint",
+            "Continue": true,
+            "Sensor": {
+              "Type": "Tamed",
+              "Set": true
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "animalbreeding.interactionHints.feed"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

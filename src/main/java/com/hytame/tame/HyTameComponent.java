@@ -7,6 +7,7 @@ import com.hypixel.hytale.component.Component;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hytame.HyTamePlugin;
+import com.hytame.models.GrowthStage;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -34,6 +35,8 @@ public class HyTameComponent implements Component<EntityStore> {
             .add()
             .append(new KeyedCodec<>("ActionReady", Codec.BOOLEAN), (data, value) -> data.actionReady = value, data -> data.actionReady)
             .add()
+            .append(new KeyedCodec<>("GrowthStageOrdinal", Codec.INTEGER), (data, value) -> data.growthStageOrdinal = value, data -> data.growthStageOrdinal)
+            .add()
             .build();
 
     public static ComponentType<EntityStore, HyTameComponent> getComponentType() {
@@ -45,6 +48,7 @@ public class HyTameComponent implements Component<EntityStore> {
     private String tamerName = null;
     private UUID hytameId = null;  // Stable ID linking ECS to tamed_animals.json
     private Boolean actionReady = true;  // Per-entity action state (disabled during cooldown/love mode)
+    private Integer growthStageOrdinal = GrowthStage.ADULT.ordinal();  // Growth stage ordinal for persistence
 
     public boolean isTamed() {
         return Boolean.TRUE.equals(isTamed);
@@ -82,6 +86,48 @@ public class HyTameComponent implements Component<EntityStore> {
         this.actionReady = ready;
     }
 
+    /**
+     * Get the growth stage of this entity.
+     * @return The current growth stage (BABY, JUVENILE, or ADULT)
+     */
+    public GrowthStage getGrowthStage() {
+        if (growthStageOrdinal == null) {
+            return GrowthStage.ADULT;
+        }
+        GrowthStage[] values = GrowthStage.values();
+        int ordinal = growthStageOrdinal;
+        return (ordinal >= 0 && ordinal < values.length) ? values[ordinal] : GrowthStage.ADULT;
+    }
+
+    /**
+     * Set the growth stage of this entity.
+     * @param stage The new growth stage
+     */
+    public void setGrowthStage(GrowthStage stage) {
+        this.growthStageOrdinal = (stage != null) ? stage.ordinal() : GrowthStage.ADULT.ordinal();
+    }
+
+    /**
+     * Check if this entity is ready to grow (not yet ADULT).
+     * @return true if the entity can still grow
+     */
+    public boolean canGrow() {
+        return getGrowthStage() != GrowthStage.ADULT;
+    }
+
+    /**
+     * Advance to the next growth stage.
+     * @return true if growth occurred, false if already ADULT
+     */
+    public boolean growToNextStage() {
+        GrowthStage current = getGrowthStage();
+        if (current.hasNextStage()) {
+            setGrowthStage(current.getNextStage());
+            return true;
+        }
+        return false;
+    }
+
     public void setTamed(@Nonnull UUID player, @Nonnull String playerName) {
         this.isTamed = true;
         this.tamerUUID = player;
@@ -101,6 +147,7 @@ public class HyTameComponent implements Component<EntityStore> {
         component.tamerName = this.tamerName;
         component.hytameId = this.hytameId;
         component.actionReady = this.actionReady;
+        component.growthStageOrdinal = this.growthStageOrdinal;
         return component;
     }
 }

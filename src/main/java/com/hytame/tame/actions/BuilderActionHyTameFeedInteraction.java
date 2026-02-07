@@ -1,0 +1,73 @@
+package com.hytame.tame.actions;
+
+import com.google.gson.JsonElement;
+import com.hypixel.hytale.server.npc.asset.builder.Builder;
+import com.hypixel.hytale.server.npc.asset.builder.BuilderDescriptorState;
+import com.hypixel.hytale.server.npc.asset.builder.BuilderSupport;
+import com.hypixel.hytale.server.npc.asset.builder.holder.StringArrayHolder;
+import com.hypixel.hytale.server.npc.corecomponents.builders.BuilderActionBase;
+import com.hypixel.hytale.server.npc.instructions.Action;
+
+import javax.annotation.Nonnull;
+
+/**
+ * Builder for ActionHyTameFeedInteraction - routes feeding to taming or breeding based on state.
+ *
+ * JSON Config:
+ * {
+ *   "TamingFood": ["hytale:raw_meat", ...],  // Food for taming wild animals
+ *   "BreedingFood": ["hytale:wheat", ...]    // Food for breeding tamed animals
+ * }
+ */
+public class BuilderActionHyTameFeedInteraction extends BuilderActionBase {
+
+    // protected StringArrayHolder tamingFoodHolder = new StringArrayHolder();
+    // protected StringArrayHolder breedingFoodHolder = new StringArrayHolder();
+
+    // public String[] getTamingFood(@Nonnull BuilderSupport support) {
+    //     return this.tamingFoodHolder.get(support.getExecutionContext());
+    // }
+
+    // public String[] getBreedingFood(@Nonnull BuilderSupport support) {
+    //     return this.breedingFoodHolder.get(support.getExecutionContext());
+    // }
+
+    public BuilderActionHyTameFeedInteraction() {
+        super();
+    }
+
+    @Nonnull
+    public String getShortDescription() {
+        return "Route feeding to taming or breeding based on state";
+    }
+
+    @Nonnull
+    public String getLongDescription() {
+        return "Routes feeding interactions: if wild animal + taming food -> tame; if tamed + breeding food -> breed";
+    }
+
+    @Nonnull
+    public BuilderDescriptorState getBuilderDescriptorState() {
+        return BuilderDescriptorState.Stable;
+    }
+
+    @Nonnull
+    public ActionHyTameFeedInteraction build(@Nonnull BuilderSupport builderSupport) {
+        return new ActionHyTameFeedInteraction(this, builderSupport);
+    }
+
+    public Builder<Action> readConfig(@Nonnull JsonElement data) {
+        // this.requireStringArray(data, "TamingFood", this.tamingFoodHolder,
+        //         1, Integer.MAX_VALUE, null, BuilderDescriptorState.Stable,
+        //         "Food items for taming wild animals.",
+        //         "The taming food used.");
+
+        // this.requireStringArray(data, "BreedingFood", this.breedingFoodHolder,
+        //         1, Integer.MAX_VALUE, null, BuilderDescriptorState.Stable,
+        //         "Food items for breeding tamed animals.",
+        //         "The breeding food used.");
+
+        // this.requireStringArray(data, "Food", this.tamingFoodHolder, 1, Integer.MAX_VALUE, null , BuilderDescriptorState.Stable, "The food used for taming.", "The NPC's loved food item type that was used for this tame.");
+        return super.readConfig(data);
+    }
+}

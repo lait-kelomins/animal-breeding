@@ -277,6 +277,7 @@ public class ConfigManager {
 
     /**
      * Load configuration from a JSON file.
+     * Handles corrupted configs gracefully by backing up and resetting.
      * @param configPath Path to the config file
      */
     public void loadFromFile(Path configPath) {
@@ -300,10 +301,48 @@ public class ConfigManager {
             logVerbose("Loaded config from: " + configPath);
             // Save to persist any format migrations (e.g., enabled -> breedingEnabled/tamingEnabled)
             saveToFile();
-        } catch (Exception e) {
-            logVerbose("Error loading config: " + e.getMessage() + ", using defaults");
+        } catch (com.google.gson.JsonSyntaxException e) {
+            // JSON parsing error - likely corrupted config
+            handleCorruptedConfig(configPath, "JSON syntax error: " + e.getMessage());
+        } catch (com.google.gson.JsonParseException e) {
+            // JSON structure error
+            handleCorruptedConfig(configPath, "JSON parse error: " + e.getMessage());
+        } catch (java.io.IOException e) {
+            // File read error
+            logVerbose("Error reading config file: " + e.getMessage() + ", using defaults");
             loadDefaults();
+        } catch (Exception e) {
+            // Any other error - be defensive
+            handleCorruptedConfig(configPath, "Unexpected error: " + e.getMessage());
         }
+    }
+
+    /**
+     * Handle a corrupted config file by backing it up and resetting to defaults.
+     */
+    private void handleCorruptedConfig(Path configPath, String errorMessage) {
+        logVerbose("Config file appears corrupted: " + errorMessage);
+
+        // Try to backup the corrupted file
+        try {
+            Path backupPath = configPath.resolveSibling("config.json.corrupted");
+            // Add timestamp if backup already exists
+            if (Files.exists(backupPath)) {
+                String timestamp = java.time.LocalDateTime.now()
+                    .format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"));
+                backupPath = configPath.resolveSibling("config.json.corrupted." + timestamp);
+            }
+            Files.copy(configPath, backupPath);
+            logVerbose("Backed up corrupted config to: " + backupPath);
+        } catch (Exception backupError) {
+            logVerbose("Could not backup corrupted config: " + backupError.getMessage());
+        }
+
+        // Reset to defaults
+        logVerbose("Resetting config to defaults");
+        loadDefaults();
+        applyPreset(activePreset);
+        saveToFile();
     }
 
     /**
@@ -552,10 +591,21 @@ public class ConfigManager {
 
     /**
      * Load configuration from JSON string.
+     * Uses defensive parsing to handle partial corruption gracefully.
      */
     public void loadFromJson(String json) {
+        if (json == null || json.trim().isEmpty()) {
+            logVerbose("Empty config JSON, using defaults");
+            return;
+        }
+
         try {
-            JsonObject root = JsonParser.parseString(json).getAsJsonObject();
+            JsonElement parsed = JsonParser.parseString(json);
+            if (parsed == null || !parsed.isJsonObject()) {
+                logVerbose("Config is not a valid JSON object, using defaults");
+                return;
+            }
+            JsonObject root = parsed.getAsJsonObject();
 
             // Load active preset name (using safe extraction)
             activePreset = safeGetString(root, "activePreset", activePreset);
@@ -654,9 +704,12 @@ public class ConfigManager {
                             ? safeGetBoolean(customJson, "tamingEnabled", true)
                             : legacyEnabled;
 
+                        String npcRolePath = safeGetString(customJson, "npcRolePath", null);
+
                         CustomAnimalConfig customConfig = new CustomAnimalConfig(
                             modelAssetId, displayName, foods, growthTime, breedCooldown,
-                            babyNpcRole, adultNpcRole, mountable, breedingEnabled, tamingEnabled
+                            babyNpcRole, adultNpcRole, mountable, breedingEnabled, tamingEnabled,
+                            npcRolePath
                         );
                         customAnimals.put(modelAssetId, customConfig);
                         logVerbose("Loaded custom animal: " + modelAssetId);
@@ -753,6 +806,9 @@ public class ConfigManager {
                 }
                 if (!custom.getAdultNpcRoleId().equals(custom.getModelAssetId())) {
                     customJson.addProperty("adultNpcRoleId", custom.getAdultNpcRoleId());
+                }
+                if (custom.getNpcRolePath() != null) {
+                    customJson.addProperty("npcRolePath", custom.getNpcRolePath());
                 }
                 if (custom.isMountable()) {
                     customJson.addProperty("mountable", true);
@@ -1805,7 +1861,9 @@ public class ConfigManager {
                     existing.getBabyNpcRoleId(),
                     existing.getAdultNpcRoleId(),
                     existing.isMountable(),
-                    existing.isEnabled()
+                    existing.isBreedingEnabled(),
+                    existing.isTamingEnabled(),
+                    existing.getNpcRolePath()
                 ));
             }
         }
@@ -2413,7 +2471,8 @@ public class ConfigManager {
                 existing.getAdultNpcRoleId(),
                 existing.isMountable(),
                 enabled,
-                existing.isTamingEnabled()
+                existing.isTamingEnabled(),
+                existing.getNpcRolePath()
             ));
         }
     }
@@ -2434,7 +2493,8 @@ public class ConfigManager {
                 existing.getAdultNpcRoleId(),
                 existing.isMountable(),
                 existing.isBreedingEnabled(),
-                enabled
+                enabled,
+                existing.getNpcRolePath()
             ));
         }
     }
@@ -2457,7 +2517,9 @@ public class ConfigManager {
                     existing.getBabyNpcRoleId(),
                     existing.getAdultNpcRoleId(),
                     existing.isMountable(),
-                    existing.isEnabled()
+                    existing.isBreedingEnabled(),
+                    existing.isTamingEnabled(),
+                    existing.getNpcRolePath()
                 ));
             }
         }
@@ -2480,7 +2542,9 @@ public class ConfigManager {
                     existing.getBabyNpcRoleId(),
                     existing.getAdultNpcRoleId(),
                     existing.isMountable(),
-                    existing.isEnabled()
+                    existing.isBreedingEnabled(),
+                    existing.isTamingEnabled(),
+                    existing.getNpcRolePath()
                 ));
             }
         }
@@ -2503,7 +2567,9 @@ public class ConfigManager {
                 existing.getBabyNpcRoleId(),
                 roleId,  // Set the new adult NPC role ID
                 existing.isMountable(),
-                existing.isEnabled()
+                existing.isBreedingEnabled(),
+                existing.isTamingEnabled(),
+                existing.getNpcRolePath()
             ));
             logVerbose("Set NPC role for " + modelAssetId + " to: " + roleId);
         }
@@ -2527,7 +2593,9 @@ public class ConfigManager {
                 babyRoleId,  // Set the new baby NPC role ID
                 existing.getAdultNpcRoleId(),
                 existing.isMountable(),
-                existing.isEnabled()
+                existing.isBreedingEnabled(),
+                existing.isTamingEnabled(),
+                existing.getNpcRolePath()
             ));
             logVerbose("Set baby NPC role for " + modelAssetId + " to: " + babyRoleId);
         }
@@ -2550,7 +2618,9 @@ public class ConfigManager {
                 existing.getBabyNpcRoleId(),
                 existing.getAdultNpcRoleId(),
                 existing.isMountable(),
-                existing.isEnabled()
+                existing.isBreedingEnabled(),
+                existing.isTamingEnabled(),
+                existing.getNpcRolePath()
             ));
             logVerbose("Set growth time for " + modelAssetId + " to: " + growthTimeMinutes + " min");
         }
@@ -2573,7 +2643,9 @@ public class ConfigManager {
                 existing.getBabyNpcRoleId(),
                 existing.getAdultNpcRoleId(),
                 existing.isMountable(),
-                existing.isEnabled()
+                existing.isBreedingEnabled(),
+                existing.isTamingEnabled(),
+                existing.getNpcRolePath()
             ));
             logVerbose("Set cooldown for " + modelAssetId + " to: " + cooldownMinutes + " min");
         }
