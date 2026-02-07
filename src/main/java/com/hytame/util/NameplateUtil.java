@@ -1,0 +1,82 @@
+package com.hytame.util;
+
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.server.core.entity.nameplate.Nameplate;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hytame.HyTamePlugin;
+
+/**
+ * Utility for setting entity nameplates (names displayed above entities).
+ */
+public class NameplateUtil {
+    public static final String UNDEFINED_NAME = "_UNDEFINED";
+
+    /**
+     * Set the nameplate (display name) for an entity.
+     *
+     * @param store The entity store
+     * @param entityRef Reference to the entity
+     * @param name The name to display
+     * @return true if successful
+     */
+    public static boolean setEntityNameplate(Store<EntityStore> store, Ref<EntityStore> entityRef, String name) {
+        try {
+            // Don't display reserved "_UNDEFINED" name - treat as no name
+            if (name != null && name.equalsIgnoreCase(UNDEFINED_NAME)) {
+                log("Skipping nameplate - reserved UNDEFINED_NAME");
+                return true;  // Return true since this is intentional, not a failure
+            }
+
+            // Get or create the Nameplate component
+            Nameplate nameplateComp = store.getComponent(entityRef, EcsReflectionUtil.NAMEPLATE_TYPE);
+
+            if (nameplateComp == null) {
+                // Try to add the component if it doesn't exist
+                try {
+                    nameplateComp = store.ensureAndGetComponent(entityRef, EcsReflectionUtil.NAMEPLATE_TYPE);
+                } catch (Exception e) {
+                    log("Could not add Nameplate component: " + e.getMessage());
+                    return false;
+                }
+            }
+
+            if (nameplateComp == null) {
+                return false;
+            }
+
+            // Set the name
+            nameplateComp.setText(name);
+            log("Set nameplate to '" + name + "' for entity " + entityRef);
+            return true;
+
+        } catch (Exception e) {
+            log("Failed to set nameplate: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Set the nameplate using just the entity ref (gets store from ref).
+     */
+    public static boolean setEntityNameplate(Ref<EntityStore> entityRef, String name) {
+        if (entityRef == null) return false;
+        Store<EntityStore> store = entityRef.getStore();
+        if (store == null) return false;
+        return setEntityNameplate(store, entityRef, name);
+    }
+
+    /**
+     * Clear the nameplate for an entity.
+     */
+    public static boolean clearEntityNameplate(Store<EntityStore> store, Ref<EntityStore> entityRef) {
+        return setEntityNameplate(store, entityRef, "");
+    }
+
+    private static void log(String message) {
+        HyTamePlugin plugin = HyTamePlugin.getInstance();
+        if (plugin != null && HyTamePlugin.isVerboseLogging()) {
+            plugin.getLogger().atInfo().log("[Nameplate] " + message);
+        }
+    }
+}

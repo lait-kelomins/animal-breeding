@@ -6,8 +6,8 @@
     "MaxStackSize": 64,
     "Rarity": "Uncommon",
     "Category": "Misc",
-    "Model": "Resources/AnimalBreeding/NameTag/NameTag.blockymodel",
-    "Texture": "Resources/AnimalBreeding/NameTag/NameTag.png",
+    "Model": "Resources/HyTame/NameTag/NameTag.blockymodel",
+    "Texture": "Resources/HyTame/NameTag/NameTag.png",
     "Icon": "Icons/ItemsGenerated/NameTag.png",
     "Recipe": {
         "TimeSeconds": 1,
@@ -43,7 +43,7 @@
         ]
     },
     "TranslationProperties": {
-        "Name": "animalbreeding.items.AB_Name_Tag.name",
-        "Description": "animalbreeding.items.AB_Name_Tag.description"
+        "Name": "hytame.items.AB_Name_Tag.name",
+        "Description": "hytame.items.AB_Name_Tag.description"
     }
 }

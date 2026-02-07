@@ -4,8 +4,8 @@ plugins {
     id 'com.gradleup.shadow' version '8.3.0'
 }
 
-group = 'com.laits'
-version = '1.4.4-hotfix'
+group = 'com.hytame'
+version = '2.0.0'
 
 java {
     toolchain {
@@ -55,14 +55,14 @@ dependencies {
 //    - Excludes food template assets (no E key feeding)
 //    - Dynamic hint switching based on love mode/cooldown
 //    - Command: ./gradlew build (default)
-//    - Output: laits-animal-breeding-1.3.0.jar
+//    - Output: hytame-1.3.0.jar
 //
 // 2. EXPERIMENTAL BUILD (E key) - v1.3.0-experimental
 //    - Uses item-based Ability2 interactions (E key to feed)
 //    - Includes food template assets with Ability2: Root_FeedAnimal
 //    - Mod name shows "(Experimental)" in mod list
 //    - Command: ./gradlew buildExperimental
-//    - Output: laits-animal-breeding-1.3.0-experimental.jar
+//    - Output: hytame-1.3.0-experimental.jar
 // =============================================================================
 
 // Build variant property - set via command line: -PbuildVariant=experimental
@@ -73,11 +73,11 @@ def isExperimental = buildVariant == 'experimental'
 def effectiveVersion = isExperimental ? "${version}-experimental" : version
 
 // Mod display name - experimental has suffix
-def modDisplayName = isExperimental ? "AnimalBreeding (Experimental)" : "AnimalBreeding"
+def modDisplayName = isExperimental ? "HyTame (Experimental)" : "HyTame"
 
 // Generate BuildConfig.java with variant-specific settings
 def buildConfigDir = file("${buildDir}/generated/sources/buildConfig/java/main")
-def buildConfigFile = file("${buildConfigDir}/com/laits/breeding/BuildConfig.java")
+def buildConfigFile = file("${buildConfigDir}/com/hytame/BuildConfig.java")
 
 // For entity-based (default): USE_ENTITY_BASED_INTERACTIONS = true
 // For experimental (E key): USE_ENTITY_BASED_INTERACTIONS = false
@@ -89,9 +89,9 @@ tasks.register('generateBuildConfig') {
 
     doLast {
         buildConfigDir.mkdirs()
-        file("${buildConfigDir}/com/laits/breeding").mkdirs()
+        file("${buildConfigDir}/com/hytame").mkdirs()
 
-        buildConfigFile.text = """package com.laits.breeding;
+        buildConfigFile.text = """package com.hytame;
 
 /**
  * Auto-generated build configuration.
@@ -222,7 +222,7 @@ Build Variants:
 
 DEFAULT (F key feeding) - Recommended
   Command:  ./gradlew build
-  Output:   laits-animal-breeding-${version}.jar
+  Output:   hytame-${version}.jar
   Features:
     - Press F to feed animals
     - Dynamic hint switching (shows original hint when in love/cooldown)
@@ -230,7 +230,7 @@ DEFAULT (F key feeding) - Recommended
 
 EXPERIMENTAL (E key feeding)
   Command:  ./gradlew build -PbuildVariant=experimental
-  Output:   laits-animal-breeding-${version}-experimental.jar
+  Output:   hytame-${version}-experimental.jar
   Features:
     - Press E to feed animals
     - Food templates included with Ability2 interactions
