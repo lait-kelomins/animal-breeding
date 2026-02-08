@@ -85,33 +85,6 @@ public class MouseInteractionHandler {
             Player player = event.getPlayer();
             UUID entityId = EntityUtil.getEntityUUID(targetEntity);
 
-            // Check for capture crate usage on tamed animal
-            if (player != null && entityId != null && tamingManager != null) {
-                if (tamingManager.isTamed(entityId)) {
-                    // Check if player is holding a capture crate
-                    try {
-                        var inventory = player.getInventory();
-                        if (inventory != null) {
-                            var heldItem = inventory.getActiveHotbarItem();
-                            if (heldItem != null) {
-                                String itemId = heldItem.getItemId();
-                                if (CoopResidentTracker.getCaptureCrateItemId().equals(itemId)) {
-                                    // Register pending capture - will be consumed in EntityRemoveEvent
-                                    UUID playerUuid = EntityUtil.getEntityUUID(player);
-                                    if (playerUuid != null) {
-                                        CoopResidentTracker.registerPendingCapture(entityId, playerUuid);
-                                        log("[CaptureCrate] Registered pending capture: animal=" + entityId + " player="
-                                                + playerUuid);
-                                    }
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        // Silent - capture detection is best-effort
-                    }
-                }
-            }
-
             String entityName = EntityUtil.getEntityModelId(targetEntity);
             AnimalType animalType = AnimalType.fromEntityTypeId(entityName);
             if (animalType == null)

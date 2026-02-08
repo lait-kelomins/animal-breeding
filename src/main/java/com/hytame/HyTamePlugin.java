@@ -69,9 +69,10 @@ import com.hytame.listeners.UseBlockHandler;
 import com.hytame.listeners.DetectTamedDeath;
 import com.hytame.listeners.DetectTamedDespawn;
 import com.hytame.listeners.CoopResidentTracker;
-import com.hytame.listeners.CaptureCratePacketListener;
+
 import com.hytame.listeners.NewAnimalSpawnDetector;
 import com.hytame.interactions.FeedAnimalInteraction;
+import com.hytame.interactions.HyTameCaptureInteraction;
 import com.hytame.interactions.NameAnimalInteraction;
 import com.hytame.models.AnimalType;
 import com.hytame.models.CustomAnimalConfig;
@@ -389,6 +390,10 @@ public class HyTamePlugin extends JavaPlugin {
 
         // Note: Hytalor detection moved to start() - PluginManager not ready during setup()
 
+        // Extend CapturedNPCMetadata.CODEC with HyTame fields for coop persistence
+        // Must be called before any world/chunk loading
+        com.hytame.coop.CoopCodecExtender.extend();
+
         // Initialize config manager and load from file
         configManager = new ConfigManager();
 
@@ -403,18 +408,21 @@ public class HyTamePlugin extends JavaPlugin {
         breedingManager = new BreedingManager(configManager);
         growthManager = new GrowthManager(configManager, breedingManager);
 
-        // Initialize taming and persistence managers
-        persistenceManager = new PersistenceManager();
-        persistenceManager.initialize(configDirectory);
-
+        // Initialize taming manager (always needed for in-memory taming)
         tamingManager = new TamingManager();
-        tamingManager.setPersistenceManager(persistenceManager);
-        // Set grace period from config (convert seconds to milliseconds)
-        tamingManager.setGracePeriodMs(configManager.getInitializationGracePeriodSeconds() * 1000);
 
-        // Load saved tamed animals
-        java.util.List<TamedAnimalData> savedAnimals = persistenceManager.loadData();
-        tamingManager.loadFromPersistence(savedAnimals);
+        // Initialize persistence only if enabled (disabled = capture crate handles it)
+        if (configManager.isPersistenceEnabled()) {
+            persistenceManager = new PersistenceManager();
+            persistenceManager.initialize(configDirectory);
+            tamingManager.setPersistenceManager(persistenceManager);
+            tamingManager.setGracePeriodMs(configManager.getInitializationGracePeriodSeconds() * 1000);
+
+            java.util.List<TamedAnimalData> savedAnimals = persistenceManager.loadData();
+            tamingManager.loadFromPersistence(savedAnimals);
+        } else {
+            logVerbose("Persistence disabled - tamed animals will not be saved/loaded/respawned");
+        }
 
         // Initialize breeding tick manager
         breedingTickManager = new BreedingTickManager(breedingManager, configManager);
@@ -431,12 +439,14 @@ public class HyTamePlugin extends JavaPlugin {
         spawningManager.setModelAssetIdGetter(
                 args -> getEntityModelAssetId((Store<EntityStore>) args[0], (Ref<EntityStore>) args[1]));
 
-        // Initialize respawn manager
-        respawnManager = new RespawnManager();
-        respawnManager.setTamingManager(tamingManager);
-        respawnManager.setBreedingManager(breedingManager);
-        respawnManager.setHyTameTypeSupplier(() -> hyTameComponentType);
-        respawnManager.setPositionGetter(ref -> EntityUtil.getPositionFromRef(ref));
+        // Initialize respawn manager (only if persistence enabled)
+        if (configManager.isPersistenceEnabled()) {
+            respawnManager = new RespawnManager();
+            respawnManager.setTamingManager(tamingManager);
+            respawnManager.setBreedingManager(breedingManager);
+            respawnManager.setHyTameTypeSupplier(() -> hyTameComponentType);
+            respawnManager.setPositionGetter(ref -> EntityUtil.getPositionFromRef(ref));
+        }
 
         // Initialize interaction setup manager
         interactionSetupManager = new InteractionSetupManager(configManager, breedingManager);
@@ -592,6 +602,15 @@ public class HyTamePlugin extends JavaPlugin {
             logWarning("NameAnimalInteraction codec registration skipped (may already exist): " + e.getMessage());
         }
 
+        // Register HyTameCaptureInteraction (replaces UseCaptureCrate with metadata support)
+        try {
+            getCodecRegistry(Interaction.CODEC)
+                    .register("HyTameCapture", HyTameCaptureInteraction.class, HyTameCaptureInteraction.CODEC);
+            logVerbose("HyTameCaptureInteraction registered");
+        } catch (Exception e) {
+            logWarning("HyTameCaptureInteraction codec registration skipped (may already exist): " + e.getMessage());
+        }
+
         // Register HyTameComponent for ECS-based taming
         try {
             hyTameComponentType = getEntityStoreRegistry().registerComponent(
@@ -618,13 +637,15 @@ public class HyTamePlugin extends JavaPlugin {
             // Silent
         }
 
-        // Register death and despawn detection for tamed animals
-        try {
-            getEntityStoreRegistry().registerSystem(new DetectTamedDeath());
-            getEntityStoreRegistry().registerSystem(new DetectTamedDespawn());
-            logVerbose("DetectTamedDeath system registered");
-        } catch (Exception e) {
-            logWarning("Failed to register DetectTamedDeath: " + e.getMessage());
+        // Register death and despawn detection for tamed animals (only if persistence enabled)
+        if (configManager.isPersistenceEnabled()) {
+            try {
+                getEntityStoreRegistry().registerSystem(new DetectTamedDeath());
+                getEntityStoreRegistry().registerSystem(new DetectTamedDespawn());
+                logVerbose("DetectTamedDeath/Despawn systems registered");
+            } catch (Exception e) {
+                logWarning("Failed to register DetectTamedDeath: " + e.getMessage());
+            }
         }
 
         // Register coop/capture crate tracking to prevent duplication
@@ -635,24 +656,7 @@ public class HyTamePlugin extends JavaPlugin {
             logWarning("Failed to register CoopResidentTracker: " + e.getMessage());
         }
 
-        // Register NetworkId cache for O(1) entity lookup by network ID
-        try {
-            getEntityStoreRegistry().registerSystem(new com.hytame.util.NetworkIdCache());
-            logVerbose("NetworkIdCache system registered");
-        } catch (Exception e) {
-            logWarning("Failed to register NetworkIdCache: " + e.getMessage());
-        }
-
-        // Register capture crate packet listener for detecting captures/releases
-        try {
-            CaptureCratePacketListener captureCrateListener = new CaptureCratePacketListener(getLogger());
-            captureCrateListener.register();
-            logVerbose("CaptureCratePacketListener registered");
-        } catch (Exception e) {
-            logWarning("Failed to register CaptureCratePacketListener: " + e.getMessage());
-        }
-
-        // NOTE: NewAnimalSpawnDetector is registered in start() after world is ready
+// NOTE: NewAnimalSpawnDetector is registered in start() after world is ready
 
         // Register unified /hytame command (primary)
         getCommandRegistry().registerCommand(new HytameCommand());
@@ -733,36 +737,39 @@ public class HyTamePlugin extends JavaPlugin {
             }
         }, 1, 1, TimeUnit.SECONDS));
 
-        // Start taming persistence auto-save (every 5 minutes)
-        if (persistenceManager != null && tamingManager != null) {
-            persistenceManager.startAutoSave(tickScheduler,
-                    () -> tamingManager.getAllTamedAnimals(),
-                    5); // 5 minutes
-        }
-
-        // Start respawn check tick (every 5 seconds)
-        scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
-            try {
-                respawnManager.checkAndRespawnTamedAnimals();
-            } catch (Exception e) {
-                getLogger().atWarning().log("[RespawnCheck] Exception in scheduler: " + e.getMessage());
-                e.printStackTrace();
+        // Start taming persistence auto-save and respawn check (only if persistence enabled)
+        if (configManager.isPersistenceEnabled()) {
+            if (persistenceManager != null && tamingManager != null) {
+                persistenceManager.startAutoSave(tickScheduler,
+                        () -> tamingManager.getAllTamedAnimals(),
+                        5); // 5 minutes
             }
-        }, 5, 5, TimeUnit.SECONDS));
+
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                try {
+                    if (respawnManager != null) {
+                        respawnManager.checkAndRespawnTamedAnimals();
+                    }
+                } catch (Exception e) {
+                    getLogger().atWarning().log("[RespawnCheck] Exception in scheduler: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }, 5, 5, TimeUnit.SECONDS));
+        }
 
         // Attach Root_FeedAnimal interaction to all breedable animals
         attachInteractionsToAnimals();
 
-        // Register first player connection handler to start grace period
-        // Grace period starts on first player connection, not server start
-        // This prevents respawning duplicates when world loads slowly
-        getEventRegistry().register(PlayerConnectEvent.class, event -> {
-            if (!firstPlayerConnected && tamingManager != null) {
-                firstPlayerConnected = true;
-                tamingManager.markInitialized();
-                logVerbose("First player connected - grace period started");
-            }
-        });
+        // Register first player connection handler to start grace period (only if persistence enabled)
+        if (configManager.isPersistenceEnabled()) {
+            getEventRegistry().register(PlayerConnectEvent.class, event -> {
+                if (!firstPlayerConnected && tamingManager != null) {
+                    firstPlayerConnected = true;
+                    tamingManager.markInitialized();
+                    logVerbose("First player connected - grace period started");
+                }
+            });
+        }
 
         // Register entity removal listener to clean up breeding data when animals die
         registerEntityRemovalListener();
@@ -874,23 +881,25 @@ public class HyTamePlugin extends JavaPlugin {
                 }
             }, 5, 5, TimeUnit.MINUTES));
 
-            // Periodically update tamed animal positions (every 30 seconds)
-            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
-                try {
-                    respawnManager.updateTamedAnimalPositions();
-                } catch (Exception e) {
-                    // Silent
-                }
-            }, 30, 30, TimeUnit.SECONDS));
+            // Periodically update tamed animal positions (every 30 seconds) - persistence only
+            if (configManager.isPersistenceEnabled() && respawnManager != null) {
+                scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                    try {
+                        respawnManager.updateTamedAnimalPositions();
+                    } catch (Exception e) {
+                        // Silent
+                    }
+                }, 30, 30, TimeUnit.SECONDS));
 
-            // Periodically reset recently spawned animals (every 75 seconds)
-            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
-                try {
-                    respawnManager.clearRecentlySpawned();
-                } catch (Exception e) {
-                    // Silent
-                }
-            }, 75, 75, TimeUnit.SECONDS));
+                // Periodically reset recently spawned animals (every 75 seconds)
+                scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                    try {
+                        respawnManager.clearRecentlySpawned();
+                    } catch (Exception e) {
+                        // Silent
+                    }
+                }, 75, 75, TimeUnit.SECONDS));
+            }
 
             // Periodically scan for untracked babies (every 30 seconds)
             // This catches babies that slipped through primary detection
@@ -951,11 +960,52 @@ public class HyTamePlugin extends JavaPlugin {
 
     /**
      * Callback from NewAnimalSpawnDetector when a new animal is detected.
-     * Delegates to InteractionSetupManager.
+     * Delegates to InteractionSetupManager and syncs tamed entities with TamingManager.
      */
     public void onNewAnimalDetected(Store<EntityStore> store, Ref<EntityStore> entityRef,
             String modelAssetId, AnimalType animalType, World world) {
         interactionSetupManager.onNewAnimalDetected(store, entityRef, modelAssetId, animalType, world);
+
+        // Sync tamed entities with TamingManager (re-links entities after restart)
+        if (world != null && tamingManager != null && hyTameComponentType != null) {
+            final Ref<EntityStore> syncRef = entityRef;
+            world.execute(() -> {
+                try {
+                    if (!syncRef.isValid()) return;
+                    Store<EntityStore> s = syncRef.getStore();
+                    if (s == null) return;
+
+                    HyTameComponent hyTame = s.getComponent(syncRef, hyTameComponentType);
+                    if (hyTame == null || !hyTame.isTamed() || hyTame.getHytameId() == null) return;
+
+                    UUID entityUuid = EcsReflectionUtil.getUuidFromRef(syncRef);
+                    if (entityUuid == null) return;
+
+                    // Already linked by UUID - just update entityRef if needed
+                    if (tamingManager.isTamed(entityUuid)) {
+                        TamedAnimalData data = tamingManager.getTamedData(entityUuid);
+                        if (data != null && data.getEntityRef() == null) {
+                            data.setEntityRef(syncRef);
+                            data.setDespawned(false);
+                        }
+                        return;
+                    }
+
+                    // Not linked by UUID - sync via hytameId (handles UUID changes after restart)
+                    TransformComponent transform = s.getComponent(syncRef, EcsReflectionUtil.TRANSFORM_TYPE);
+                    double x = 0, y = 0, z = 0;
+                    if (transform != null && transform.getPosition() != null) {
+                        x = transform.getPosition().getX();
+                        y = transform.getPosition().getY();
+                        z = transform.getPosition().getZ();
+                    }
+                    tamingManager.syncEntity(entityUuid, hyTame.getHytameId(), true,
+                            hyTame.getTamerUUID(), hyTame.getTamerName(), syncRef, x, y, z);
+                } catch (Exception e) {
+                    // Silent
+                }
+            });
+        }
     }
 
     /**
@@ -998,55 +1048,11 @@ public class HyTamePlugin extends JavaPlugin {
 
                     // Check if this is a tamed animal - don't delete, mark for respawn
                     if (tamingManager != null && tamingManager.isTamed(entityId)) {
-                        // Check if animal is entering coop/capture crate storage
-                        // If so, don't mark as despawned - it's stored, not gone
-                        if (CoopResidentTracker.isInStorage(entityId)) {
-                            logVerbose(
-                                    "Tamed animal entering coop/crate storage (not marking as despawned): " + entityId);
-                            // Don't remove breeding data for tamed animals in storage
+                        // Check if animal is captured in a crate (metadata-based)
+                        TamedAnimalData tamedData = tamingManager.getTamedData(entityId);
+                        if (tamedData != null && tamedData.isCaptured()) {
+                            logVerbose("Tamed animal captured in crate (not marking as despawned): " + entityId);
                             return;
-                        }
-
-                        // Check if this animal is being captured by a capture crate
-                        // Method 1: Check CoopResidentTracker by UUID (legacy path)
-                        UUID capturingPlayer = CoopResidentTracker.consumePendingCapture(entityId);
-                        if (capturingPlayer != null) {
-                            // Track the capture for later restoration when released
-                            CoopResidentTracker.trackCapture(capturingPlayer, entityId);
-                            logVerbose("Tamed animal captured by capture crate (player=" + capturingPlayer + "): "
-                                    + entityId);
-                            // Don't remove breeding data, don't mark as despawned
-                            return;
-                        }
-
-                        // Method 2: Check CaptureCratePacketListener by ref index (packet-based
-                        // detection)
-                        try {
-                            Ref<EntityStore> ref = entity.getReference();
-                            if (ref != null) {
-                                Integer refIndex = ref.getIndex();
-                                logVerbose("EntityRemoveEvent: tamed animal removed, checking packet capture (refIndex="
-                                        + refIndex + ", entityId=" + entityId + ")");
-                                if (refIndex != null) {
-                                    var pendingCapture = CaptureCratePacketListener.consumePendingCapture(refIndex);
-                                    if (pendingCapture != null) {
-                                        // Track the capture for later restoration when released
-                                        CoopResidentTracker.trackCapture(pendingCapture.playerUuid, entityId);
-                                        logVerbose("Tamed animal captured by capture crate via packet (player="
-                                                + pendingCapture.playerUuid + ", refIndex=" + refIndex + "): "
-                                                + entityId);
-                                        // Don't remove breeding data, don't mark as despawned
-                                        return;
-                                    } else {
-                                        logVerbose(
-                                                "EntityRemoveEvent: no pending capture found for refIndex=" + refIndex);
-                                    }
-                                }
-                            } else {
-                                logVerbose("EntityRemoveEvent: entity ref is null");
-                            }
-                        } catch (Exception ex) {
-                            logVerbose("EntityRemoveEvent: error checking packet capture: " + ex.getMessage());
                         }
 
                         // Get position before entity is fully removed
@@ -1485,8 +1491,9 @@ public class HyTamePlugin extends JavaPlugin {
             }
         }
 
-        // Save tamed animal data before shutdown (must be sync to ensure completion)
-        if (persistenceManager != null && tamingManager != null) {
+        // Save tamed animal data before shutdown (only if persistence enabled)
+        if (configManager != null && configManager.isPersistenceEnabled()
+                && persistenceManager != null && tamingManager != null) {
             getLogger().atInfo().log("[Taming] Saving tamed animals on shutdown...");
             persistenceManager.stopAutoSave();
             persistenceManager.forceSaveSync(tamingManager.getAllTamedAnimals());
@@ -1497,8 +1504,7 @@ public class HyTamePlugin extends JavaPlugin {
             breedingManager.clearAll();
         }
 
-        // Clear coop storage tracking
-        CoopResidentTracker.clearStorage();
+        // Note: CoopResidentTracker no longer has in-memory storage (uses CODEC companion map)
 
         // Clear static instance
         instance = null;

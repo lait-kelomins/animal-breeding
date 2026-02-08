@@ -20,7 +20,9 @@ import com.hypixel.hytale.server.npc.sensorinfo.InfoProvider;
 import com.hytame.HyTamePlugin;
 import com.hytame.models.AnimalType;
 import com.hytame.models.GrowthStage;
+import com.hytame.models.TamedAnimalData;
 import com.hytame.util.EcsReflectionUtil;
+import com.hytame.util.NameplateUtil;
 import com.hytame.tame.HyTameComponent;
 
 import it.unimi.dsi.fastutil.Pair;
@@ -176,6 +178,17 @@ public class ActionGrowToNextStage extends ActionBase {
                                 UUID newAdultUuid = EcsReflectionUtil.getUuidFromRef(adultRef);
                                 if (newAdultUuid != null) {
                                     plugin.getTamingManager().updateEntityAfterGrowth(hytameId, newAdultUuid, adultRef);
+
+                                    // Restore nameplate from TamedAnimalData custom name
+                                    TamedAnimalData tamedData = plugin.getTamingManager().getTamedData(newAdultUuid);
+                                    if (tamedData != null) {
+                                        String customName = tamedData.getCustomName();
+                                        if (customName != null && !customName.isEmpty()
+                                                && !customName.equalsIgnoreCase(NameplateUtil.UNDEFINED_NAME)) {
+                                            NameplateUtil.setEntityNameplate(adultRef, customName);
+                                            log("ActionGrowToNextStage: Restored nameplate: " + customName);
+                                        }
+                                    }
                                 } else {
                                     plugin.getTamingManager().updateEntityRef(hytameId, adultRef, true);
                                 }

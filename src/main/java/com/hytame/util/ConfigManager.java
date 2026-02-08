@@ -44,6 +44,7 @@ public class ConfigManager {
     private double defaultBreedCooldownMinutes = 5.0;
     private boolean debugMode = false;
     private boolean growthEnabled = true;  // Can be disabled to freeze baby growth
+    private boolean persistenceEnabled = false;  // Tamed animal save/load/respawn (capture crate handles this instead)
     private String activePreset = "default_extended";
     private int initializationGracePeriodSeconds = 15;  // Grace period after startup before respawning
 
@@ -616,6 +617,7 @@ public class ConfigManager {
                 defaultGrowthTimeMinutes = safeGetDouble(defaults, "growthTimeMinutes", defaultGrowthTimeMinutes);
                 defaultBreedCooldownMinutes = safeGetDouble(defaults, "breedCooldownMinutes", defaultBreedCooldownMinutes);
                 growthEnabled = safeGetBoolean(defaults, "growthEnabled", growthEnabled);
+                persistenceEnabled = safeGetBoolean(defaults, "persistenceEnabled", persistenceEnabled);
                 initializationGracePeriodSeconds = (int) safeGetDouble(defaults, "initializationGracePeriodSeconds", initializationGracePeriodSeconds);
             }
 
@@ -757,6 +759,7 @@ public class ConfigManager {
         defaults.addProperty("growthTimeMinutes", defaultGrowthTimeMinutes);
         defaults.addProperty("breedCooldownMinutes", defaultBreedCooldownMinutes);
         defaults.addProperty("growthEnabled", growthEnabled);
+        defaults.addProperty("persistenceEnabled", persistenceEnabled);
         defaults.addProperty("initializationGracePeriodSeconds", initializationGracePeriodSeconds);
         root.add("defaults", defaults);
 
@@ -2245,6 +2248,14 @@ public class ConfigManager {
      */
     public int getInitializationGracePeriodSeconds() {
         return initializationGracePeriodSeconds;
+    }
+
+    /**
+     * Whether tamed animal persistence is enabled (save/load/respawn).
+     * When disabled, capture crate metadata handles animal persistence instead.
+     */
+    public boolean isPersistenceEnabled() {
+        return persistenceEnabled;
     }
 
     // ===========================================

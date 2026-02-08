@@ -15,7 +15,6 @@ import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hytame.HyTamePlugin;
-import com.hytame.listeners.CoopResidentTracker;
 import com.hytame.models.AnimalType;
 import com.hytame.models.BreedingData;
 import com.hytame.models.GrowthStage;
@@ -463,18 +462,11 @@ public class RespawnManager {
         if (animalType == null)
             return;
 
-        // Check if animal is in coop/capture crate storage - don't respawn stored
-        // animals
+        // Check if animal is in coop or capture crate storage - don't respawn stored animals
+        // (CoopResidentTracker sets isCaptured=true when entering coop, same as capture crate)
         UUID animalUuid = tamedData.getAnimalUuid();
-        if (CoopResidentTracker.isInStorage(animalUuid)) {
-            logVerbose("[Respawn] Skipping - animal is in coop storage: " + tamedData.getCustomName());
-            return;
-        }
-
-        // Check if animal is captured in a capture crate - don't respawn captured
-        // animals
         if (tamedData.isCaptured()) {
-            logVerbose("[Respawn] Skipping - animal is in capture crate: " + tamedData.getCustomName());
+            logVerbose("[Respawn] Skipping - animal is in storage (coop or capture crate): " + tamedData.getCustomName());
             return;
         }
 

@@ -326,7 +326,7 @@ public class ActionHyTameFeedInteraction extends ActionBase {
                         hyTame.getHytameId(), // hytameId
                         animalUUID.getUuid(), // animalId
                         playerUUID.getUuid(), // ownerUuid
-                        npcEntity.getRoleName(), // name (use role name as default)
+                        NameplateUtil.UNDEFINED_NAME, // name (unnamed until player uses nametag)
                         animalType, // type
                         ref, // entityRef
                         0, 0, 0, // position (will be updated later)

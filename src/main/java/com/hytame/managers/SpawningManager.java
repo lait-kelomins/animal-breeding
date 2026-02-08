@@ -308,12 +308,19 @@ public class SpawningManager {
 
         // Get owner from first parent (or second if first has no owner)
         UUID ownerUuid = parent1Data.getOwnerUuid();
+        String ownerName = parent1Data.getOwnerName();
         if (ownerUuid == null) {
             ownerUuid = parent2Data.getOwnerUuid();
+            ownerName = parent2Data.getOwnerName();
         }
 
         if (ownerUuid == null) {
             return;
+        }
+
+        // Ensure ownerName is never null (may be missing from older TamedAnimalData)
+        if (ownerName == null) {
+            ownerName = "Unknown";
         }
 
         String babyName = NameplateUtil.UNDEFINED_NAME;
@@ -332,8 +339,9 @@ public class SpawningManager {
                 worldName);
 
         if (babyTameData != null) {
-            String ownerName = babyTameData.getOwnerName();
-            if (ownerUuid != null && ownerName != null && hyTameTypeSupplier != null) {
+            // Set owner name (not set by tameAnimal constructor)
+            babyTameData.setOwnerName(ownerName);
+            if (ownerUuid != null && hyTameTypeSupplier != null) {
                 ComponentType<EntityStore, HyTameComponent> hyTameType = hyTameTypeSupplier.get();
                 if (hyTameType != null) {
                     HyTameComponent hyTameComp = store.ensureAndGetComponent(entityRef, hyTameType);

@@ -6,6 +6,7 @@ import com.hytame.models.BreedingData;
 import com.hytame.models.GrowthStage;
 import com.hytame.models.TamedAnimalData;
 import com.hytame.util.EcsReflectionUtil;
+import com.hytame.util.NameplateUtil;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 
@@ -890,8 +891,12 @@ public class TamingManager {
         // No JSON entry - create one (entity was tamed but we lost the JSON data)
         // This is a recovery scenario or first-time setup
         TamedAnimalData newData = tameAnimal(hytameId, entityUuid, tamerUuid,
-            "Unknown", null, entityRef, x, y, z, GrowthStage.ADULT, null);
+            NameplateUtil.UNDEFINED_NAME, null, entityRef, x, y, z, GrowthStage.ADULT, null);
         if (newData != null) {
+            // Set owner name for respawn (tamerName = owner's display name from ECS)
+            if (tamerName != null) {
+                newData.setOwnerName(tamerName);
+            }
             log("Created JSON entry for existing tamed entity hytameId=" + hytameId);
             return SyncResult.CREATED;
         }
