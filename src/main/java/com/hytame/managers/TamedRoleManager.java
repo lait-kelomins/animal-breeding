@@ -7,6 +7,7 @@ import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.npc.role.Role;
 import com.hypixel.hytale.server.npc.systems.RoleChangeSystem;
+import com.hytame.HyTamePlugin;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,30 +42,18 @@ public class TamedRoleManager {
     // Track initialization state
     private volatile boolean initialized = false;
 
-    // Logging
-    private Consumer<String> logger;
-    private Consumer<String> warningLogger;
-
     public TamedRoleManager() {
     }
 
-    public void setLogger(Consumer<String> logger) {
-        this.logger = logger;
-    }
-
-    public void setWarningLogger(Consumer<String> warningLogger) {
-        this.warningLogger = warningLogger;
-    }
-
     private void log(String message) {
-        if (logger != null) {
-            logger.accept("[TamedRoleManager] " + message);
+        if (HyTamePlugin.isVerboseLogging()) {
+            HyTamePlugin.getInstance().getLogger().atInfo().log(message);
         }
     }
 
     private void logWarning(String message) {
-        if (warningLogger != null) {
-            warningLogger.accept("[TamedRoleManager] " + message);
+        if (HyTamePlugin.isVerboseLogging()) {
+            HyTamePlugin.getInstance().getLogger().atWarning().log(message);
         }
     }
 

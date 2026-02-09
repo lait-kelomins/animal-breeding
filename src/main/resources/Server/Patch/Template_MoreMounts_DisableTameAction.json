@@ -1,0 +1,31 @@
+{
+    "$Comment": "Replaces the MoreMounts Tame action with HyTameFeedInteraction in Curious.Item substate.",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
+    "Instructions": [
+        {
+            "_findAll": "$[*]",
+            "Instructions": [
+                {
+                    "_find": "$[?(@.Sensor.State == 'Curious')]",
+                    "Instructions": [
+                        {
+                            "_find": "$[?(@.Sensor.State == '.Item')]",
+                            "Instructions": [
+                                {
+                                    "_find": "$[?(@.BodyMotion.Type == 'Seek' && @.Actions[?(@.Type == 'Tame')])]",
+                                    "Actions": [
+                                        {
+                                            "_find": "$[?(@.Type == 'Tame')]",
+                                            "_op": "replace",
+                                            "Type": "HyTameFeedInteraction"
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

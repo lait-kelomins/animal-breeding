@@ -205,6 +205,7 @@ function Deploy {
 
     Write-Host ""
 
+if ($false) {
     # ========================================
     # BUILD EXPERIMENTAL VERSION (E key)
     # ========================================
@@ -225,15 +226,16 @@ function Deploy {
     # Copy experimental JAR to client
     $expJar = "build\libs\$PLUGIN_NAME-$VERSION-experimental.jar"
     $expDestFile = Join-Path $dest "$PLUGIN_NAME-$VERSION-experimental.jar"
-    Copy-Item $expJar $expDestFile -Force
+    # Copy-Item $expJar $expDestFile -Force
     Write-Host "DEPLOYED (client): $expDestFile" -ForegroundColor Green
 
     # Deploy to server immediately if experimental is selected
     if (-not [string]::IsNullOrWhiteSpace($serverDest) -and $script:serverBuildType -eq "experimental") {
         $serverFile = Join-Path $serverDest "$PLUGIN_NAME-$VERSION-experimental.jar"
-        Copy-Item $expJar $serverFile -Force
+        # Copy-Item $expJar $serverFile -Force
         Write-Host "DEPLOYED (server): $serverFile" -ForegroundColor Yellow
     }
+}
 
     Write-Host ""
     Write-Host "============================================" -ForegroundColor Green

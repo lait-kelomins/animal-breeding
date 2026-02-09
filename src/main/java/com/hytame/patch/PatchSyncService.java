@@ -20,12 +20,12 @@ import java.util.*;
  * Syncs LovedItems parameter in NPC assets based on configured foods.
  *
  * Generated Asset Pack structure:
- * <world>/Mods/HyTameConfig/
+ * <world>/Mods/Config_HyTame/
  * ├── manifest.json
  * └── Server/Patch/
- *     ├── NPC_Cow.json
- *     ├── NPC_Wolf_Black.json
- *     └── ... (one per animal with configured foods)
+ * ├── NPC_Cow.json
+ * ├── NPC_Wolf_Black.json
+ * └── ... (one per animal with configured foods)
  */
 public class PatchSyncService {
 
@@ -33,14 +33,32 @@ public class PatchSyncService {
     // Empirically verified: 0.1 real min → 6 real sec at ratio 36
     private static final double REAL_TO_GAME_TIME_RATIO = 36.0;
 
-    private static final String ASSET_PACK_NAME = "HyTameConfig";
+    private static final String ASSET_PACK_NAME = "Config_HyTame";
     private static final String MANIFEST_TEMPLATE = """
             {
-                "id": "hytame-config",
-                "name": "HyTame Dynamic Config",
-                "description": "Auto-generated asset patches from HyTame config",
-                "version": "1.0.0",
-                "authors": ["HyTame Plugin"]
+                "Group": "HyTame",
+                "Name": "Config_HyTame",
+                "Version": "1.0.0",
+                "Description": "[Auto-Generated] Contains config and patches for HyTame",
+                "Authors": [
+                    {
+                        "Name": "Lait",
+                        "Email": "lait.kelomins@gmail.com",
+                        "Url": ""
+                    },
+                    {
+                        "Name": "TheBrandolorian",
+                        "Email": "",
+                        "Url": ""
+                    }
+                ],
+                "Website": "",
+                "Main": "com.hytame.Config_HyTame",
+                "ServerVersion": "*",
+                "Dependencies": {
+                    "com.hypersonicsharkz:Hytalor": "*"
+                },
+                "IncludesAssetPack": true
             }
             """;
 
@@ -50,7 +68,8 @@ public class PatchSyncService {
 
     /**
      * Initialize the patch sync service.
-     * Does NOT sync patches - call syncAllPatchesDeferred() from start() after server is ready.
+     * Does NOT sync patches - call syncAllPatchesDeferred() from start() after
+     * server is ready.
      *
      * @param configManager The config manager instance
      */
@@ -105,7 +124,8 @@ public class PatchSyncService {
 
     /**
      * Register HyTameConfig as an asset pack with AssetModule.
-     * Hytalor iterates registered asset packs and loads patches from each pack's Server/Patch/.
+     * Hytalor iterates registered asset packs and loads patches from each pack's
+     * Server/Patch/.
      * Without this registration, Hytalor doesn't know our patch directory exists.
      */
     private void registerAssetPack() {
@@ -115,31 +135,32 @@ public class PatchSyncService {
                     ASSET_PACK_NAME,
                     Semver.fromString("1.0.0"),
                     "Auto-generated asset patches from HyTame config",
-                    new ArrayList<>(),  // authors
-                    "",                 // website
-                    null,               // serverVersion
-                    null,               // source
-                    new HashMap<>(),    // dependencies
-                    new HashMap<>(),    // optionalDependencies
-                    new HashMap<>(),    // conflicts
-                    new ArrayList<>(),  // subPlugins
-                    false               // disabledByDefault
+                    new ArrayList<>(), // authors
+                    "", // website
+                    null, // serverVersion
+                    null, // source
+                    new HashMap<>(), // dependencies
+                    new HashMap<>(), // optionalDependencies
+                    new HashMap<>(), // conflicts
+                    new ArrayList<>(), // subPlugins
+                    false // disabledByDefault
             );
 
             AssetModule.get().registerPack(
                     "com.hytame:" + ASSET_PACK_NAME,
                     assetPackRoot,
-                    manifest
-            );
+                    manifest);
 
-            logVerbose("Registered asset pack: com.hytame:" + ASSET_PACK_NAME + " at " + assetPackRoot.toAbsolutePath());
+            logVerbose(
+                    "Registered asset pack: com.hytame:" + ASSET_PACK_NAME + " at " + assetPackRoot.toAbsolutePath());
         } catch (Exception e) {
             logWarning("Failed to register asset pack: " + e.getMessage());
         }
     }
 
     /**
-     * Sync all patches from current config state (internal, runs on current thread).
+     * Sync all patches from current config state (internal, runs on current
+     * thread).
      * Only writes if patch file is missing or out of sync with config.
      */
     private void syncAllPatchesInternal() {
@@ -189,7 +210,8 @@ public class PatchSyncService {
 
     /**
      * Check if a patch needs to be written/updated.
-     * Compares config foods against existing patch file (or enum default if no patch).
+     * Compares config foods against existing patch file (or enum default if no
+     * patch).
      */
     private boolean needsSync(AnimalType type, List<String> configFoods) {
         Path patchFile = patchFolder.resolve("NPC_" + type.getModelAssetId() + ".json");
@@ -216,11 +238,13 @@ public class PatchSyncService {
             String content = Files.readString(patchFile);
             // Simple parsing - find "Value": [...] and extract items
             int valueStart = content.indexOf("\"Value\"");
-            if (valueStart == -1) return Collections.emptyList();
+            if (valueStart == -1)
+                return Collections.emptyList();
 
             int arrayStart = content.indexOf("[", valueStart);
             int arrayEnd = content.indexOf("]", arrayStart);
-            if (arrayStart == -1 || arrayEnd == -1) return Collections.emptyList();
+            if (arrayStart == -1 || arrayEnd == -1)
+                return Collections.emptyList();
 
             String arrayContent = content.substring(arrayStart + 1, arrayEnd);
             List<String> foods = new ArrayList<>();
@@ -240,7 +264,8 @@ public class PatchSyncService {
      * Check if two food lists contain the same items (order-independent).
      */
     private boolean foodsMatch(List<String> a, List<String> b) {
-        if (a.size() != b.size()) return false;
+        if (a.size() != b.size())
+            return false;
         Set<String> setA = new HashSet<>(a);
         Set<String> setB = new HashSet<>(b);
         return setA.equals(setB);
@@ -302,7 +327,8 @@ public class PatchSyncService {
         sb.append("        \"LovedItems\": [");
 
         for (int i = 0; i < lovedItems.size(); i++) {
-            if (i > 0) sb.append(", ");
+            if (i > 0)
+                sb.append(", ");
             sb.append("\"").append(lovedItems.get(i)).append("\"");
         }
 
@@ -406,10 +432,14 @@ public class PatchSyncService {
         int secs = totalSeconds % 60;
 
         StringBuilder sb = new StringBuilder("PT");
-        if (hours > 0) sb.append(hours).append("H");
-        if (mins > 0) sb.append(mins).append("M");
-        if (secs > 0) sb.append(secs).append("S");
-        if (hours == 0 && mins == 0 && secs == 0) sb.append("0S");
+        if (hours > 0)
+            sb.append(hours).append("H");
+        if (mins > 0)
+            sb.append(mins).append("M");
+        if (secs > 0)
+            sb.append(secs).append("S");
+        if (hours == 0 && mins == 0 && secs == 0)
+            sb.append("0S");
         return sb.toString();
     }
 
@@ -420,7 +450,8 @@ public class PatchSyncService {
     private String resolveTargetPath(String roleId, String configRolePath) {
         // Try reflection first (automatic)
         String resolved = EcsReflectionUtil.resolveNpcRolePath(roleId);
-        if (resolved != null) return resolved;
+        if (resolved != null)
+            return resolved;
         // Fallback to config
         return configRolePath;
     }
@@ -433,7 +464,8 @@ public class PatchSyncService {
     public void syncForCustomAnimal(CustomAnimalConfig custom) {
         String targetPath = resolveTargetPath(custom.getAdultNpcRoleId(), custom.getNpcRolePath());
         if (targetPath == null) {
-            logVerbose("Cannot resolve NPC path for custom animal " + custom.getDisplayName() + ", skipping food patch");
+            logVerbose(
+                    "Cannot resolve NPC path for custom animal " + custom.getDisplayName() + ", skipping food patch");
             return;
         }
 
@@ -454,7 +486,8 @@ public class PatchSyncService {
         String roleId = custom.hasBabyVariant() ? custom.getBabyNpcRoleId() : custom.getAdultNpcRoleId();
         String targetPath = resolveTargetPath(roleId, custom.getNpcRolePath());
         if (targetPath == null) {
-            logVerbose("Cannot resolve NPC path for custom animal " + custom.getDisplayName() + ", skipping growth patch");
+            logVerbose(
+                    "Cannot resolve NPC path for custom animal " + custom.getDisplayName() + ", skipping growth patch");
             return;
         }
 

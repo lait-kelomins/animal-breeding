@@ -461,11 +461,6 @@ public class HyTamePlugin extends JavaPlugin {
 
         // Initialize tamed role manager for asset-based taming
         tamedRoleManager = new TamedRoleManager();
-        tamedRoleManager.setLogger(msg -> {
-            if (verboseLogging)
-                getLogger().atInfo().log(msg);
-        });
-        tamedRoleManager.setWarningLogger(msg -> getLogger().atWarning().log(msg));
 
         // Set up breeding callbacks
         breedingTickManager.setOnBreedingComplete((type, animals) -> {

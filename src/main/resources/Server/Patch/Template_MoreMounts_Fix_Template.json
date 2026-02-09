@@ -1,0 +1,201 @@
+{
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
+    "Modify": {
+        "_find": {
+            "Enabled": { "Compute": "IsHarvestable || IsMountable || IsTameable" }
+        },
+        "_op": "replace",
+        "_priority": 101,
+        "Enabled": {
+            "Compute": "IsHarvestable || IsMountable"
+        },
+        "Instructions": [
+            {
+                "Enabled": {
+                    "Compute": "IsHarvestable"
+                },
+                "Instructions": [
+                    {
+                        "Sensor": {
+                            "$Comment": "Check the negative first so we can exit early and avoid the rest of the logic",
+                            "Type": "Not",
+                            "Sensor": {
+                                "Type": "And",
+                                "Sensors": [
+                                    {
+                                        "Type": "Alarm",
+                                        "Name": "Harvest_Ready",
+                                        "State": "Unset"
+                                    },
+                                    {
+                                        "Type": "CanInteract",
+                                        "Attitudes": {
+                                            "Compute": "HarvestRequiredAttitudes"
+                                        }
+                                    }
+                                ]
+                            }
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": false
+                            }
+                        ]
+                    },
+                    {
+                        "Enabled": {
+                            "Compute": "!isEmptyStringArray(LovedItems)"
+                        },
+                        "$Comment": "If the target is holding an item deemed very attractive, always follow it",
+                        "Sensor": {
+                            "Type": "Target",
+                            "Filters": [
+                                {
+                                    "Type": "ItemInHand",
+                                    "Items": {
+                                        "Compute": "LovedItems"
+                                    }
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": false
+                            }
+                        ]
+                    },
+                    {
+                        "$Comment": "Allow contextual interactions (shearing) but hide F key prompt",
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "Any"
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": false
+                            }
+                        ]
+                    },
+                    {
+                        "$Comment": "Harvest action triggered by left-click with appropriate tool",
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Enabled": {
+                                        "Compute": "!isEmpty(HarvestInteractionContext)"
+                                    },
+                                    "Type": "InteractionContext",
+                                    "Context": {
+                                        "Compute": "HarvestInteractionContext"
+                                    }
+                                },
+                                {
+                                    "Type": "Alarm",
+                                    "Name": "Harvest_Ready",
+                                    "State": "Unset"
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "State",
+                                "State": "$Harvest"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "Enabled": {
+                    "Compute": "IsMountable"
+                },
+                "Instructions": [
+                    {
+                        "Sensor": {
+                            "Type": "Not",
+                            "Sensor": {
+                                "$Comment": "Check the negative first so we can exit early and avoid the rest of the logic",
+                                "Type": "CanInteract",
+                                "ViewSector": 360,
+                                "Attitudes": [
+                                    "Neutral",
+                                    "Friendly",
+                                    "Hostile"
+                                ]
+                            }
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": false
+                            }
+                        ]
+                    },
+                    {
+                        "Enabled": {
+                            "Compute": "!isEmptyStringArray(LovedItems)"
+                        },
+                        "$Comment": "If the target is holding an item deemed very attractive, always follow it",
+                        "Sensor": {
+                            "Type": "Target",
+                            "Filters": [
+                                {
+                                    "Type": "ItemInHand",
+                                    "Items": {
+                                        "Compute": "LovedItems"
+                                    }
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": false
+                            }
+                        ]
+                    },
+                    {
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "Any"
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "Hint": "server.interactionHints.mount"
+                            }
+                        ]
+                    },
+                    {
+                        "Sensor": {
+                            "Type": "HasInteracted"
+                        },
+                        "Actions": [
+                            {
+                                "Type": "Mount",
+                                "AnchorX": {
+                                    "Compute": "MountAnchorX"
+                                },
+                                "AnchorY": {
+                                    "Compute": "MountAnchorY"
+                                },
+                                "AnchorZ": {
+                                    "Compute": "MountAnchorZ"
+                                },
+                                "MovementConfig": {
+                                    "Compute": "MountMovementConfig"
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}
