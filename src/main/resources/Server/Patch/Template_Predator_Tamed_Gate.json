@@ -1,0 +1,43 @@
+{
+    "$Comment": "[HYTAME] Suppress predator aggression toward players when tamed",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Predator.json",
+    "Instructions": [
+        {
+            "_op": "add",
+            "_index": 1,
+            "Continue": true,
+            "$Comment": "[HYTAME] Tamed: override nearest player attitude to Friendly (prevents detection sensors from matching). LockOnTarget required for OverrideAttitude to know which entity to affect.",
+            "Sensor": {
+                "Type": "And",
+                "Sensors": [
+                    { "Type": "Tamed", "Set": true },
+                    { "Type": "Player", "Range": { "Compute": "AlertedRange" }, "LockOnTarget": true }
+                ]
+            },
+            "Actions": [
+                { "Type": "OverrideAttitude", "Attitude": "Friendly", "Duration": 10 }
+            ]
+        },
+        {
+            "_op": "add",
+            "_index": 2,
+            "Continue": true,
+            "$Comment": "[HYTAME] Tamed: release player target after override applied (prevents combat attacks). Matches Neutral (pre-override) and Friendly (post-override) to catch all player targets.",
+            "Sensor": {
+                "Type": "And",
+                "Sensors": [
+                    { "Type": "Tamed", "Set": true },
+                    {
+                        "Type": "Target",
+                        "Filters": [
+                            { "Type": "Attitude", "Attitudes": ["Neutral", "Friendly"] }
+                        ]
+                    }
+                ]
+            },
+            "Actions": [
+                { "Type": "ReleaseTarget" }
+            ]
+        }
+    ]
+}
