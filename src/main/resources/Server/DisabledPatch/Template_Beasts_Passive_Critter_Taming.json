@@ -1,5 +1,5 @@
 {
-  "_comment": "Add taming/feeding support to passive critters",
+  "$Comment": "Add taming/feeding support to passive critters",
   "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Beasts_Passive_Critter",
   "Parameters": {
     "LovedItems": {
@@ -19,7 +19,7 @@
         },
         "Instructions": [
           {
-            "_comment": "Wild critter = Tame hint",
+            "$Comment": "Wild critter = Tame hint",
             "Continue": true,
             "Sensor": {
               "Type": "Not",
@@ -37,7 +37,7 @@
             ]
           },
           {
-            "_comment": "Tamed critter = Feed hint",
+            "$Comment": "Tamed critter = Feed hint",
             "Continue": true,
             "Sensor": {
               "Type": "Tamed",

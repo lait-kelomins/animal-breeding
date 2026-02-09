@@ -1,6 +1,6 @@
 {
     "$Comment": "Default LovedItems for aggressive swimming creatures",
-    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Swimming_Aggressive",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Swimming_Aggressive.json",
     "Parameters": {
         "LovedItems": {
             "Value": ["Food_Fish_Raw", "Food_Wildmeat_Raw"]

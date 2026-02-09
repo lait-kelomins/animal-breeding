@@ -1,20 +1,20 @@
 {
-    "_comment": "Add taming/feeding to all animals with LovedItems, including harvestable/mountable ones",
-    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "$Comment": "Add taming/feeding to all animals with LovedItems, including harvestable/mountable ones",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
     "InteractionInstruction": {
         "Enabled": {
             "Compute": "IsHarvestable || IsMountable || !isEmptyStringArray(LovedItems)"
         },
         "Instructions": [
             {
-                "_comment": "Block for simple tameable animals - added LAST so harvestable/mountable blocks run first",
+                "$Comment": "Block for simple tameable animals - added LAST so harvestable/mountable blocks run first",
                 "_op": "add",
                 "Enabled": {
                     "Compute": "!isEmptyStringArray(LovedItems)"
                 },
                 "Instructions": [
                     {
-                        "_comment": "Wild animal = Tame",
+                        "$Comment": "Wild animal = Tame",
                         "Continue": true,
                         "Sensor": {
                             "Type": "Not",
@@ -32,7 +32,7 @@
                         ]
                     },
                     {
-                        "_comment": "Tamed animal = Feed",
+                        "$Comment": "Tamed animal = Feed",
                         "Continue": true,
                         "Sensor": {
                             "Type": "Tamed",

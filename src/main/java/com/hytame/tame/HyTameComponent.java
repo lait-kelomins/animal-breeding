@@ -37,6 +37,8 @@ public class HyTameComponent implements Component<EntityStore> {
             .add()
             .append(new KeyedCodec<>("GrowthStageOrdinal", Codec.INTEGER), (data, value) -> data.growthStageOrdinal = value, data -> data.growthStageOrdinal)
             .add()
+            .append(new KeyedCodec<>("NeedsBreedCooldown", Codec.BOOLEAN), (data, value) -> data.needsBreedCooldown = value, data -> data.needsBreedCooldown)
+            .add()
             .build();
 
     public static ComponentType<EntityStore, HyTameComponent> getComponentType() {
@@ -49,6 +51,7 @@ public class HyTameComponent implements Component<EntityStore> {
     private UUID hytameId = null;  // Stable ID linking ECS to tamed_animals.json
     private Boolean actionReady = true;  // Per-entity action state (disabled during cooldown/love mode)
     private Integer growthStageOrdinal = GrowthStage.ADULT.ordinal();  // Growth stage ordinal for persistence
+    private Boolean needsBreedCooldown = false;  // Flag to trigger Breed_Cooldown alarm via passive instruction
 
     public boolean isTamed() {
         return Boolean.TRUE.equals(isTamed);
@@ -128,6 +131,14 @@ public class HyTameComponent implements Component<EntityStore> {
         return false;
     }
 
+    public boolean isNeedsBreedCooldown() {
+        return Boolean.TRUE.equals(needsBreedCooldown);
+    }
+
+    public void setNeedsBreedCooldown(boolean needsCooldown) {
+        this.needsBreedCooldown = needsCooldown;
+    }
+
     public void setTamed(@Nonnull UUID player, @Nonnull String playerName) {
         this.isTamed = true;
         this.tamerUUID = player;
@@ -148,6 +159,7 @@ public class HyTameComponent implements Component<EntityStore> {
         component.hytameId = this.hytameId;
         component.actionReady = this.actionReady;
         component.growthStageOrdinal = this.growthStageOrdinal;
+        component.needsBreedCooldown = this.needsBreedCooldown;
         return component;
     }
 }

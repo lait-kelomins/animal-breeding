@@ -1,6 +1,6 @@
 {
     "$Comment": "Add breeding to tamed mountable animals with LovedItems",
-    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
     "_priority": 99,
     "InteractionInstruction": {
         "Instructions": [
@@ -14,7 +14,6 @@
                     {
                         "_op": "add",
                         "_index": 0,
-                        "_priority": 99,
                         "$Comment": "[HYTAME] Mountable Breeding: Show prompt when tamed + LovedItems",
                         "Continue": true,
                         "Enabled": {
@@ -23,6 +22,11 @@
                         "Sensor": {
                             "Type": "And",
                             "Sensors": [
+                                {
+                                    "Type": "Alarm",
+                                    "Name": "Breed_Cooldown",
+                                    "State": "Unset"
+                                },
                                 {
                                     "Type": "Tamed",
                                     "Set": true
@@ -52,7 +56,6 @@
                     },
                     {
                         "_op": "add",
-                        "_priority": 99,
                         "_index": 1,
                         "$Comment": "[HYTAME] Mountable Breeding: Show prompt when tamed + LovedItems",
                         "Enabled": {
@@ -61,6 +64,11 @@
                         "Sensor": {
                             "Type": "And",
                             "Sensors": [
+                                {
+                                    "Type": "Alarm",
+                                    "Name": "Breed_Cooldown",
+                                    "State": "Unset"
+                                },
                                 {
                                     "Type": "Tamed",
                                     "Set": true

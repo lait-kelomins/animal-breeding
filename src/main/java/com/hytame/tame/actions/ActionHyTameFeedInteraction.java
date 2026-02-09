@@ -652,6 +652,21 @@ public class ActionHyTameFeedInteraction extends ActionBase {
                 }
                 otherData.completeBreeding();
 
+                // Set breed cooldown flag for alarm-based system
+                if (HyTamePlugin.isAlarmBasedBreedCooldown()) {
+                    try {
+                        var hyTameType = HyTameComponent.getComponentType();
+                        if (hyTameType != null) {
+                            HyTameComponent parentTame = targetRef.getStore().getComponent(targetRef, hyTameType);
+                            if (parentTame != null) parentTame.setNeedsBreedCooldown(true);
+                            HyTameComponent otherTame = otherRef.getStore().getComponent(otherRef, hyTameType);
+                            if (otherTame != null) otherTame.setNeedsBreedCooldown(true);
+                        }
+                    } catch (Exception e) {
+                        // Fail safely - cooldown will fall back to Java-based
+                    }
+                }
+
                 // Spawn baby at midpoint between the two parents
                 Vector3d midpoint = new Vector3d(
                         (thisPos.getX() + otherPos.getX()) / 2.0,

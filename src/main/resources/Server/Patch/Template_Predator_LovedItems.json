@@ -1,6 +1,6 @@
 {
     "$Comment": "Add LovedItems following behavior to predators - makes them follow players holding food instead of attacking",
-    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Predator",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Predator.json",
 
     "Parameters": {
         "LovedItems": {

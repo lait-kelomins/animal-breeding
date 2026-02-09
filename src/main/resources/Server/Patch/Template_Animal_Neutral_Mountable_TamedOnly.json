@@ -1,6 +1,6 @@
 {
     "$Comment": "Require taming before mounting - modify vanilla Mount sensor to include Tamed check",
-    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
     "InteractionInstruction": {
         "Instructions": [
             {

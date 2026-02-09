@@ -1,6 +1,6 @@
 {
-    "_comment": "Replace UseCaptureCrate with HyTameCapture for taming metadata persistence",
-    "BaseAssetPath": "Item/Items/Tool/Capture_Crate/Tool_Capture_Crate",
+    "$Comment": "Replace UseCaptureCrate with HyTameCapture for taming metadata persistence",
+    "_BaseAssetPath": "Server/Item/Items/Tool/Capture_Crate/Tool_Capture_Crate.json",
     "Interactions": {
         "Primary": {
             "Interactions": [

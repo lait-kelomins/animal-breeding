@@ -1,6 +1,6 @@
 {
     "$Comment": "Add breeding to tamed mountable animals with LovedItems",
-    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
     "_priority": 97,
     "InteractionInstruction": {
         "Instructions": [

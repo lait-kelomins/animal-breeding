@@ -3,6 +3,7 @@ package com.hytame.managers;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hytame.HyTamePlugin;
 import com.hytame.models.AnimalType;
 import com.hytame.models.BreedingData;
 import com.hytame.models.GrowthStage;
@@ -223,6 +224,9 @@ public class BreedingManager {
      * @return true if the animal can breed
      */
     public boolean canBreed(UUID animalId, AnimalType animalType) {
+        if (HyTamePlugin.isAlarmBasedBreedCooldown()) {
+            return true; // Cooldown managed by Breed_Cooldown alarm
+        }
         BreedingData data = getOrCreateData(animalId, animalType);
         long cooldown = config.getBreedingCooldown(animalType);
         return data.canBreed(cooldown);
@@ -294,10 +298,12 @@ public class BreedingManager {
             return FeedResult.NOT_ADULT;
         }
 
-        // Check cooldown
-        long cooldown = config.getBreedingCooldown(animalType);
-        if (!data.canBreed(cooldown)) {
-            return FeedResult.ON_COOLDOWN;
+        // Check cooldown (Java-based only; alarm-based uses NPC sensor gating)
+        if (!HyTamePlugin.isAlarmBasedBreedCooldown()) {
+            long cooldown = config.getBreedingCooldown(animalType);
+            if (!data.canBreed(cooldown)) {
+                return FeedResult.ON_COOLDOWN;
+            }
         }
 
         // Already in love

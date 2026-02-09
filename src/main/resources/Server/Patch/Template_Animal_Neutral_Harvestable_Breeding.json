@@ -1,6 +1,6 @@
 {
     "$Comment": "Add breeding behavior to harvestable animals with LovedItems",
-    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
     "_priority": 99,
     "InteractionInstruction": {
         "Instructions": [
@@ -15,11 +15,15 @@
                     {
                         "_op": "add",
                         "_index": 0,
-                        "_priority": 99,
                         "$Comment": "[HYTAME] Harvestable Breeding: Execute taming/breeding action on interaction",
                         "Sensor": {
                             "Type": "And",
                             "Sensors": [
+                                {
+                                    "Type": "Alarm",
+                                    "Name": "Breed_Cooldown",
+                                    "State": "Unset"
+                                },
                                 {
                                     "Type": "Tamed",
                                     "Set": true
@@ -50,7 +54,6 @@
                     {
                         "_op": "add",
                         "_index": 1,
-                        "_priority": 99,
                         "$Comment": "[HYTAME] Harvestable Breeding: Show prompt when tamed + LovedItems",
                         "Enabled": {
                             "Compute": "!isEmptyStringArray(LovedItems)"
@@ -58,6 +61,11 @@
                         "Sensor": {
                             "Type": "And",
                             "Sensors": [
+                                {
+                                    "Type": "Alarm",
+                                    "Name": "Breed_Cooldown",
+                                    "State": "Unset"
+                                },
                                 {
                                     "Type": "Tamed",
                                     "Set": true

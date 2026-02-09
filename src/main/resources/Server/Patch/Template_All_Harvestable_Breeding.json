@@ -16,6 +16,7 @@
                         "Sensor": {
                             "Type": "And",
                             "Sensors": [
+                                { "Type": "Alarm", "Name": "Breed_Cooldown", "State": "Unset" },
                                 { "Type": "Tamed", "Set": true },
                                 {
                                     "Type": "Player",

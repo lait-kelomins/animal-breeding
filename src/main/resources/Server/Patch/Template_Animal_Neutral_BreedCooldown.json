@@ -1,0 +1,38 @@
+{
+    "$Comment": "Breed cooldown alarm for tamed animals",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
+    "_priority": 100,
+    "Parameters": {
+        "BreedCooldownTimeout": {
+            "Value": ["PT3H", "PT3H"],
+            "Description": "Breed cooldown duration (ISO 8601, game time). Default 5 real min x 36x = PT3H"
+        }
+    },
+    "Instructions": [
+        {
+            "_op": "add", "_index": 0, "Continue": true,
+            "$Comment": "[HYTAME BreedCooldown] Flag set -> start alarm + clear flag",
+            "Sensor": {
+                "Type": "And",
+                "Sensors": [
+                    { "Type": "NeedsBreedCooldown" },
+                    { "Type": "Alarm", "Name": "Breed_Cooldown", "State": "Unset" }
+                ]
+            },
+            "Actions": [
+                { "Type": "SetAlarm", "Name": "Breed_Cooldown", "DurationRange": { "Compute": "BreedCooldownTimeout" } },
+                { "Type": "ClearBreedCooldownFlag" }
+            ]
+        },
+        {
+            "_op": "add", "_index": 1, "Continue": true,
+            "$Comment": "[HYTAME BreedCooldown] Clear alarm when passed",
+            "Sensor": {
+                "Type": "Alarm", "Name": "Breed_Cooldown", "State": "Passed", "Clear": true
+            },
+            "Actions": [
+                { "Type": "ClearBreedCooldownFlag" }
+            ]
+        }
+    ]
+}

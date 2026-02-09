@@ -1,5 +1,5 @@
 {
-    "_comment": "Block harvesting when wild - only tamed animals can be harvested",
+    "$Comment": "Block harvesting when wild - only tamed animals can be harvested",
     "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
     "InteractionInstruction": {
         "Instructions": [
@@ -25,7 +25,7 @@
                             "Type": "And",
                             "Sensors": [
                                 {
-                                    "_comment": "Must be tamed to harvest",
+                                    "$Comment": "Must be tamed to harvest",
                                     "Type": "Tamed",
                                     "Set": true
                                 },

@@ -1,6 +1,6 @@
 {
-  "_comment": "Allow Revered attitude for mount interactions (tamed animals)",
-  "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+  "$Comment": "Allow Revered attitude for mount interactions (tamed animals)",
+  "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
   "InteractionInstruction": {
     "$..Instructions[?(@.Enabled.Compute == 'IsMountable')].Instructions[?(@.Sensor.Sensor.Type == 'CanInteract')].Sensor.Sensor.Attitudes": [
       { "_op": "add", "_value": "Revered" }

@@ -1,5 +1,5 @@
 {
-  "_comment": "Add feeding support to summoned allies",
+  "$Comment": "Add feeding support to summoned allies",
   "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Summoned_Ally",
   "Parameters": {
     "LovedItems": {
@@ -19,7 +19,7 @@
         },
         "Instructions": [
           {
-            "_comment": "Summoned ally = Feed hint (already tamed by definition)",
+            "$Comment": "Summoned ally = Feed hint (already tamed by definition)",
             "Continue": true,
             "Sensor": {
               "Type": "Any"

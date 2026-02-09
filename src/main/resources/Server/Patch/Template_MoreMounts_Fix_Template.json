@@ -1,11 +1,13 @@
 {
     "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
+    "_priority": 101,
     "Modify": {
         "_find": {
-            "Enabled": { "Compute": "IsHarvestable || IsMountable || IsTameable" }
+            "Enabled": {
+                "Compute": "IsHarvestable || IsMountable || IsTameable"
+            }
         },
         "_op": "replace",
-        "_priority": 101,
         "Enabled": {
             "Compute": "IsHarvestable || IsMountable"
         },

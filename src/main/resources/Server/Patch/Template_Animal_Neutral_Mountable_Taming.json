@@ -1,6 +1,6 @@
 {
     "$Comment": "Add taming to wild mountable animals with LovedItems",
-    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
     "_priority": 98,
     "InteractionInstruction": {
         "Instructions": [
@@ -14,7 +14,6 @@
                     {
                         "_op": "add",
                         "_index": 2,
-                        "_priority": 98,
                         "$Comment": "[HYTAME] Harvestable Taming: Reset interaction state (handles case where player interacted without loved item on untamed animal",
                         "Sensor": {
                             "Type": "And",
@@ -57,7 +56,6 @@
                     {
                         "_op": "add",
                         "_index": 3,
-                        "_priority": 98,
                         "$Comment": "[HYTAME] Mountable Taming: Consume interaction",
                         "Enabled": {
                             "Compute": "!isEmptyStringArray(LovedItems)"
@@ -98,7 +96,6 @@
                     {
                         "_op": "add",
                         "_index": 4,
-                        "_priority": 98,
                         "$Comment": "[HYTAME] Mountable Taming: Show prompt when wild + LovedItems",
                         "Enabled": {
                             "Compute": "!isEmptyStringArray(LovedItems)"

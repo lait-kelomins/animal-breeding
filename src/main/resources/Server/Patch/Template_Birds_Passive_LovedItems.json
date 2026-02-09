@@ -1,6 +1,6 @@
 {
     "$Comment": "Default LovedItems for passive birds",
-    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Birds_Passive",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Birds_Passive.json",
     "Parameters": {
         "LovedItems": {
             "Value": ["Plant_Crop_Wheat_Item", "Plant_Crop_Corn_Item"]

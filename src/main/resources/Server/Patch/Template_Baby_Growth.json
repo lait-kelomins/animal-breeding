@@ -1,6 +1,6 @@
 {
     "$Comment": "Growth alarm for baby animals - modeled after vanilla Harvest_Ready pattern",
-    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
     "_priority": 95,
     "Parameters": {
         "GrowthTimeout": {

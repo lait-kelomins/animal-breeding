@@ -99,10 +99,12 @@ import com.hytame.tame.HyTameComponent;
 import com.hytame.tame.HyTameSystems;
 import com.hytame.tame.actions.BuilderActionHyTameFeedInteraction;
 import com.hytame.tame.actions.BuilderActionRemovePlayerHeldItems;
+import com.hytame.tame.actions.BuilderActionClearBreedCooldownFlag;
 import com.hytame.tame.actions.BuilderActionGrowToNextStage;
 import com.hytame.tame.sensors.BuilderSensorIsTameable;
 import com.hytame.tame.sensors.BuilderSensorTamed;
 import com.hytame.tame.sensors.BuilderSensorGrowthReady;
+import com.hytame.tame.sensors.BuilderSensorNeedsBreedCooldown;
 import com.hytame.tame.sensors.BuilderSensorScaledBaby;
 import com.hypixel.hytale.server.npc.role.support.WorldSupport;
 import java.lang.reflect.Field;
@@ -241,6 +243,10 @@ public class HyTamePlugin extends JavaPlugin {
         return verboseLogging;
     }
 
+    public static boolean isAlarmBasedBreedCooldown() {
+        return USE_ALARM_BASED_BREED_COOLDOWN;
+    }
+
     public static void setVerboseLogging(boolean enabled) {
         verboseLogging = enabled;
     }
@@ -288,6 +294,12 @@ public class HyTamePlugin extends JavaPlugin {
     // When false: Uses alarm-based growth via patches (Growth_Ready alarm + GrowToNextStage action)
     // Default: false (alarm-based system is preferred)
     private static final boolean USE_JAVA_BASED_GROWTH = false;
+
+    // Alarm-based breed cooldown toggle
+    // When true: Uses Breed_Cooldown alarm via passive instructions (survives chunk reload)
+    // When false: Uses Java-based BreedingData.lastBreedTime + System.currentTimeMillis() comparison
+    // Default: true (alarm-based system is preferred)
+    private static final boolean USE_ALARM_BASED_BREED_COOLDOWN = true;
 
     /** Broadcast a message to all online players in chat (all worlds) */
     private void broadcastToChat(String message) {
@@ -803,6 +815,11 @@ public class HyTamePlugin extends JavaPlugin {
             NPCPlugin.get().registerCoreComponentType("ScaledBaby", BuilderSensorScaledBaby::new);
             NPCPlugin.get().registerCoreComponentType("GrowToNextStage", BuilderActionGrowToNextStage::new);
             logVerbose("Baby growth components registered (GrowthReady, ScaledBaby, GrowToNextStage)");
+
+            // Register breed cooldown sensor and action for alarm-based breed cooldown system
+            NPCPlugin.get().registerCoreComponentType("NeedsBreedCooldown", BuilderSensorNeedsBreedCooldown::new);
+            NPCPlugin.get().registerCoreComponentType("ClearBreedCooldownFlag", BuilderActionClearBreedCooldownFlag::new);
+            logVerbose("Breed cooldown components registered (NeedsBreedCooldown, ClearBreedCooldownFlag)");
 
             // Periodically update player UUIDs for the spawn detector to exclude players
             scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
