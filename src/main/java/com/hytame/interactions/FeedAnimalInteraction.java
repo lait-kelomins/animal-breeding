@@ -10,13 +10,12 @@ import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.logger.HytaleLogger;
 import com.hypixel.hytale.math.vector.Vector3d;
-import com.hypixel.hytale.math.vector.Vector3f;
+
 import com.hypixel.hytale.protocol.InteractionType;
 import com.hypixel.hytale.protocol.SoundCategory;
 import com.hypixel.hytale.server.core.Message;
 import com.hypixel.hytale.server.core.asset.type.attitude.Attitude;
-import com.hypixel.hytale.server.core.asset.type.model.config.Model;
-import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
+
 import com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent;
 import com.hypixel.hytale.server.core.entity.InteractionContext;
 import com.hypixel.hytale.server.core.entity.InteractionManager;
@@ -58,7 +57,7 @@ import com.hytame.util.TameHelper;
 import com.hytame.tame.utils.Debug;
 import com.hytame.components.HyTameInteractionComponent;
 
-import it.unimi.dsi.fastutil.Pair;
+
 
 import java.lang.reflect.Field;
 import java.util.UUID;
@@ -806,130 +805,15 @@ public class FeedAnimalInteraction extends SimpleInteraction {
                     (thisPos.getY() + otherPos.getY()) / 2.0,
                     (thisPos.getZ() + otherPos.getZ()) / 2.0);
 
-            // Get the custom animal config for spawning
+            // Delegate to SpawningManager (handles baby registration + auto-taming)
             HyTamePlugin plugin = HyTamePlugin.getInstance();
-            CustomAnimalConfig customConfig = plugin != null ? plugin.getConfigManager().getCustomAnimal(modelAssetId)
-                    : null;
-            // Get world name from the parent entity
-            String worldName = getWorldNameFromRef(targetRef);
-            spawnCustomAnimalBaby(modelAssetId, customConfig, midpoint, worldName);
+            if (plugin != null && plugin.getSpawningManager() != null) {
+                CustomAnimalConfig customConfig = plugin.getConfigManager().getCustomAnimal(modelAssetId);
+                String worldName = getWorldNameFromRef(targetRef);
+                plugin.getSpawningManager().spawnCustomAnimalBaby(modelAssetId, customConfig, midpoint, worldName,
+                        animalId, otherData.getAnimalId());
+            }
             return;
-        }
-    }
-
-    /**
-     * Spawn a baby custom animal at the given position.
-     * If babyNpcRoleId is set, spawn using that role at full scale.
-     * Otherwise, use scaling fallback: spawn adult NPC at 40% scale.
-     */
-    private void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position,
-            String worldName) {
-        try {
-            // Get world by name, fallback to default if not found
-            World world = null;
-            if (worldName != null) {
-                world = Universe.get().getWorld(worldName);
-            }
-            if (world == null) {
-                world = Universe.get().getDefaultWorld();
-            }
-            if (world == null)
-                return;
-
-            final String finalModelAssetId = modelAssetId;
-            final CustomAnimalConfig finalConfig = customConfig;
-            final World finalWorld = world;
-
-            finalWorld.execute(() -> {
-                try {
-                    Store<EntityStore> store = finalWorld.getEntityStore().getStore();
-
-                    NPCPlugin npcPlugin = NPCPlugin.get();
-
-                    int roleIndex = -1;
-                    String usedRoleName = null;
-                    boolean usingBabyRole = false;
-
-                    // 1. First, check if we have a dedicated baby NPC role
-                    if (finalConfig != null && finalConfig.getBabyNpcRoleId() != null) {
-                        roleIndex = npcPlugin.getIndex(finalConfig.getBabyNpcRoleId());
-                        if (roleIndex >= 0) {
-                            usedRoleName = finalConfig.getBabyNpcRoleId();
-                            usingBabyRole = true;
-                            log("Using dedicated baby NPC role: " + usedRoleName);
-                        } else {
-                            log("Configured babyNpcRoleId not found: " + finalConfig.getBabyNpcRoleId()
-                                    + ", falling back to scaling");
-                        }
-                    }
-
-                    // 2. If no baby role, use adult role with scaling fallback
-                    if (roleIndex < 0 && finalConfig != null && finalConfig.getAdultNpcRoleId() != null) {
-                        roleIndex = npcPlugin.getIndex(finalConfig.getAdultNpcRoleId());
-                        if (roleIndex >= 0) {
-                            usedRoleName = finalConfig.getAdultNpcRoleId();
-                            log("Using adult NPC role with scaling: " + usedRoleName);
-                        }
-                    }
-
-                    // 3. Fallback: try the model asset ID directly (legacy configs)
-                    if (roleIndex < 0) {
-                        roleIndex = npcPlugin.getIndex(finalModelAssetId);
-                        if (roleIndex >= 0) {
-                            usedRoleName = finalModelAssetId;
-                            log("Using modelAssetId as role (legacy): " + usedRoleName);
-                        }
-                    }
-
-                    if (roleIndex < 0) {
-                        log("No NPC role found for custom animal: " + finalModelAssetId);
-                        log("  adultNpcRoleId=" + (finalConfig != null ? finalConfig.getAdultNpcRoleId() : "null"));
-                        log("  babyNpcRoleId=" + (finalConfig != null ? finalConfig.getBabyNpcRoleId() : "null"));
-                        log("  TIP: Re-add the custom animal with: /breed custom add <npcRole> <food>");
-                        return;
-                    }
-
-                    Vector3f rotation = new Vector3f(0, 0, 0);
-
-                    // If using baby role, spawn at full scale. Otherwise use scaling fallback (40%)
-                    Model scaledModel = null;
-                    if (!usingBabyRole) {
-                        float babyScale = 0.4f; // Scaling fallback: 40% size
-                        try {
-                            ModelAsset modelAsset = ModelAsset.getAssetMap().getAsset(finalModelAssetId);
-                            if (modelAsset != null) {
-                                scaledModel = Model.createScaledModel(modelAsset, babyScale);
-                                log("Created scaled model at " + (babyScale * 100) + "% size");
-                            }
-                        } catch (Exception e) {
-                            log("Could not create scaled model for custom baby: " + e.getMessage());
-                        }
-                    }
-
-                    Pair<Ref<EntityStore>, NPCEntity> result = NPCPlugin.get().spawnEntity(store, roleIndex, position,
-                            rotation, scaledModel, null);
-
-                    if (result != null) {
-                        if (usingBabyRole) {
-                            log("Spawned custom baby (dedicated role): " + usedRoleName + " at " + position);
-                        } else {
-                            log("Spawned custom baby (scaled adult): " + usedRoleName + " at " + position);
-                        }
-
-                        // Register baby for growth tracking
-                        HyTamePlugin plugin = HyTamePlugin.getInstance();
-                        if (plugin != null) {
-                            UUID babyId = UUID.randomUUID();
-                            // Custom babies need custom tracking - for now just log
-                            log("Custom baby registered: " + babyId);
-                        }
-                    }
-                } catch (Exception e) {
-                    log("Error spawning custom animal baby: " + e.getMessage());
-                }
-            });
-        } catch (Exception e) {
-            log("Error in spawnCustomAnimalBaby: " + e.getMessage());
         }
     }
 

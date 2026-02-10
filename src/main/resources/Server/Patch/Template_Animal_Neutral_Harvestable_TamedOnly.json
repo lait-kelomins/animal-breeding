@@ -20,7 +20,7 @@
                                 }
                             ]
                         },
-                        "$Comment": "Harvest action triggered by left-click with appropriate tool - ONLY IF TAMED",
+                        "$Comment": "Harvest action triggered by contextual use (bucket/shears) - ONLY IF TAMED. Player(LockOnTarget) sets the target for $Harvest bucket checks.",
                         "Sensor": {
                             "Type": "And",
                             "Sensors": [
@@ -42,6 +42,12 @@
                                     "Type": "Alarm",
                                     "Name": "Harvest_Ready",
                                     "State": "Unset"
+                                },
+                                {
+                                    "$Comment": "Lock player LAST (avoids side-effect if earlier sensors fail). Sets target for $Harvest bucket/inventory checks.",
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "LockOnTarget": true
                                 }
                             ]
                         },

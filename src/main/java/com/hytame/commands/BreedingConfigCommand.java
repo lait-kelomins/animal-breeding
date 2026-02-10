@@ -28,10 +28,10 @@ import java.util.concurrent.CompletableFuture;
  * /breedconfig - Show current config summary
  * /breedconfig list [category] - List animals (optionally by category)
  * /breedconfig info <animal> - Show detailed info for an animal
- * /breedconfig preset list - List available presets
- * /breedconfig preset apply <name> - Apply a preset
+ * /hytame config preset list- List available presets
+ * /hytame config preset apply <name>- Apply a preset
  * /breedconfig reload - Reload from file
- * /breedconfig save - Save current config
+ * /hytame config save - Save current config
  * /breedconfig enable <animal|category|ALL> - Enable breeding
  * /breedconfig disable <animal|category|ALL> - Disable breeding
  * /breedconfig set <animal> food <item> - Set primary breeding food
@@ -46,7 +46,7 @@ public class BreedingConfigCommand extends AbstractCommand {
     private static final String PERM_ADMIN = HytameCommand.PERM_ADMIN;
 
     public BreedingConfigCommand() {
-        super("breedconfig", "[Deprecated] Manage breeding configuration - Use /breed config instead");
+        super("breedconfig", "[Deprecated] Manage breeding configuration - Use /hytame config instead");
 
         // Register all sub-commands
         addSubCommand(new ReloadSubCommand());
@@ -63,7 +63,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
     @Override
     protected CompletableFuture<Void> execute(CommandContext ctx) {
-        ctx.sendMessage(Message.raw("[Deprecated] Use /breed config instead").color("#FFAA00"));
+        ctx.sendMessage(Message.raw("[Deprecated] Use /hytame config instead").color("#FFAA00"));
         ctx.sendMessage(Message.raw(""));
 
         // Called when /breedconfig is run with no sub-command - show summary
@@ -168,7 +168,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
         ctx.sendMessage(Message.raw(""));
         ctx.sendMessage(Message.raw("Type ").color("#AAAAAA")
-                .insert(Message.raw("/breedconfig").color("#FFFFFF"))
+                .insert(Message.raw("/hytame config").color("#FFFFFF"))
                 .insert(Message.raw(" and press TAB for commands").color("#AAAAAA")));
     }
 
@@ -199,7 +199,7 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig save - Admin only */
+    /** /hytame config save - Admin only */
     public static class SaveSubCommand extends AbstractCommand {
         public SaveSubCommand() {
             super("save", "Save current configuration to file");
@@ -314,7 +314,7 @@ public class BreedingConfigCommand extends AbstractCommand {
             if (lookup == null) {
                 ctx.sendMessage(Message.raw("Unknown animal: ").color("#FF5555")
                         .insert(Message.raw(animalId).color("#FFFFFF")));
-                ctx.sendMessage(Message.raw("Use /breed custom add to register custom animals").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw("Use /hytame custom add to register custom animals").color("#AAAAAA"));
                 return CompletableFuture.completedFuture(null);
             }
 
@@ -688,7 +688,7 @@ public class BreedingConfigCommand extends AbstractCommand {
             if (lookup == null) {
                 ctx.sendMessage(Message.raw("Unknown animal: ").color("#FF5555")
                         .insert(Message.raw(animalId).color("#FFFFFF")));
-                ctx.sendMessage(Message.raw("Use /breed custom add to register custom animals").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw("Use /hytame custom add to register custom animals").color("#AAAAAA"));
                 return CompletableFuture.completedFuture(null);
             }
 
@@ -704,7 +704,7 @@ public class BreedingConfigCommand extends AbstractCommand {
                             .insert(Message.raw(" primary food to: ").color("#55FF55"))
                             .insert(Message.raw(resolvedFood).color("#FFFFFF")));
                     ctx.sendMessage(Message.raw("(This replaces all foods. Use ").color("#AAAAAA")
-                            .insert(Message.raw("/breed config addfood").color("#FFFFFF"))
+                            .insert(Message.raw("/hytame config addfood").color("#FFFFFF"))
                             .insert(Message.raw(" to add more.)").color("#AAAAAA")));
                     config.saveToFile();
                     syncPatchForAnimal(lookup);
@@ -785,7 +785,7 @@ public class BreedingConfigCommand extends AbstractCommand {
             if (lookup == null) {
                 ctx.sendMessage(Message.raw("Unknown animal: ").color("#FF5555")
                         .insert(Message.raw(animalId).color("#FFFFFF")));
-                ctx.sendMessage(Message.raw("Use /breed custom add to register custom animals").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw("Use /hytame custom add to register custom animals").color("#AAAAAA"));
                 return CompletableFuture.completedFuture(null);
             }
             if (foodInput == null || foodInput.isEmpty()) {
@@ -845,7 +845,7 @@ public class BreedingConfigCommand extends AbstractCommand {
             if (lookup == null) {
                 ctx.sendMessage(Message.raw("Unknown animal: ").color("#FF5555")
                         .insert(Message.raw(animalId).color("#FFFFFF")));
-                ctx.sendMessage(Message.raw("Use /breed custom add to register custom animals").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw("Use /hytame custom add to register custom animals").color("#AAAAAA"));
                 return CompletableFuture.completedFuture(null);
             }
             if (foodInput == null || foodInput.isEmpty()) {
@@ -859,7 +859,7 @@ public class BreedingConfigCommand extends AbstractCommand {
             List<String> foods = config.getAnyAnimalFoods(animalId);
             if (foods.size() <= 1) {
                 ctx.sendMessage(Message.raw("Cannot remove last food. Use ").color("#FF5555")
-                        .insert(Message.raw("/breed config set food").color("#FFFFFF"))
+                        .insert(Message.raw("/hytame config set food").color("#FFFFFF"))
                         .insert(Message.raw(" to replace instead.").color("#FF5555")));
                 return CompletableFuture.completedFuture(null);
             }
@@ -897,19 +897,19 @@ public class BreedingConfigCommand extends AbstractCommand {
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             // Show preset help when /breedconfig preset is called alone
             ctx.sendMessage(Message.raw("=== Preset Commands ===").color("#FF9900"));
-            ctx.sendMessage(Message.raw("/breedconfig preset list ").color("#FFFFFF")
+            ctx.sendMessage(Message.raw("/hytame config preset list").color("#FFFFFF")
                     .insert(Message.raw("- Show available presets").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breedconfig preset apply <name> ").color("#FFFFFF")
+            ctx.sendMessage(Message.raw("/hytame config preset apply <name>").color("#FFFFFF")
                     .insert(Message.raw("- Apply a preset").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breedconfig preset save <name> ").color("#FFFFFF")
+            ctx.sendMessage(Message.raw("/hytame config preset save <name>").color("#FFFFFF")
                     .insert(Message.raw("- Save current config as preset").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breedconfig preset restore <name> ").color("#FFFFFF")
+            ctx.sendMessage(Message.raw("/hytame config preset restore <name>").color("#FFFFFF")
                     .insert(Message.raw("- Reset built-in preset to defaults").color("#AAAAAA")));
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    /** /breedconfig preset list - Public, no permission required */
+    /** /hytame config preset list- Public, no permission required */
     public static class PresetListSubCommand extends AbstractCommand {
         public PresetListSubCommand() {
             super("list", "Show available presets");
@@ -965,7 +965,7 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig preset apply <name> - Admin only */
+    /** /hytame config preset apply <name>- Admin only */
     public static class PresetApplySubCommand extends AbstractCommand {
         private final RequiredArg<String> presetArg;
 
@@ -994,7 +994,7 @@ public class BreedingConfigCommand extends AbstractCommand {
                 ctx.sendMessage(Message.raw("Applied preset: ").color("#55FF55")
                         .insert(Message.raw(presetName).color("#FFFFFF")));
                 ctx.sendMessage(Message.raw("Use ").color("#AAAAAA")
-                        .insert(Message.raw("/breedconfig save").color("#FFFFFF"))
+                        .insert(Message.raw("/hytame config save").color("#FFFFFF"))
                         .insert(Message.raw(" to persist changes.").color("#AAAAAA")));
             } else {
                 ctx.sendMessage(Message.raw("Unknown preset: ").color("#FF5555")
@@ -1006,7 +1006,7 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
-    /** /breedconfig preset save <name> - Admin only */
+    /** /hytame config preset save <name>- Admin only */
     public static class PresetSaveSubCommand extends AbstractCommand {
         private final RequiredArg<String> presetArg;
 
@@ -1044,7 +1044,7 @@ public class BreedingConfigCommand extends AbstractCommand {
     }
 
     /**
-     * /breedconfig preset restore <name> - Reset a built-in preset to default
+     * /hytame config preset restore <name>- Reset a built-in preset to default
      * values - Admin only
      */
     public static class PresetRestoreSubCommand extends AbstractCommand {

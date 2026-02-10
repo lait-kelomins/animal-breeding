@@ -79,13 +79,13 @@ public class LegacyCommands {
     public static class TamingInfoCommand extends AbstractCommand {
 
         public TamingInfoCommand() {
-            super("taminginfo", "[Deprecated] Show taming information - Use /breed info instead");
+            super("taminginfo", "[Deprecated] Show taming information - Use /hytame info instead");
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkHytalorWarning(ctx)) return CompletableFuture.completedFuture(null);
-            ctx.sendMessage(Message.raw("[Deprecated] Use /breed info instead").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("[Deprecated] Use /hytame info instead").color("#FFAA00"));
             ctx.sendMessage(Message.raw(""));
 
             HyTamePlugin plugin = HyTamePlugin.getInstance();
@@ -104,7 +104,7 @@ public class LegacyCommands {
 
             // Note: Player-specific info requires world thread access
             // For now just show global stats
-            ctx.sendMessage(Message.raw("Use /breedstatus for detailed info").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw("Use /hytame status for detailed info").color("#AAAAAA"));
 
             return CompletableFuture.completedFuture(null);
         }
@@ -118,12 +118,12 @@ public class LegacyCommands {
     public static class TamingSettingsCommand extends AbstractCommand {
 
         public TamingSettingsCommand() {
-            super("tamingsettings", "[Deprecated] Toggle taming settings - Use /breed settings instead");
+            super("tamingsettings", "[Deprecated] Toggle taming settings - Use /hytame settings instead");
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
-            ctx.sendMessage(Message.raw("[Deprecated] Use /breed settings instead").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("[Deprecated] Use /hytame settings instead").color("#FFAA00"));
             ctx.sendMessage(Message.raw(""));
             ctx.sendMessage(Message.raw("This command is not yet available.").color("#FFFF55"));
             ctx.sendMessage(Message.raw("By default, others CAN interact with your tamed animals.").color("#AAAAAA"));
@@ -138,30 +138,30 @@ public class LegacyCommands {
     public static class BreedingHelpCommand extends AbstractCommand {
 
         public BreedingHelpCommand() {
-            super("laitsbreeding", "[Deprecated] Show breeding plugin help - Use /breed help instead");
+            super("laitsbreeding", "[Deprecated] Show breeding plugin help - Use /hytame help instead");
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkHytalorWarning(ctx)) return CompletableFuture.completedFuture(null);
-            ctx.sendMessage(Message.raw("[Deprecated] Use /breed instead").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("[Deprecated] Use /hytame instead").color("#FFAA00"));
             ctx.sendMessage(Message.raw(""));
             ctx.sendMessage(Message.raw("=== Lait's Animal Breeding v" + HyTamePlugin.VERSION + " ===").color("#FF9900"));
             ctx.sendMessage(Message.raw("Main Command: ").color("#AAAAAA")
-                    .insert(Message.raw("/breed").color("#FFFFFF")));
+                    .insert(Message.raw("/hytame").color("#FFFFFF")));
             ctx.sendMessage(Message.raw(""));
             ctx.sendMessage(Message.raw("Commands:").color("#FFAA00"));
-            ctx.sendMessage(Message.raw("/breed").color("#FFFFFF")
-                    .insert(Message.raw(" - Main command (recommended)").color("#55FF55")));
-            ctx.sendMessage(Message.raw("/breedstatus").color("#FFFFFF")
+            ctx.sendMessage(Message.raw("/hytame").color("#FFFFFF")
+                    .insert(Message.raw(" - Main command").color("#55FF55")));
+            ctx.sendMessage(Message.raw("/hytame status").color("#FFFFFF")
                     .insert(Message.raw(" - View tracked animals").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breedconfig").color("#FFFFFF")
+            ctx.sendMessage(Message.raw("/hytame config").color("#FFFFFF")
                     .insert(Message.raw(" - Configuration commands").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/breedgrowth").color("#FFFFFF")
+            ctx.sendMessage(Message.raw("/hytame growth").color("#FFFFFF")
                     .insert(Message.raw(" - Toggle baby growth").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/taminginfo").color("#FFFFFF")
+            ctx.sendMessage(Message.raw("/hytame info").color("#FFFFFF")
                     .insert(Message.raw(" - View tamed animals").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/customanimal").color("#FFFFFF")
+            ctx.sendMessage(Message.raw("/hytame custom").color("#FFFFFF")
                     .insert(Message.raw(" - Manage custom animals").color("#AAAAAA")));
             ctx.sendMessage(Message.raw(""));
             ctx.sendMessage(Message.raw("Feed animals their favorite food to breed!").color("#55FF55"));
@@ -176,13 +176,13 @@ public class LegacyCommands {
     public static class BreedingStatusCommand extends AbstractCommand {
 
         public BreedingStatusCommand() {
-            super("breedstatus", "[Deprecated] Show breeding status - Use /breed status instead");
+            super("breedstatus", "[Deprecated] Show breeding status - Use /hytame status instead");
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             if (checkHytalorWarning(ctx)) return CompletableFuture.completedFuture(null);
-            ctx.sendMessage(Message.raw("[Deprecated] Use /breed status instead").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("[Deprecated] Use /hytame status instead").color("#FFAA00"));
             ctx.sendMessage(Message.raw(""));
 
             HyTamePlugin plugin = HyTamePlugin.getInstance();
@@ -317,12 +317,12 @@ public class LegacyCommands {
     public static class BreedingGrowthCommand extends AbstractCommand {
 
         public BreedingGrowthCommand() {
-            super("breedgrowth", "[Deprecated] Toggle baby animal growth - Use /breed growth instead");
+            super("breedgrowth", "[Deprecated] Toggle baby animal growth - Use /hytame growth instead");
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
-            ctx.sendMessage(Message.raw("[Deprecated] Use /breed growth instead").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("[Deprecated] Use /hytame growth instead").color("#FFAA00"));
 
             HyTamePlugin plugin = HyTamePlugin.getInstance();
             if (plugin == null || plugin.getConfigManager() == null) {
@@ -423,7 +423,7 @@ public class LegacyCommands {
                     .insert(Message.raw(statusText).color(statusColor)));
             if (newState) {
                 ctx.sendMessage(Message.raw("All debug messages will now appear in chat.").color("#FFAA00"));
-                ctx.sendMessage(Message.raw("Use /breeddev again to disable.").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw("Use /breeddev again to disable").color("#AAAAAA"));
             }
 
             return CompletableFuture.completedFuture(null);
@@ -579,14 +579,14 @@ public class LegacyCommands {
     public static class UntameCommand extends AbstractCommand {
 
         public UntameCommand() {
-            super("untame", "[Deprecated] Use /breed untame <name> instead");
+            super("untame", "[Deprecated] Use /hytame untame <name> instead");
         }
 
         @Override
         protected CompletableFuture<Void> execute(CommandContext ctx) {
             ctx.sendMessage(Message.raw("[Deprecated] This command has been replaced.").color("#FFAA00"));
             ctx.sendMessage(Message.raw("To release a tamed animal:").color("#AAAAAA"));
-            ctx.sendMessage(Message.raw("  Use: /breed untame <animal-name>").color("#FFFFFF"));
+            ctx.sendMessage(Message.raw("  Use: /hytame untame <animal-name>").color("#FFFFFF"));
             return CompletableFuture.completedFuture(null);
         }
     }

@@ -236,7 +236,7 @@ public class HyTamePlugin extends JavaPlugin {
         }
     }
 
-    // Verbose logging toggle (controlled by /breedlogs command)
+    // Verbose logging toggle (controlled by /hytame debug log command)
     private static boolean verboseLogging = false;
 
     public static boolean isVerboseLogging() {
@@ -451,6 +451,47 @@ public class HyTamePlugin extends JavaPlugin {
         spawningManager.setModelAssetIdGetter(
                 args -> getEntityModelAssetId((Store<EntityStore>) args[0], (Ref<EntityStore>) args[1]));
 
+        // Register custom animal birth callback
+        breedingManager.setOnCustomBirthCallback(event -> {
+            try {
+                String modelId = event.getModelAssetId();
+                CustomAnimalConfig customConfig = configManager.getCustomAnimal(modelId);
+                if (customConfig == null) {
+                    getLogger().atWarning().log("[CustomBreed] No config for model: %s", modelId);
+                    return;
+                }
+                Vector3d pos1 = EntityUtil.getPositionFromRef(event.getParent1EntityRef());
+                Vector3d pos2 = EntityUtil.getPositionFromRef(event.getParent2EntityRef());
+                if (pos1 == null && pos2 == null) {
+                    getLogger().atWarning().log("[CustomBreed] Could not get any parent position");
+                    return;
+                }
+                // Spawn at midpoint between parents (or at whichever parent has a position)
+                Vector3d spawnPos;
+                if (pos1 != null && pos2 != null) {
+                    spawnPos = new Vector3d(
+                            (pos1.getX() + pos2.getX()) / 2.0,
+                            (pos1.getY() + pos2.getY()) / 2.0,
+                            (pos1.getZ() + pos2.getZ()) / 2.0);
+                } else {
+                    spawnPos = pos1 != null ? pos1 : pos2;
+                }
+                // Get world name from parent ref
+                String worldName = null;
+                BreedingManager.CustomAnimalLoveData loveData = breedingManager.getCustomAnimalLoveData(event.getParent1Id());
+                if (loveData != null) {
+                    worldName = loveData.getWorldName();
+                }
+                spawningManager.spawnCustomAnimalBaby(modelId, customConfig, spawnPos, worldName,
+                        event.getParent1Id(), event.getParent2Id());
+                if (verboseLogging) {
+                    getLogger().atInfo().log("[CustomBreed] Spawning baby %s at midpoint", modelId);
+                }
+            } catch (Exception e) {
+                getLogger().atWarning().log("[CustomBreed] Error in birth callback: %s", e.getMessage());
+            }
+        });
+
         // Initialize respawn manager (only if persistence enabled)
         if (configManager.isPersistenceEnabled()) {
             respawnManager = new RespawnManager();
@@ -509,7 +550,8 @@ public class HyTamePlugin extends JavaPlugin {
                     worldName = animals[1].getWorldName();
                 }
                 CustomAnimalConfig customConfig = configManager.getCustomAnimal(modelAssetId);
-                spawningManager.spawnCustomAnimalBaby(modelAssetId, customConfig, midpoint, worldName);
+                spawningManager.spawnCustomAnimalBaby(modelAssetId, customConfig, midpoint, worldName,
+                        animals[0].getAnimalId(), animals[1].getAnimalId());
             }
         });
 
@@ -933,7 +975,7 @@ public class HyTamePlugin extends JavaPlugin {
             patchSyncService.syncAllPatchesDeferred(10);
         }
 
-        getLogger().atInfo().log("[HyTame] Plugin started! Commands: /hytame, /breed");
+        getLogger().atInfo().log("[HyTame] Plugin started! Command: /hytame");
     }
 
     /**

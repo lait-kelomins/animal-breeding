@@ -617,7 +617,7 @@ public class BreedingManager {
         // Fire callback for baby spawning
         if (onCustomBirthCallback != null) {
             UUID babyId = UUID.randomUUID();
-            CustomBirthEvent event = new CustomBirthEvent(animal1Id, animal2Id, babyId, modelAssetId, data1.getEntityRef());
+            CustomBirthEvent event = new CustomBirthEvent(animal1Id, animal2Id, babyId, modelAssetId, data1.getEntityRef(), data2.getEntityRef());
             onCustomBirthCallback.accept(event);
         }
 
@@ -703,21 +703,25 @@ public class BreedingManager {
         private final UUID parent2Id;
         private final UUID babyId;
         private final String modelAssetId;
-        private final Ref<EntityStore> parentEntityRef;
+        private final Ref<EntityStore> parent1EntityRef;
+        private final Ref<EntityStore> parent2EntityRef;
 
-        public CustomBirthEvent(UUID parent1Id, UUID parent2Id, UUID babyId, String modelAssetId, Ref<EntityStore> parentEntityRef) {
+        public CustomBirthEvent(UUID parent1Id, UUID parent2Id, UUID babyId, String modelAssetId,
+                Ref<EntityStore> parent1EntityRef, Ref<EntityStore> parent2EntityRef) {
             this.parent1Id = parent1Id;
             this.parent2Id = parent2Id;
             this.babyId = babyId;
             this.modelAssetId = modelAssetId;
-            this.parentEntityRef = parentEntityRef;
+            this.parent1EntityRef = parent1EntityRef;
+            this.parent2EntityRef = parent2EntityRef;
         }
 
         public UUID getParent1Id() { return parent1Id; }
         public UUID getParent2Id() { return parent2Id; }
         public UUID getBabyId() { return babyId; }
         public String getModelAssetId() { return modelAssetId; }
-        public Ref<EntityStore> getParentEntityRef() { return parentEntityRef; }
+        public Ref<EntityStore> getParent1EntityRef() { return parent1EntityRef; }
+        public Ref<EntityStore> getParent2EntityRef() { return parent2EntityRef; }
     }
 
     // ==================== BABY DETECTION FALLBACK ====================

@@ -1,5 +1,7 @@
 package com.hytame.commands;
 
+import com.hypixel.hytale.component.ArchetypeChunk;
+import com.hypixel.hytale.component.CommandBuffer;
 import com.hypixel.hytale.component.ComponentType;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
@@ -20,10 +22,9 @@ import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hytame.HyTamePlugin;
 import com.hytame.models.AnimalType;
 import com.hytame.models.CustomAnimalConfig;
+import com.hytame.patch.PatchSyncService;
 import com.hytame.util.AnimalFinder;
 import com.hytame.util.EcsReflectionUtil;
-
-import it.unimi.dsi.fastutil.Pair;
 
 import it.unimi.dsi.fastutil.Pair;
 
@@ -69,8 +70,19 @@ public class CustomAnimalCommand extends AbstractCommand {
         return false;
     }
 
+    /**
+     * Sync the patch file for a custom animal after config changes.
+     */
+    private static void syncCustomAnimalPatch(HyTamePlugin plugin, String modelAssetId) {
+        PatchSyncService patchSyncService = plugin.getPatchSyncService();
+        if (patchSyncService == null) return;
+        CustomAnimalConfig custom = plugin.getConfigManager().getCustomAnimal(modelAssetId);
+        if (custom == null) return;
+        patchSyncService.syncForCustomAnimal(custom);
+    }
+
     public CustomAnimalCommand() {
-        super("customanimal", "[Deprecated] Manage custom animals - Use /breed custom instead");
+        super("customanimal", "[Deprecated] Manage custom animals - Use /hytame custom instead");
         addSubCommand(new CustomAnimalAddCommand());
         addSubCommand(new CustomAnimalRemoveCommand());
         addSubCommand(new CustomAnimalListCommand());
@@ -93,7 +105,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
     @Override
     protected CompletableFuture<Void> execute(CommandContext ctx) {
-        ctx.sendMessage(Message.raw("[Deprecated] Use /breed custom instead").color("#FFAA00"));
+        ctx.sendMessage(Message.raw("[Deprecated] Use /hytame custom instead").color("#FFAA00"));
         ctx.sendMessage(Message.raw(""));
         ctx.sendMessage(Message.raw("=== Custom Animal Commands ===").color("#FF9900"));
         ctx.sendMessage(Message.raw("/customanimal add <model> <food> ").color("#AAAAAA")
@@ -108,7 +120,7 @@ public class CustomAnimalCommand extends AbstractCommand {
                 .insert(Message.raw("- Toggle enabled").color("#FFFFFF")));
         ctx.sendMessage(Message.raw("/customanimal addfood/removefood <model> <food> ").color("#AAAAAA")
                 .insert(Message.raw("- Modify foods").color("#FFFFFF")));
-        ctx.sendMessage(Message.raw("Use /breedconfig save after changes to persist!").color("#FFAA00"));
+        ctx.sendMessage(Message.raw("Use /hytame config save after changes to persist!").color("#FFAA00"));
         return CompletableFuture.completedFuture(null);
     }
 
@@ -162,7 +174,7 @@ public class CustomAnimalCommand extends AbstractCommand {
             if (roleIndex < 0) {
                 ctx.sendMessage(Message.raw("NPC role not found: " + roleName).color("#FF5555"));
                 ctx.sendMessage(Message.raw("Make sure this is a valid NPC role name.").color("#AAAAAA"));
-                ctx.sendMessage(Message.raw("Use /breed custom scan to find creatures nearby.").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw("Use /hytame custom scan to find creatures nearby.").color("#AAAAAA"));
                 return CompletableFuture.completedFuture(null);
             }
 
@@ -179,13 +191,16 @@ public class CustomAnimalCommand extends AbstractCommand {
             // 3. Check if model already registered
             if (plugin.getConfigManager().isCustomAnimal(modelAssetId)) {
                 ctx.sendMessage(Message.raw("Model '" + modelAssetId + "' already registered!").color("#FFAA00"));
-                ctx.sendMessage(Message.raw("Use /breed custom remove " + modelAssetId + " first.").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw("Use /hytame custom remove" + modelAssetId + " first.").color("#AAAAAA"));
                 return CompletableFuture.completedFuture(null);
             }
 
             // 4. Store both model and role
             plugin.getConfigManager().addCustomAnimal(modelAssetId, foods);
             plugin.getConfigManager().setCustomAnimalNpcRole(modelAssetId, roleName);
+
+            // 5. Sync patch file (LovedItems + parameters)
+            syncCustomAnimalPatch(plugin, modelAssetId);
 
             ctx.sendMessage(Message.raw("Added custom animal!").color("#55FF55"));
             ctx.sendMessage(Message.raw("  NPC Role: ").color("#AAAAAA")
@@ -201,30 +216,24 @@ public class CustomAnimalCommand extends AbstractCommand {
 
             ctx.sendMessage(Message.raw("Interactions set up! Feed the creature to breed.").color("#55FF55"));
             ctx.sendMessage(Message.raw("Use ").color("#AAAAAA")
-                    .insert(Message.raw("/breedconfig save").color("#FFFFFF"))
+                    .insert(Message.raw("/hytame config save").color("#FFFFFF"))
                     .insert(Message.raw(" to persist changes.").color("#AAAAAA")));
             ctx.sendMessage(Message.raw("To set a baby role: ").color("#AAAAAA")
-                    .insert(Message.raw("/breed custom setbaby " + modelAssetId + " <babyRole>").color("#FFFF55")));
+                    .insert(Message.raw("/hytame custom setbaby" + modelAssetId + " <babyRole>").color("#FFFF55")));
 
             return CompletableFuture.completedFuture(null);
         }
 
         /**
-         * Discover the model asset ID by spawning a temp entity and reading its
-         * ModelComponent.
+         * Discover the model asset ID for a role.
+         * First searches existing entities in the world, then falls back to spawning
+         * a temp entity if none found.
          */
         private String discoverModelFromRole(HyTamePlugin plugin, String roleName, int roleIndex) {
             try {
                 World world = Universe.get().getDefaultWorld();
 
-                // If getDefaultWorld fails, try to get the world from plugin's stored entities
                 if (world == null) {
-                    if (HyTamePlugin.isVerboseLogging()) {
-                        plugin.getLogger().atInfo()
-                                .log("[ModelDiscovery] getDefaultWorld returned null, trying alternative methods...");
-                    }
-
-                    // Try getting world via reflection on Universe
                     try {
                         java.lang.reflect.Method getWorlds = Universe.class.getMethod("getWorlds");
                         @SuppressWarnings("unchecked")
@@ -232,15 +241,9 @@ public class CustomAnimalCommand extends AbstractCommand {
                                 .invoke(Universe.get());
                         if (worlds != null && !worlds.isEmpty()) {
                             world = worlds.iterator().next();
-                            if (HyTamePlugin.isVerboseLogging()) {
-                                plugin.getLogger().atInfo().log("[ModelDiscovery] Got world from getWorlds()");
-                            }
                         }
                     } catch (Exception e) {
-                        if (HyTamePlugin.isVerboseLogging()) {
-                            plugin.getLogger().atInfo().log("[ModelDiscovery] getWorlds() not available: %s",
-                                    e.getMessage());
-                        }
+                        // ignore
                     }
                 }
 
@@ -249,78 +252,76 @@ public class CustomAnimalCommand extends AbstractCommand {
                     return null;
                 }
 
-                // Make effectively final for lambda
                 final World finalWorld = world;
-
-                // Use a CompletableFuture to get result from world thread
                 CompletableFuture<String> future = new CompletableFuture<>();
-
-                if (HyTamePlugin.isVerboseLogging()) {
-                    plugin.getLogger().atInfo().log("[ModelDiscovery] Starting discovery for role: %s (index: %d)",
-                            roleName, roleIndex);
-                }
 
                 finalWorld.execute(() -> {
                     try {
                         Store<EntityStore> store = finalWorld.getEntityStore().getStore();
-                        NPCPlugin npcPlugin = NPCPlugin.get();
 
-                        // Spawn at high Y location (above world) - negative Y may not work
-                        Vector3d tempPos = new Vector3d(0, 500, 0);
-                        Vector3f rotation = new Vector3f(0, 0, 0);
+                        // Strategy 1: Find an existing entity with matching role name
+                        ComponentType<EntityStore, NPCEntity> npcType = NPCEntity.getComponentType();
+                        ComponentType<EntityStore, ModelComponent> modelType = EcsReflectionUtil.MODEL_TYPE;
+                        String[] foundModel = {null};
 
-                        if (HyTamePlugin.isVerboseLogging()) {
-                            plugin.getLogger().atInfo().log("[ModelDiscovery] Spawning temp entity at %s", tempPos);
+                        store.forEachChunk((ArchetypeChunk<EntityStore> chunk, CommandBuffer<EntityStore> buffer) -> {
+                            if (foundModel[0] != null) return; // already found
+                            for (int i = 0; i < chunk.size(); i++) {
+                                NPCEntity npc = chunk.getComponent(i, npcType);
+                                if (npc != null && roleName.equals(npc.getRoleName())) {
+                                    Ref<EntityStore> ref = chunk.getReferenceTo(i);
+                                    String modelId = extractModelFromRef(plugin, store, ref);
+                                    if (modelId != null) {
+                                        foundModel[0] = modelId;
+                                        return;
+                                    }
+                                }
+                            }
+                        });
+
+                        if (foundModel[0] != null) {
+                            if (HyTamePlugin.isVerboseLogging()) {
+                                plugin.getLogger().atInfo().log(
+                                        "[ModelDiscovery] Found existing entity with role %s, model: %s",
+                                        roleName, foundModel[0]);
+                            }
+                            future.complete(foundModel[0]);
+                            return;
                         }
 
-                        // Use reflection for spawnEntity
+                        // Strategy 2: Spawn a temp entity and read its model
+                        if (HyTamePlugin.isVerboseLogging()) {
+                            plugin.getLogger().atInfo().log(
+                                    "[ModelDiscovery] No existing entity found, spawning temp for role: %s",
+                                    roleName);
+                        }
+
+                        Vector3d tempPos = new Vector3d(0, 500, 0);
+                        Vector3f rotation = new Vector3f(0, 0, 0);
 
                         Pair<Ref<EntityStore>, NPCEntity> result = NPCPlugin.get().spawnEntity(store, roleIndex,
                                 tempPos, rotation, null, null);
 
                         if (result != null) {
-                            if (HyTamePlugin.isVerboseLogging()) {
-                                plugin.getLogger().atInfo()
-                                        .log("[ModelDiscovery] Spawn succeeded, extracting model...");
-                            }
-
-                            // Result is Pair<Ref<EntityStore>, NPCEntity> - fastutil uses left()/right()
-                            // Try multiple method names for compatibility
-                            Ref<EntityStore> entityRef = null;
-                            NPCEntity npcEntity = null;
-
-                            // Try left()/right() first (fastutil ObjectObjectImmutablePair)
-                            entityRef = result.left();
-                            npcEntity = result.right();
+                            Ref<EntityStore> entityRef = result.left();
+                            NPCEntity npcEntity = result.right();
 
                             if (entityRef != null) {
                                 String modelId = extractModelFromRef(plugin, store, entityRef);
-
-                                if (HyTamePlugin.isVerboseLogging()) {
-                                    plugin.getLogger().atInfo().log("[ModelDiscovery] Extracted model: %s",
-                                            modelId);
-                                }
-
-                                // Despawn the temp entity
                                 npcEntity.setDespawning(true);
-
                                 future.complete(modelId);
                                 return;
-                            } else {
-                                plugin.getLogger().atWarning().log("[ModelDiscovery] entityRef is null");
                             }
-                        } else {
-                            plugin.getLogger().atWarning().log("[ModelDiscovery] spawnEntity returned null");
                         }
+
+                        plugin.getLogger().atWarning().log("[ModelDiscovery] All strategies failed for %s", roleName);
                         future.complete(null);
                     } catch (Exception e) {
                         plugin.getLogger().atWarning().log("[ModelDiscovery] Error: %s", e.getMessage());
-                        e.printStackTrace();
                         future.complete(null);
                     }
                 });
 
-                // Wait for result with timeout
                 return future.get(5, TimeUnit.SECONDS);
             } catch (Exception e) {
                 plugin.getLogger().atWarning().log("Model discovery failed for %s: %s", roleName, e.getMessage());
@@ -412,7 +413,7 @@ public class CustomAnimalCommand extends AbstractCommand {
             if (plugin.getConfigManager().removeCustomAnimal(modelId)) {
                 ctx.sendMessage(Message.raw("Removed custom animal: ").color("#55FF55")
                         .insert(Message.raw(modelId).color("#FFFFFF")));
-                ctx.sendMessage(Message.raw("Use /breedconfig save to persist changes!").color("#FFAA00"));
+                ctx.sendMessage(Message.raw("Use /hytame config save to persist changes!").color("#FFAA00"));
             } else {
                 ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
             }
@@ -458,12 +459,12 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
     }
 
-    /** /customanimal info <modelAssetId> - Public, no permission required */
+    /** /customanimal info <modelAssetId> - Deprecated, use /hytame config info */
     public static class CustomAnimalInfoCommand extends AbstractCommand {
         private final RequiredArg<String> modelArg;
 
         public CustomAnimalInfoCommand() {
-            super("info", "Show info about a custom animal");
+            super("info", "[Deprecated] Use /hytame config info <animal> instead");
             modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
         }
 
@@ -479,6 +480,8 @@ public class CustomAnimalCommand extends AbstractCommand {
                 ctx.sendMessage(Message.raw("Plugin not initialized!").color("#FF5555"));
                 return CompletableFuture.completedFuture(null);
             }
+
+            ctx.sendMessage(Message.raw("[Deprecated] Use /hytame config info " + ctx.get(modelArg) + " instead").color("#FFAA00"));
 
             String modelId = ctx.get(modelArg);
             CustomAnimalConfig custom = plugin.getConfigManager().getCustomAnimal(modelId);
@@ -507,12 +510,12 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
     }
 
-    /** /customanimal enable <modelAssetId> */
+    /** /customanimal enable <modelAssetId> - Deprecated, use /hytame config enable */
     public static class CustomAnimalEnableCommand extends AbstractCommand {
         private final RequiredArg<String> modelArg;
 
         public CustomAnimalEnableCommand() {
-            super("enable", "Enable a custom animal");
+            super("enable", "[Deprecated] Use /hytame config enable <animal> instead");
             modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
         }
 
@@ -536,6 +539,7 @@ public class CustomAnimalCommand extends AbstractCommand {
                 return CompletableFuture.completedFuture(null);
             }
 
+            ctx.sendMessage(Message.raw("[Deprecated] Use /hytame config enable " + modelId + " instead").color("#FFAA00"));
             plugin.getConfigManager().setCustomAnimalEnabled(modelId, true);
             ctx.sendMessage(Message.raw("Enabled custom animal: ").color("#55FF55")
                     .insert(Message.raw(modelId).color("#FFFFFF")));
@@ -544,12 +548,12 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
     }
 
-    /** /customanimal disable <modelAssetId> */
+    /** /customanimal disable <modelAssetId> - Deprecated, use /hytame config disable */
     public static class CustomAnimalDisableCommand extends AbstractCommand {
         private final RequiredArg<String> modelArg;
 
         public CustomAnimalDisableCommand() {
-            super("disable", "Disable a custom animal");
+            super("disable", "[Deprecated] Use /hytame config disable <animal> instead");
             modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
         }
 
@@ -573,6 +577,7 @@ public class CustomAnimalCommand extends AbstractCommand {
                 return CompletableFuture.completedFuture(null);
             }
 
+            ctx.sendMessage(Message.raw("[Deprecated] Use /hytame config disable " + modelId + " instead").color("#FFAA00"));
             plugin.getConfigManager().setCustomAnimalEnabled(modelId, false);
             ctx.sendMessage(Message.raw("Disabled custom animal: ").color("#FF5555")
                     .insert(Message.raw(modelId).color("#FFFFFF")));
@@ -580,13 +585,13 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
     }
 
-    /** /customanimal addfood <modelAssetId> <food> */
+    /** /customanimal addfood - Deprecated, use /hytame config addfood */
     public static class CustomAnimalAddFoodCommand extends AbstractCommand {
         private final RequiredArg<String> modelArg;
         private final RequiredArg<String> foodArg;
 
         public CustomAnimalAddFoodCommand() {
-            super("addfood", "Add a breeding food to a custom animal");
+            super("addfood", "[Deprecated] Use /hytame config addfood <animal> <food> instead");
             modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
             foodArg = withRequiredArg("food", "Food item ID to add", ArgTypes.STRING);
         }
@@ -611,8 +616,10 @@ public class CustomAnimalCommand extends AbstractCommand {
                 return CompletableFuture.completedFuture(null);
             }
 
+            ctx.sendMessage(Message.raw("[Deprecated] Use /hytame config addfood " + modelId + " <food> instead").color("#FFAA00"));
             String food = BreedingConfigCommand.resolveFoodShortcut(ctx.get(foodArg));
             plugin.getConfigManager().addCustomAnimalFood(modelId, food);
+            syncCustomAnimalPatch(plugin, modelId);
             ctx.sendMessage(Message.raw("Added food ").color("#55FF55")
                     .insert(Message.raw(food).color("#FFFFFF"))
                     .insert(Message.raw(" to " + modelId).color("#AAAAAA")));
@@ -620,13 +627,13 @@ public class CustomAnimalCommand extends AbstractCommand {
         }
     }
 
-    /** /customanimal removefood <modelAssetId> <food> */
+    /** /customanimal removefood - Deprecated, use /hytame config removefood */
     public static class CustomAnimalRemoveFoodCommand extends AbstractCommand {
         private final RequiredArg<String> modelArg;
         private final RequiredArg<String> foodArg;
 
         public CustomAnimalRemoveFoodCommand() {
-            super("removefood", "Remove a breeding food from a custom animal");
+            super("removefood", "[Deprecated] Use /hytame config removefood <animal> <food> instead");
             modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
             foodArg = withRequiredArg("food", "Food item ID to remove", ArgTypes.STRING);
         }
@@ -651,8 +658,10 @@ public class CustomAnimalCommand extends AbstractCommand {
                 return CompletableFuture.completedFuture(null);
             }
 
+            ctx.sendMessage(Message.raw("[Deprecated] Use /hytame config removefood " + modelId + " <food> instead").color("#FFAA00"));
             String food = BreedingConfigCommand.resolveFoodShortcut(ctx.get(foodArg));
             plugin.getConfigManager().removeCustomAnimalFood(modelId, food);
+            syncCustomAnimalPatch(plugin, modelId);
             ctx.sendMessage(Message.raw("Removed food ").color("#FF5555")
                     .insert(Message.raw(food).color("#FFFFFF"))
                     .insert(Message.raw(" from " + modelId).color("#AAAAAA")));
@@ -745,7 +754,7 @@ public class CustomAnimalCommand extends AbstractCommand {
                 }
 
                 ctx.sendMessage(Message.raw("Use ").color("#AAAAAA")
-                        .insert(Message.raw("/breed custom add <name> <food>").color("#FFFFFF"))
+                        .insert(Message.raw("/hytame custom add <name> <food>").color("#FFFFFF"))
                         .insert(Message.raw(" to add a creature").color("#AAAAAA")));
 
                 // Show registered custom animals for comparison
@@ -803,7 +812,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
             if (!plugin.getConfigManager().isCustomAnimal(modelId)) {
                 ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
-                ctx.sendMessage(Message.raw("Use /breed custom add first").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw("Use /hytame custom add first").color("#AAAAAA"));
                 return CompletableFuture.completedFuture(null);
             }
 
@@ -812,7 +821,7 @@ public class CustomAnimalCommand extends AbstractCommand {
                     .insert(Message.raw(modelId).color("#FFFFFF"))
                     .insert(Message.raw(" to ").color("#55FF55"))
                     .insert(Message.raw(roleId).color("#FFAA00")));
-            ctx.sendMessage(Message.raw("Use /breed config save to persist").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw("Use /hytame config save to persist").color("#AAAAAA"));
             return CompletableFuture.completedFuture(null);
         }
     }
@@ -847,7 +856,7 @@ public class CustomAnimalCommand extends AbstractCommand {
 
             if (!plugin.getConfigManager().isCustomAnimal(modelId)) {
                 ctx.sendMessage(Message.raw("Custom animal not found: " + modelId).color("#FF5555"));
-                ctx.sendMessage(Message.raw("Use /breed custom add first").color("#AAAAAA"));
+                ctx.sendMessage(Message.raw("Use /hytame custom add first").color("#AAAAAA"));
                 return CompletableFuture.completedFuture(null);
             }
 
@@ -861,23 +870,24 @@ public class CustomAnimalCommand extends AbstractCommand {
             }
 
             plugin.getConfigManager().setCustomAnimalBabyRole(modelId, babyRoleId);
+            syncCustomAnimalPatch(plugin, modelId);
             ctx.sendMessage(Message.raw("Set baby NPC role for ").color("#55FF55")
                     .insert(Message.raw(modelId).color("#FFFFFF"))
                     .insert(Message.raw(" to ").color("#55FF55"))
                     .insert(Message.raw(babyRoleId).color("#FFAA00")));
             ctx.sendMessage(Message.raw("Babies will now spawn using this role instead of scaling.").color("#AAAAAA"));
-            ctx.sendMessage(Message.raw("Use /breed config save to persist").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw("Use /hytame config save to persist").color("#AAAAAA"));
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    /** /customanimal setgrowth <modelAssetId> <minutes> - Set the growth time */
+    /** /customanimal setgrowth - Deprecated, use /hytame config set <animal> growth */
     public static class CustomAnimalSetGrowthCommand extends AbstractCommand {
         private final RequiredArg<String> modelArg;
         private final RequiredArg<Double> timeArg;
 
         public CustomAnimalSetGrowthCommand() {
-            super("setgrowth", "Set growth time in minutes");
+            super("setgrowth", "[Deprecated] Use /hytame config set <animal> growth <min> instead");
             modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
             timeArg = withRequiredArg("minutes", "Growth time in minutes", ArgTypes.DOUBLE);
         }
@@ -909,26 +919,25 @@ public class CustomAnimalCommand extends AbstractCommand {
                 return CompletableFuture.completedFuture(null);
             }
 
+            ctx.sendMessage(Message.raw("[Deprecated] Use /hytame config set " + modelId + " growth " + minutes + " instead").color("#FFAA00"));
             plugin.getConfigManager().setCustomAnimalGrowthTime(modelId, minutes);
+            syncCustomAnimalPatch(plugin, modelId);
             ctx.sendMessage(Message.raw("Set growth time for ").color("#55FF55")
                     .insert(Message.raw(modelId).color("#FFFFFF"))
                     .insert(Message.raw(" to ").color("#55FF55"))
                     .insert(Message.raw(minutes + " min").color("#FFAA00")));
-            ctx.sendMessage(Message.raw("Use /breed config save to persist").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw("Use /hytame config save to persist").color("#AAAAAA"));
             return CompletableFuture.completedFuture(null);
         }
     }
 
-    /**
-     * /customanimal setcooldown <modelAssetId> <minutes> - Set the breeding
-     * cooldown
-     */
+    /** /customanimal setcooldown - Deprecated, use /hytame config set <animal> cooldown */
     public static class CustomAnimalSetCooldownCommand extends AbstractCommand {
         private final RequiredArg<String> modelArg;
         private final RequiredArg<Double> timeArg;
 
         public CustomAnimalSetCooldownCommand() {
-            super("setcooldown", "Set breeding cooldown in minutes");
+            super("setcooldown", "[Deprecated] Use /hytame config set <animal> cooldown <min> instead");
             modelArg = withRequiredArg("modelAssetId", "Model asset ID", ArgTypes.STRING);
             timeArg = withRequiredArg("minutes", "Cooldown in minutes", ArgTypes.DOUBLE);
         }
@@ -960,12 +969,14 @@ public class CustomAnimalCommand extends AbstractCommand {
                 return CompletableFuture.completedFuture(null);
             }
 
+            ctx.sendMessage(Message.raw("[Deprecated] Use /hytame config set " + modelId + " cooldown " + minutes + " instead").color("#FFAA00"));
             plugin.getConfigManager().setCustomAnimalCooldown(modelId, minutes);
+            syncCustomAnimalPatch(plugin, modelId);
             ctx.sendMessage(Message.raw("Set cooldown for ").color("#55FF55")
                     .insert(Message.raw(modelId).color("#FFFFFF"))
                     .insert(Message.raw(" to ").color("#55FF55"))
                     .insert(Message.raw(minutes + " min").color("#FFAA00")));
-            ctx.sendMessage(Message.raw("Use /breed config save to persist").color("#AAAAAA"));
+            ctx.sendMessage(Message.raw("Use /hytame config save to persist").color("#AAAAAA"));
             return CompletableFuture.completedFuture(null);
         }
     }

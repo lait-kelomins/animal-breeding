@@ -370,21 +370,29 @@ public class SpawningManager {
      * Otherwise, use scaling fallback: spawn adult NPC at 40% scale.
      */
     public void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position) {
-        spawnCustomAnimalBaby(modelAssetId, customConfig, position, null);
+        spawnCustomAnimalBaby(modelAssetId, customConfig, position, null, null, null);
+    }
+
+    public void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position,
+            String worldName) {
+        spawnCustomAnimalBaby(modelAssetId, customConfig, position, worldName, null, null);
     }
 
     /**
      * Spawn a baby custom animal at the given position in a specific world.
      * If babyNpcRoleId is set, spawn using that role at full scale.
      * Otherwise, use scaling fallback: spawn adult NPC at 40% scale.
+     * If both parents are tamed, the baby will be auto-tamed.
      *
      * @param modelAssetId The model asset ID of the custom animal
      * @param customConfig The custom animal configuration
      * @param position     The spawn position
      * @param worldName    Name of the world to spawn in (null = default world)
+     * @param parent1Id    UUID of first parent (for auto-taming, null if unknown)
+     * @param parent2Id    UUID of second parent (for auto-taming, null if unknown)
      */
     public void spawnCustomAnimalBaby(String modelAssetId, CustomAnimalConfig customConfig, Vector3d position,
-            String worldName) {
+            String worldName, UUID parent1Id, UUID parent2Id) {
         try {
             // Get world from name if provided, otherwise fall back to default
             World world = null;
@@ -401,6 +409,9 @@ public class SpawningManager {
             final String finalModelAssetId = modelAssetId;
             final CustomAnimalConfig finalConfig = customConfig;
             final Vector3d spawnPos = position;
+            final UUID finalParent1Id = parent1Id;
+            final UUID finalParent2Id = parent2Id;
+            final String finalWorldName = worldName;
 
             finalWorld.execute(() -> {
                 try {
@@ -438,11 +449,31 @@ public class SpawningManager {
                         return;
                     }
 
+                    // Create scaled model if not using baby role (40% size)
+                    Model scaledModel = null;
+                    float babyScale = 0.4f;
+                    if (!usingBabyRole) {
+                        try {
+                            // Look up the model asset by appearance/model ID (NOT role name)
+                            // finalModelAssetId is the model appearance ID (e.g. "VgSlime_MA_Guumi_Green")
+                            DefaultAssetMap<String, ModelAsset> assetMap = ModelAsset.getAssetMap();
+                            ModelAsset modelAsset = assetMap.getAsset(finalModelAssetId);
+                            if (modelAsset != null) {
+                                scaledModel = Model.createScaledModel(modelAsset, babyScale);
+                                logVerbose("Created scaled model at " + babyScale + " for " + finalModelAssetId);
+                            } else {
+                                logWarning("[CustomBreed] ModelAsset not found for: " + finalModelAssetId);
+                            }
+                        } catch (Exception e) {
+                            logVerbose("Could not create scaled model: " + e.getMessage());
+                        }
+                    }
+
                     // Spawn the entity
                     Vector3f rotation = new Vector3f(0, 0, 0);
                     int roleIndex = NPCPlugin.get().getIndex(usedRoleName);
                     Pair<Ref<EntityStore>, NPCEntity> result = NPCPlugin.get().spawnEntity(store, roleIndex, spawnPos,
-                            rotation, null, null);
+                            rotation, scaledModel, null, null);
 
                     if (result == null) {
                         logWarning("[CustomBreed] Failed to spawn baby: " + usedRoleName);
@@ -450,25 +481,29 @@ public class SpawningManager {
                     }
 
                     Ref<EntityStore> babyRef = result.first();
-
-                    // Apply scaling if not using baby role (40% size)
-                    if (!usingBabyRole && babyRef != null) {
-                        float babyScale = 0.4f;
-                        try {
-                            ModelComponent modelComp = store.getComponent(babyRef, EcsReflectionUtil.MODEL_TYPE);
-                            if (modelComp != null) {
-                                java.lang.reflect.Method setScale = modelComp.getClass().getMethod("setScale",
-                                        float.class);
-                                setScale.invoke(modelComp, babyScale);
-                                logVerbose("Applied baby scale " + babyScale + " to custom animal");
-                            }
-                        } catch (Exception e) {
-                            logVerbose("Could not apply scale: " + e.getMessage());
-                        }
-                    }
+                    UUID babyId = EcsReflectionUtil.getUuidFromRef(babyRef);
 
                     logVerbose("[CustomBreed] Spawned baby " + finalModelAssetId + " at " +
                             String.format("(%.1f, %.1f, %.1f)", spawnPos.getX(), spawnPos.getY(), spawnPos.getZ()));
+
+                    // Register baby with breeding manager
+                    breedingManager.registerBaby(babyId, null, babyRef);
+
+                    // Set HyTameComponent.growthStage = BABY
+                    if (hyTameTypeSupplier != null) {
+                        ComponentType<EntityStore, HyTameComponent> hyTameType = hyTameTypeSupplier.get();
+                        if (hyTameType != null) {
+                            HyTameComponent hyTameComp = store.ensureAndGetComponent(babyRef, hyTameType);
+                            if (hyTameComp != null) {
+                                hyTameComp.setGrowthStage(GrowthStage.BABY);
+                                logVerbose("[CustomBreed] Set growthStage = BABY");
+                            }
+                        }
+                    }
+
+                    // Auto-tame baby if both parents are tamed
+                    autoTameCustomBabyIfParentsTamed(store, babyRef, babyId, spawnPos,
+                            finalParent1Id, finalParent2Id, finalWorldName);
 
                 } catch (Exception e) {
                     logWarning("[CustomBreed] Error spawning baby: " + e.getMessage());
@@ -476,6 +511,67 @@ public class SpawningManager {
             });
         } catch (Exception e) {
             logWarning("[CustomBreed] Error in spawnCustomAnimalBaby: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Auto-tame a custom animal baby if both parents are tamed.
+     */
+    private void autoTameCustomBabyIfParentsTamed(Store<EntityStore> store, Ref<EntityStore> entityRef,
+            UUID babyId, Vector3d spawnPos, UUID parent1Id, UUID parent2Id, String worldName) {
+        if (tamingManager == null || parent1Id == null || parent2Id == null) {
+            return;
+        }
+
+        TamedAnimalData parent1Data = tamingManager.getTamedData(parent1Id);
+        TamedAnimalData parent2Data = tamingManager.getTamedData(parent2Id);
+
+        logVerbose("[CustomBreed] Parent1 UUID: " + parent1Id + " -> " + (parent1Data != null ? "found" : "NOT FOUND"));
+        logVerbose("[CustomBreed] Parent2 UUID: " + parent2Id + " -> " + (parent2Data != null ? "found" : "NOT FOUND"));
+
+        // Both parents must be tamed
+        if (parent1Data == null || parent2Data == null) {
+            return;
+        }
+
+        UUID ownerUuid = parent1Data.getOwnerUuid();
+        String ownerName = parent1Data.getOwnerName();
+        if (ownerUuid == null) {
+            ownerUuid = parent2Data.getOwnerUuid();
+            ownerName = parent2Data.getOwnerName();
+        }
+        if (ownerUuid == null) {
+            return;
+        }
+        if (ownerName == null) {
+            ownerName = "Unknown";
+        }
+
+        String babyName = NameplateUtil.UNDEFINED_NAME;
+
+        TamedAnimalData babyTameData = tamingManager.tameAnimal(
+                babyId, ownerUuid, babyName, null, entityRef,
+                spawnPos.getX(), spawnPos.getY(), spawnPos.getZ(),
+                GrowthStage.BABY, worldName);
+
+        if (babyTameData != null) {
+            babyTameData.setOwnerName(ownerName);
+            if (hyTameTypeSupplier != null) {
+                ComponentType<EntityStore, HyTameComponent> hyTameType = hyTameTypeSupplier.get();
+                if (hyTameType != null) {
+                    HyTameComponent hyTameComp = store.ensureAndGetComponent(entityRef, hyTameType);
+                    if (hyTameComp != null) {
+                        hyTameComp.setTamed(ownerUuid, ownerName);
+                        if (babyTameData.getHytameId() != null) {
+                            hyTameComp.setHytameId(babyTameData.getHytameId());
+                        }
+                        logVerbose("[CustomBreed] Set HyTameComponent on baby: owner=" + ownerName);
+                    }
+                }
+            }
+            logVerbose("[CustomBreed] Auto-tamed baby (UUID: " + babyId + ") to owner: " + ownerName);
+        } else {
+            logVerbose("[CustomBreed] Failed to auto-tame baby - tameAnimal returned null");
         }
     }
 

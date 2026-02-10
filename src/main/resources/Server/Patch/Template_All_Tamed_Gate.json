@@ -7,11 +7,12 @@
             "_op": "add",
             "_index": 0,
             "Continue": true,
-            "$Comment": "[HYTAME] Tamed: release stale Friendly targets (player after LovedItems override). Allows the override instruction below to fire.",
+            "$Comment": "[HYTAME] Tamed: release stale Friendly targets (player after LovedItems override). Skips $Harvest to preserve player target for bucket checks.",
             "Sensor": {
                 "Type": "And",
                 "Sensors": [
                     { "Type": "Tamed", "Set": true },
+                    { "Type": "Not", "Sensor": { "Type": "State", "State": "$Harvest" } },
                     {
                         "Type": "Target",
                         "Filters": [

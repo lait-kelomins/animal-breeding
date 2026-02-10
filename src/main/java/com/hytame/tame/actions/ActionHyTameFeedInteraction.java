@@ -116,7 +116,7 @@ public class ActionHyTameFeedInteraction extends ActionBase {
             Debug.log("Can execute tame or feed", Level.INFO);
             return true;
         }
-        if (customAnimal != null && (customAnimal.isBreedingEnabled() || !customAnimal.isTamingEnabled())) {
+        if (customAnimal != null && (customAnimal.isBreedingEnabled() || customAnimal.isTamingEnabled())) {
             Debug.log("Can execute tame or feed", Level.INFO);
             return true;
         }
@@ -207,8 +207,13 @@ public class ActionHyTameFeedInteraction extends ActionBase {
                 return executeBreeding(ref, store, hyTame, itemId, playerMsgRef);
             }
         } else if (customAnimal != null) {
-            // TODO: custom breeding and taming
-            return false;
+            if (!isTamed && customAnimal.isTamingEnabled() && customAnimal.isBreedingFood(itemId)) {
+                Debug.log("Executing custom animal taming", Level.INFO);
+                return executeTaming(ref, role, store, hyTame, playerUUID, player, playerMsgRef);
+            } else if (isTamed && customAnimal.isBreedingEnabled() && customAnimal.isBreedingFood(itemId)) {
+                Debug.log("Executing custom animal breeding", Level.INFO);
+                return executeCustomBreeding(ref, store, modelAssetId, playerMsgRef);
+            }
         }
 
         // Wrong food for current state - don't show message, just fail silently
@@ -548,6 +553,79 @@ public class ActionHyTameFeedInteraction extends ActionBase {
         }
 
         return true;
+    }
+
+    /**
+     * Execute breeding logic for a custom animal.
+     * Uses BreedingManager's custom animal love mode tracking.
+     */
+    private boolean executeCustomBreeding(Ref<EntityStore> ref, Store<EntityStore> store,
+            String modelAssetId, PlayerRef playerMsgRef) {
+        HyTamePlugin plugin = HyTamePlugin.getInstance();
+        if (plugin == null) return false;
+
+        BreedingManager breeding = plugin.getBreedingManager();
+        if (breeding == null) return false;
+
+        UUIDComponent animalUUIDComp = store.getComponent(ref, UUIDComponent.getComponentType());
+        if (animalUUIDComp == null) return false;
+        UUID animalId = animalUUIDComp.getUuid();
+
+        String worldName = getWorldNameFromRef(ref);
+        BreedingManager.FeedResult result = breeding.tryFeedCustomAnimal(animalId, modelAssetId, ref, worldName);
+
+        Debug.log("Tried custom breeding: " + result, Level.INFO);
+        switch (result) {
+            case SUCCESS:
+                spawnHeartParticles(ref);
+                checkForCustomMateAndBreedInstantly(breeding, animalId, modelAssetId, ref);
+                playFeedingSoundAtPosition(ref);
+                break;
+            default:
+                return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Check if there's a nearby custom animal of the same type in love mode,
+     * and breed them instantly if found.
+     */
+    @SuppressWarnings("unchecked")
+    private void checkForCustomMateAndBreedInstantly(
+            BreedingManager breeding, UUID animalId, String modelAssetId, Ref<EntityStore> targetRef) {
+        Vector3d thisPos = getEntityPosition(targetRef);
+        if (thisPos == null) {
+            Debug.log("Custom mate check: thisPos is null", Level.INFO);
+            return;
+        }
+
+        int candidateCount = 0;
+        for (BreedingManager.CustomAnimalLoveData otherData : breeding.getCustomAnimalsInLove()) {
+            candidateCount++;
+            UUID otherId = otherData.getAnimalId();
+            if (otherId.equals(animalId)) continue;
+            if (!modelAssetId.equals(otherData.getModelAssetId())) {
+                Debug.log("Custom mate check: model mismatch - ours: " + modelAssetId + " theirs: " + otherData.getModelAssetId(), Level.INFO);
+                continue;
+            }
+
+            Ref<EntityStore> otherRef = otherData.getEntityRef();
+            if (otherRef == null) continue;
+
+            Vector3d otherPos = getEntityPosition(otherRef);
+            if (otherPos == null) continue;
+
+            double distance = calculateDistance(thisPos, otherPos);
+            Debug.log("Custom mate check: found mate at distance " + distance + " (max: " + BREEDING_DISTANCE + ")", Level.INFO);
+            if (distance > BREEDING_DISTANCE) continue;
+
+            boolean bred = breeding.tryBreedCustomAnimals(animalId, otherId, modelAssetId);
+            Debug.log("Custom mate check: tryBreedCustomAnimals result: " + bred, Level.INFO);
+            return;
+        }
+        Debug.log("Custom mate check: no mate found among " + candidateCount + " candidates in love", Level.INFO);
     }
 
     private void playFeedingSoundAtPosition(Ref<EntityStore> targetRef) {

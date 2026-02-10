@@ -756,20 +756,25 @@ public class HytameCommand extends AbstractCommand {
             ctx.sendMessage(Message.raw("=== Custom Animal Commands ===").color("#FF9900"));
             ctx.sendMessage(Message.raw("/hytame custom scan").color("#FFFFFF")
                     .insert(Message.raw(" - Find creature names in world").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/hytame custom add <model> <food>").color("#FFFFFF")
-                    .insert(Message.raw(" - Add custom animal").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/hytame custom add <role> <food>").color("#FFFFFF")
+                    .insert(Message.raw(" - Register custom animal").color("#AAAAAA")));
             ctx.sendMessage(Message.raw("/hytame custom remove <model>").color("#FFFFFF")
                     .insert(Message.raw(" - Remove custom animal").color("#AAAAAA")));
             ctx.sendMessage(Message.raw("/hytame custom list").color("#FFFFFF")
                     .insert(Message.raw(" - List added custom animals").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/hytame custom info <model>").color("#FFFFFF")
-                    .insert(Message.raw(" - Show details").color("#AAAAAA")));
             ctx.sendMessage(Message.raw("/hytame custom setrole <model> <role>").color("#FFFFFF")
                     .insert(Message.raw(" - Set NPC role for spawning").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/hytame custom setgrowth <model> <min>").color("#FFFFFF")
-                    .insert(Message.raw(" - Set growth time").color("#AAAAAA")));
-            ctx.sendMessage(Message.raw("/hytame custom setcooldown <model> <min>").color("#FFFFFF")
-                    .insert(Message.raw(" - Set breeding cooldown").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/hytame custom setbaby <model> <babyRole>").color("#FFFFFF")
+                    .insert(Message.raw(" - Set baby NPC role").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw(""));
+            ctx.sendMessage(Message.raw("Use /hytame config for info, foods, growth, cooldown:").color("#FFAA00"));
+            ctx.sendMessage(Message.raw("/hytame config info <animal>").color("#FFFFFF")
+                    .insert(Message.raw(" - Show details").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/hytame config addfood <animal> <food>").color("#FFFFFF")
+                    .insert(Message.raw(" - Add food").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/hytame config set <animal> growth <min>").color("#FFFFFF")
+                    .insert(Message.raw(" - Set growth").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw(""));
             ctx.sendMessage(Message.raw("Run ").color("#AAAAAA")
                     .insert(Message.raw("/hytame custom scan").color("#FFFF55"))
                     .insert(Message.raw(" first to find creature names!").color("#AAAAAA")));
@@ -780,6 +785,7 @@ public class HytameCommand extends AbstractCommand {
     public static class HytameDebugSubCommand extends AbstractCommand {
         public HytameDebugSubCommand() {
             super("debug", "Debug commands for taming system (admin)");
+            addSubCommand(new DebugLogSubCommand());
             addSubCommand(new DebugMemorySubCommand());
             addSubCommand(new DebugFileSubCommand());
             addSubCommand(new DebugEventsSubCommand());
@@ -809,6 +815,8 @@ public class HytameCommand extends AbstractCommand {
 
         private static void executeDebugLogic(CommandContext ctx) {
             ctx.sendMessage(Message.raw("=== Debug Commands ===").color("#FF9900"));
+            ctx.sendMessage(Message.raw("/hytame debug log").color("#FFFFFF")
+                    .insert(Message.raw(" - Toggle verbose logging").color("#AAAAAA")));
             ctx.sendMessage(Message.raw("/hytame debug memory").color("#FFFFFF")
                     .insert(Message.raw(" - Log tamed animals in memory").color("#AAAAAA")));
             ctx.sendMessage(Message.raw("/hytame debug file").color("#FFFFFF")
@@ -819,6 +827,42 @@ public class HytameCommand extends AbstractCommand {
                     .insert(Message.raw(" - Clear tracked event UUIDs").color("#AAAAAA")));
             ctx.sendMessage(Message.raw("/hytame debug tameStatus").color("#FFFFFF")
                     .insert(Message.raw(" - Get target npcs tame status").color("#AAAAAA")));
+        }
+
+        // --- Debug: log ---
+        public static class DebugLogSubCommand extends AbstractCommand {
+            public DebugLogSubCommand() {
+                super("log", "Toggle verbose logging");
+            }
+
+            @Override
+            protected boolean canGeneratePermission() {
+                return false;
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
+
+                boolean newState = !HyTamePlugin.isVerboseLogging();
+                HyTamePlugin.setVerboseLogging(newState);
+
+                HyTamePlugin plugin = HyTamePlugin.getInstance();
+                if (plugin != null) {
+                    plugin.getLogger().atInfo()
+                            .log("[HyTame] Verbose logging " + (newState ? "enabled" : "disabled"));
+                }
+
+                String statusColor = newState ? "#55FF55" : "#FF5555";
+                String statusText = newState ? "ENABLED" : "DISABLED";
+                ctx.sendMessage(Message.raw("Verbose logging ").color("#AAAAAA")
+                        .insert(Message.raw(statusText).color(statusColor)));
+                if (newState) {
+                    ctx.sendMessage(Message.raw("Debug information will now appear in server logs.").color("#AAAAAA"));
+                }
+
+                return CompletableFuture.completedFuture(null);
+            }
         }
 
         // --- Debug: memory ---

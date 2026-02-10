@@ -212,7 +212,17 @@ public class PatchSyncService {
             }
         }
 
-        logVerbose("Synced " + synced + " patches, skipped " + skipped + " (already in sync)");
+        // Also sync custom animals
+        int customSynced = 0;
+        Map<String, CustomAnimalConfig> customAnimals = configManager.getCustomAnimals();
+        for (CustomAnimalConfig custom : customAnimals.values()) {
+            if (!custom.getBreedingFoods().isEmpty()) {
+                syncForCustomAnimal(custom);
+                customSynced++;
+            }
+        }
+
+        logVerbose("Synced " + synced + " patches + " + customSynced + " custom, skipped " + skipped + " (already in sync)");
     }
 
     /**
