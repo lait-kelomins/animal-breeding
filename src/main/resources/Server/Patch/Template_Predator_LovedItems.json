@@ -7,8 +7,8 @@
             "Value": ["Food_Wildmeat_Raw", "Food_Wildmeat_Cooked", "Food_Fish_Raw"]
         },
         "FriendlyOverrideTimeWithAttractiveItem": {
-            "Value": 300,
-            "Description": "Duration of friendly attitude when target holds LovedItems (seconds)"
+            "Value": 10,
+            "Description": "Duration of friendly attitude after player stops holding LovedItems (seconds)"
         }
     },
 
@@ -34,9 +34,8 @@
         {
             "_op": "add",
             "_index": 1,
-            "Continue": true,
             "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
-            "$Comment": "[HyTame] If player holds LovedItems, become friendly and follow",
+            "$Comment": "[HyTame] If player holds LovedItems, become friendly and follow (no Continue — cuts chain, prevents state machine attack)",
             "Sensor": {
                 "Type": "Player",
                 "Range": { "Compute": "AlertedRange" },
