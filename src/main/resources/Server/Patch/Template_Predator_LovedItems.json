@@ -1,5 +1,5 @@
 {
-    "$Comment": "Add LovedItems following behavior to predators - makes them follow players holding food instead of attacking",
+    "$Comment": "Add LovedItems following behavior to predators with patience timer for wild wolves",
     "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Predator.json",
 
     "Parameters": {
@@ -34,14 +34,71 @@
         {
             "_op": "add",
             "_index": 1,
+            "Continue": true,
             "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
-            "$Comment": "[HyTame] If player holds LovedItems, become friendly and follow (no Continue — cuts chain, prevents state machine attack)",
+            "$Comment": "[HyTame] Patience timer init (first encounter): wild predator sees player with food, alarm not yet set → start 10-30s countdown",
             "Sensor": {
-                "Type": "Player",
-                "Range": { "Compute": "AlertedRange" },
-                "LockOnTarget": true,
-                "Filters": [
-                    { "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }
+                "Type": "And",
+                "Sensors": [
+                    { "Type": "Not", "Sensor": { "Type": "Tamed", "Set": true } },
+                    { "Type": "Alarm", "Name": "HyTame_PatienceUsed", "State": "Unset" },
+                    {
+                        "Type": "Player",
+                        "Range": { "Compute": "AlertedRange" },
+                        "Filters": [
+                            { "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }
+                        ]
+                    }
+                ]
+            },
+            "Actions": [
+                { "Type": "TimerStart", "Name": "HyTame_Patience", "StartValueRange": [10, 30], "RestartValueRange": [10, 30] },
+                { "Type": "SetAlarm", "Name": "HyTame_PatienceUsed", "DurationRange": ["PT1H", "PT1H"] }
+            ]
+        },
+        {
+            "_op": "add",
+            "_index": 2,
+            "Continue": true,
+            "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+            "$Comment": "[HyTame] Patience timer init (cooldown expired): alarm passed after ~2min real time → wolf can be lured again",
+            "Sensor": {
+                "Type": "And",
+                "Sensors": [
+                    { "Type": "Not", "Sensor": { "Type": "Tamed", "Set": true } },
+                    { "Type": "Alarm", "Name": "HyTame_PatienceUsed", "State": "Passed" },
+                    {
+                        "Type": "Player",
+                        "Range": { "Compute": "AlertedRange" },
+                        "Filters": [
+                            { "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }
+                        ]
+                    }
+                ]
+            },
+            "Actions": [
+                { "Type": "TimerStart", "Name": "HyTame_Patience", "StartValueRange": [10, 30], "RestartValueRange": [10, 30] },
+                { "Type": "SetAlarm", "Name": "HyTame_PatienceUsed", "DurationRange": ["PT1H", "PT1H"] }
+            ]
+        },
+        {
+            "_op": "add",
+            "_index": 3,
+            "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+            "$Comment": "[HyTame] Wild predator follow while patience timer running. When timer expires, LockOnTarget side-effect targets player for attack. No Continue stops chain during follow.",
+            "Sensor": {
+                "Type": "And",
+                "Sensors": [
+                    { "Type": "Not", "Sensor": { "Type": "Tamed", "Set": true } },
+                    { "Type": "Timer", "Name": "HyTame_Patience", "State": "Running" },
+                    {
+                        "Type": "Player",
+                        "Range": { "Compute": "AlertedRange" },
+                        "LockOnTarget": true,
+                        "Filters": [
+                            { "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }
+                        ]
+                    }
                 ]
             },
             "Actions": [

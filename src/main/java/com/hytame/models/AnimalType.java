@@ -507,6 +507,15 @@ public enum AnimalType {
             case PIGEON:
                 return "NPC/Roles/Avian/Fowl/" + modelAssetId;
 
+            // Raptors (birds of prey) use Raptor, not Aerial
+            case HAWK:
+            case VULTURE:
+            case TETRABIRD:
+            // Flying dinosaurs also live under Avian/Raptor
+            case ARCHAEOPTERYX:
+            case PTERODACTYL:
+                return "NPC/Roles/Avian/Raptor/" + modelAssetId;
+
             // Marine aquatic creatures
             case CLOWNFISH:
             case CRAB:
