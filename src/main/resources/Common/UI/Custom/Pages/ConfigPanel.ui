@@ -22,7 +22,7 @@ Group {
       // ========== LEFT COLUMN - Preset List + Settings ==========
       Group #leftColumn {
         LayoutMode: Top;
-        Anchor: (Width: 400);
+        Anchor: (Width: 500);
         Padding: (Right: 16);
 
         // Preset search
@@ -41,82 +41,49 @@ Group {
           }
         }
 
-        // Preset list container (paginated)
-        Group #presetListContainer {
-          LayoutMode: Top;
+        // Scrollable preset list
+        Group #presetList {
+          LayoutMode: TopScrolling;
+          ScrollbarStyle: $C.@DefaultScrollbarStyle;
           FlexWeight: 1;
           Background: $C.@InputBoxBackground;
           Padding: (Full: 6);
+        }
 
-          Group #presetList {
-            LayoutMode: Top;
-            FlexWeight: 1;
-
-            TextButton #preset0 { Text: ""; Anchor: (Height: 32, Bottom: 4); Style: $C.@SecondaryTextButtonStyle; }
-            TextButton #preset1 { Text: ""; Anchor: (Height: 32, Bottom: 4); Style: $C.@SecondaryTextButtonStyle; }
-            TextButton #preset2 { Text: ""; Anchor: (Height: 32, Bottom: 4); Style: $C.@SecondaryTextButtonStyle; }
-            TextButton #preset3 { Text: ""; Anchor: (Height: 32, Bottom: 4); Style: $C.@SecondaryTextButtonStyle; }
-            TextButton #preset4 { Text: ""; Anchor: (Height: 32, Bottom: 4); Style: $C.@SecondaryTextButtonStyle; }
-            TextButton #preset5 { Text: ""; Anchor: (Height: 32, Bottom: 4); Style: $C.@SecondaryTextButtonStyle; }
-            TextButton #preset6 { Text: ""; Anchor: (Height: 32, Bottom: 4); Style: $C.@SecondaryTextButtonStyle; }
-            TextButton #preset7 { Text: ""; Anchor: (Height: 32, Bottom: 4); Style: $C.@SecondaryTextButtonStyle; }
-          }
-
-          // Add preset button
-          $C.@SecondaryTextButton #addPresetBtn {
-            @Anchor = (Top: 8, Height: 36);
-            Text: "+ ADD PRESET";
-          }
-
-          // Pagination controls
-          Group #presetPagination {
-            LayoutMode: Left;
-            Anchor: (Top: 8, Height: 28);
-
-            $C.@SecondaryTextButton #presetPrevBtn {
-              @Anchor = (Width: 36, Height: 28);
-              Text: "<";
-            }
-            Label #presetPageLabel {
-              Text: "1/1";
-              Style: (FontSize: 12, TextColor: #888888, Alignment: Center);
-              FlexWeight: 1;
-            }
-            $C.@SecondaryTextButton #presetNextBtn {
-              @Anchor = (Width: 36, Height: 28);
-              Text: ">";
-            }
-          }
+        // Add preset button
+        $C.@SecondaryTextButton #addPresetBtn {
+          @Anchor = (Top: 8, Height: 36);
+          Text: "+ ADD PRESET";
         }
 
         // Preset settings section
         Group #presetSettingsPanel {
           LayoutMode: Top;
-          Anchor: (Top: 12);
+          Anchor: (Top: 12, Height: 320);
           Background: $C.@InputBoxBackground;
-          Padding: (Full: 12);
+          Padding: (Full: 16);
 
           Label {
             Text: "PRESET SETTINGS";
             Style: (FontSize: 14, RenderBold: true, TextColor: #ffaa00);
-            Anchor: (Height: 24, Bottom: 4);
+            Anchor: (Height: 28, Bottom: 8);
           }
 
           Label {
             Text: "Preset Name";
             Style: (FontSize: 12, TextColor: #888888);
-            Anchor: (Bottom: 2);
+            Anchor: (Bottom: 4);
           }
           Group {
             LayoutMode: Left;
-            Anchor: (Height: 30, Bottom: 8);
+            Anchor: (Height: 34, Bottom: 16);
 
             $C.@TextField #presetRenameInput {
               FlexWeight: 1;
-              Anchor: (Height: 30, Right: 4);
+              Anchor: (Height: 34, Right: 4);
             }
             $C.@SecondaryTextButton #renamePresetBtn {
-              @Anchor = (Width: 140, Height: 30);
+              @Anchor = (Width: 140, Height: 34);
               Text: "RENAME";
             }
           }
@@ -124,7 +91,7 @@ Group {
           // Growth enabled toggle
           Group {
             LayoutMode: Left;
-            Anchor: (Height: 36, Bottom: 6);
+            Anchor: (Height: 40, Bottom: 10);
 
             Label {
               Text: "Baby Growth";
@@ -132,7 +99,7 @@ Group {
               FlexWeight: 1;
             }
             $C.@SecondaryTextButton #growthToggleBtn {
-              @Anchor = (Width: 80, Height: 30);
+              @Anchor = (Width: 90, Height: 34);
               Text: "ON";
             }
           }
@@ -140,7 +107,7 @@ Group {
           // Default growth time
           Group {
             LayoutMode: Left;
-            Anchor: (Height: 36, Bottom: 6);
+            Anchor: (Height: 40, Bottom: 10);
 
             Label {
               Text: "Growth Time (min)";
@@ -148,14 +115,14 @@ Group {
               FlexWeight: 1;
             }
             $C.@TextField #growthTimeInput {
-              Anchor: (Width: 70, Height: 30);
+              Anchor: (Width: 80, Height: 34);
             }
           }
 
           // Default cooldown
           Group {
             LayoutMode: Left;
-            Anchor: (Height: 36);
+            Anchor: (Height: 40);
 
             Label {
               Text: "Breed Cooldown (min)";
@@ -163,22 +130,12 @@ Group {
               FlexWeight: 1;
             }
             $C.@TextField #cooldownInput {
-              Anchor: (Width: 70, Height: 30);
+              Anchor: (Width: 80, Height: 34);
             }
           }
         }
 
-        // Hidden action fields for presets
-        $C.@TextField #presetAction0 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #presetAction1 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #presetAction2 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #presetAction3 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #presetAction4 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #presetAction5 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #presetAction6 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #presetAction7 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #actionPresetPrev { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #actionPresetNext { Anchor: (Width: 0, Height: 0); }
+        // Hidden action fields for left column buttons
         $C.@TextField #actionAddPreset { Anchor: (Width: 0, Height: 0); }
         $C.@TextField #actionToggleGrowth { Anchor: (Width: 0, Height: 0); }
         $C.@TextField #actionSearchPresets { Anchor: (Width: 0, Height: 0); }
@@ -206,221 +163,66 @@ Group {
           }
         }
 
-        // Table container
-        Group #animalTableContainer {
-          LayoutMode: Top;
+        // Main content area: scroll list (left) + detail panel (right)
+        Group #animalContent {
+          LayoutMode: Left;
           FlexWeight: 1;
-          Background: $C.@InputBoxBackground;
-          Padding: (Horizontal: 8, Vertical: 6);
 
-          // Table header
-          Group #tableHeader {
-            LayoutMode: Left;
-            Anchor: (Height: 22, Bottom: 4);
+          // Left side: table header + scrollable list
+          Group #animalListSide {
+            LayoutMode: Top;
+            FlexWeight: 1;
+            Padding: (Right: 8);
 
-            Label { Anchor: (Width: 70); Text: ""; Style: (FontSize: 11, TextColor: #888888); }
-            Label { Anchor: (Width: 84); Text: "BREED"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
-            Label { Anchor: (Width: 84); Text: "TAME"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
-            Label { Anchor: (Width: 84); Text: "COOLDOWN"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
-            Label { Anchor: (Width: 84); Text: "GROWTH"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
-            Label { FlexWeight: 1; Text: "FOODS"; Style: (FontSize: 11, TextColor: #888888); Padding: (Left: 4); }
-          }
-
-          // Row 0
-          Group #row0 {
-            LayoutMode: Left;
-            Anchor: (Height: 68, Bottom: 2);
-            Group {
-              LayoutMode: Top;
-              Anchor: (Width: 70, Right: 4);
-              Label #row0Name { Text: ""; Anchor: (Height: 16); Style: (FontSize: 11, TextColor: #dddddd, Alignment: Center); }
-              Group #row0Icon { Anchor: (Height: 48); }
-            }
-            $C.@SecondaryTextButton #row0Toggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@SecondaryTextButton #row0TameToggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@TextField #row0Cooldown { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row0Growth { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row0Foods { FlexWeight: 1; Anchor: (Height: 34); }
-          }
-
-          // Row 1
-          Group #row1 {
-            LayoutMode: Left;
-            Anchor: (Height: 68, Bottom: 2);
-            Group {
-              LayoutMode: Top;
-              Anchor: (Width: 70, Right: 4);
-              Label #row1Name { Text: ""; Anchor: (Height: 16); Style: (FontSize: 11, TextColor: #dddddd, Alignment: Center); }
-              Group #row1Icon { Anchor: (Height: 48); }
-            }
-            $C.@SecondaryTextButton #row1Toggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@SecondaryTextButton #row1TameToggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@TextField #row1Cooldown { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row1Growth { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row1Foods { FlexWeight: 1; Anchor: (Height: 34); }
-          }
-
-          // Row 2
-          Group #row2 {
-            LayoutMode: Left;
-            Anchor: (Height: 68, Bottom: 2);
-            Group {
-              LayoutMode: Top;
-              Anchor: (Width: 70, Right: 4);
-              Label #row2Name { Text: ""; Anchor: (Height: 16); Style: (FontSize: 11, TextColor: #dddddd, Alignment: Center); }
-              Group #row2Icon { Anchor: (Height: 48); }
-            }
-            $C.@SecondaryTextButton #row2Toggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@SecondaryTextButton #row2TameToggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@TextField #row2Cooldown { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row2Growth { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row2Foods { FlexWeight: 1; Anchor: (Height: 34); }
-          }
-
-          // Row 3
-          Group #row3 {
-            LayoutMode: Left;
-            Anchor: (Height: 68, Bottom: 2);
-            Group {
-              LayoutMode: Top;
-              Anchor: (Width: 70, Right: 4);
-              Label #row3Name { Text: ""; Anchor: (Height: 16); Style: (FontSize: 11, TextColor: #dddddd, Alignment: Center); }
-              Group #row3Icon { Anchor: (Height: 48); }
-            }
-            $C.@SecondaryTextButton #row3Toggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@SecondaryTextButton #row3TameToggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@TextField #row3Cooldown { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row3Growth { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row3Foods { FlexWeight: 1; Anchor: (Height: 34); }
-          }
-
-          // Row 4
-          Group #row4 {
-            LayoutMode: Left;
-            Anchor: (Height: 68, Bottom: 2);
-            Group {
-              LayoutMode: Top;
-              Anchor: (Width: 70, Right: 4);
-              Label #row4Name { Text: ""; Anchor: (Height: 16); Style: (FontSize: 11, TextColor: #dddddd, Alignment: Center); }
-              Group #row4Icon { Anchor: (Height: 48); }
-            }
-            $C.@SecondaryTextButton #row4Toggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@SecondaryTextButton #row4TameToggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@TextField #row4Cooldown { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row4Growth { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row4Foods { FlexWeight: 1; Anchor: (Height: 34); }
-          }
-
-          // Row 5
-          Group #row5 {
-            LayoutMode: Left;
-            Anchor: (Height: 68, Bottom: 2);
-            Group {
-              LayoutMode: Top;
-              Anchor: (Width: 70, Right: 4);
-              Label #row5Name { Text: ""; Anchor: (Height: 16); Style: (FontSize: 11, TextColor: #dddddd, Alignment: Center); }
-              Group #row5Icon { Anchor: (Height: 48); }
-            }
-            $C.@SecondaryTextButton #row5Toggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@SecondaryTextButton #row5TameToggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@TextField #row5Cooldown { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row5Growth { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row5Foods { FlexWeight: 1; Anchor: (Height: 34); }
-          }
-
-          // Row 6
-          Group #row6 {
-            LayoutMode: Left;
-            Anchor: (Height: 68, Bottom: 2);
-            Group {
-              LayoutMode: Top;
-              Anchor: (Width: 70, Right: 4);
-              Label #row6Name { Text: ""; Anchor: (Height: 16); Style: (FontSize: 11, TextColor: #dddddd, Alignment: Center); }
-              Group #row6Icon { Anchor: (Height: 48); }
-            }
-            $C.@SecondaryTextButton #row6Toggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@SecondaryTextButton #row6TameToggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@TextField #row6Cooldown { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row6Growth { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row6Foods { FlexWeight: 1; Anchor: (Height: 34); }
-          }
-
-          // Row 7
-          Group #row7 {
-            LayoutMode: Left;
-            Anchor: (Height: 68, Bottom: 2);
-            Group {
-              LayoutMode: Top;
-              Anchor: (Width: 70, Right: 4);
-              Label #row7Name { Text: ""; Anchor: (Height: 16); Style: (FontSize: 11, TextColor: #dddddd, Alignment: Center); }
-              Group #row7Icon { Anchor: (Height: 48); }
-            }
-            $C.@SecondaryTextButton #row7Toggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@SecondaryTextButton #row7TameToggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@TextField #row7Cooldown { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row7Growth { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row7Foods { FlexWeight: 1; Anchor: (Height: 34); }
-          }
-
-          // Row 8
-          Group #row8 {
-            LayoutMode: Left;
-            Anchor: (Height: 68, Bottom: 2);
-            Group {
-              LayoutMode: Top;
-              Anchor: (Width: 70, Right: 4);
-              Label #row8Name { Text: ""; Anchor: (Height: 16); Style: (FontSize: 11, TextColor: #dddddd, Alignment: Center); }
-              Group #row8Icon { Anchor: (Height: 48); }
-            }
-            $C.@SecondaryTextButton #row8Toggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@SecondaryTextButton #row8TameToggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@TextField #row8Cooldown { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row8Growth { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row8Foods { FlexWeight: 1; Anchor: (Height: 34); }
-          }
-
-          // Row 9
-          Group #row9 {
-            LayoutMode: Left;
-            Anchor: (Height: 68, Bottom: 2);
-            Group {
-              LayoutMode: Top;
-              Anchor: (Width: 70, Right: 4);
-              Label #row9Name { Text: ""; Anchor: (Height: 16); Style: (FontSize: 11, TextColor: #dddddd, Alignment: Center); }
-              Group #row9Icon { Anchor: (Height: 48); }
-            }
-            $C.@SecondaryTextButton #row9Toggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@SecondaryTextButton #row9TameToggle { @Anchor = (Width: 80, Height: 34, Right: 4); Text: ""; }
-            $C.@TextField #row9Cooldown { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row9Growth { Anchor: (Width: 80, Height: 34, Right: 4); }
-            $C.@TextField #row9Foods { FlexWeight: 1; Anchor: (Height: 34); }
-          }
-
-          // Spacer
-          Group { FlexWeight: 1; }
-
-          // Animal pagination controls
-          Group #animalPagination {
-            LayoutMode: Center;
-            Anchor: (Height: 36, Top: 6);
-
-            Group {
+            // Table header
+            Group #tableHeader {
               LayoutMode: Left;
-              Anchor: (Width: 200, Height: 28);
+              Anchor: (Height: 22, Bottom: 4);
+              Padding: (Horizontal: 8);
 
-              $C.@SecondaryTextButton #animalPrevBtn {
-                @Anchor = (Width: 36, Height: 28);
-                Text: "<";
-              }
-              Label #animalPageLabel {
-                Text: "1/1";
-                Style: (FontSize: 12, TextColor: #888888, Alignment: Center);
-                FlexWeight: 1;
-              }
-              $C.@SecondaryTextButton #animalNextBtn {
-                @Anchor = (Width: 36, Height: 28);
-                Text: ">";
-              }
+              Label { Anchor: (Width: 40); Text: ""; Style: (FontSize: 11, TextColor: #888888); }
+              Label { FlexWeight: 1; Text: ""; Style: (FontSize: 11, TextColor: #888888); }
+              Label { Anchor: (Width: 94); Text: "TAME"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
+              Label { Anchor: (Width: 90); Text: "BREED"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
+            }
+
+            // Scrollable animal list
+            Group #animalRows {
+              LayoutMode: TopScrolling;
+              ScrollbarStyle: $C.@DefaultScrollbarStyle;
+              FlexWeight: 1;
+              Background: $C.@InputBoxBackground;
+              Padding: (Horizontal: 8, Vertical: 6);
+            }
+          }
+
+          // Right side: detail panel
+          Group #detailPanel {
+            LayoutMode: Top;
+            Anchor: (Width: 400);
+            Background: $C.@InputBoxBackground;
+            Padding: (Full: 10);
+
+            Label #detailTitle { Text: "Select an animal"; Style: (FontSize: 13, RenderBold: true, TextColor: #ffaa00); Anchor: (Height: 22, Bottom: 8); }
+
+            Label { Text: "Cooldown (min)"; Style: (FontSize: 12, TextColor: #888888); Anchor: (Height: 18, Bottom: 2); }
+            $C.@TextField #detailCooldown { Anchor: (Height: 30, Bottom: 8); }
+
+            Label { Text: "Growth (min)"; Style: (FontSize: 12, TextColor: #888888); Anchor: (Height: 18, Bottom: 2); }
+            $C.@TextField #detailGrowth { Anchor: (Height: 30, Bottom: 8); }
+
+            // Food picker
+            Label { Text: "FOODS"; Style: (FontSize: 12, RenderBold: true, TextColor: #ffaa00); Anchor: (Height: 18, Bottom: 4, Top: 8); }
+            $C.@TextField #foodSearch {
+              Anchor: (Height: 28, Bottom: 4);
+              PlaceholderText: "Search foods...";
+            }
+            Group #foodList {
+              LayoutMode: TopScrolling;
+              ScrollbarStyle: $C.@DefaultScrollbarStyle;
+              FlexWeight: 1;
+              Background: $C.@InputBoxBackground;
+              Padding: (Full: 4);
             }
           }
         }
@@ -431,31 +233,11 @@ Group {
           Text: "SAVE TO FILE";
         }
 
-        // Hidden action fields for rows and animal actions
-        $C.@TextField #rowAction0 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowAction1 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowAction2 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowAction3 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowAction4 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowAction5 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowAction6 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowAction7 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowAction8 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowAction9 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowTamingAction0 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowTamingAction1 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowTamingAction2 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowTamingAction3 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowTamingAction4 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowTamingAction5 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowTamingAction6 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowTamingAction7 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowTamingAction8 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #rowTamingAction9 { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #actionAnimalPrev { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #actionAnimalNext { Anchor: (Width: 0, Height: 0); }
+        // Hidden action fields
         $C.@TextField #actionSave { Anchor: (Width: 0, Height: 0); }
         $C.@TextField #actionSearchAnimals { Anchor: (Width: 0, Height: 0); }
+        $C.@TextField #actionSearchFoods { Anchor: (Width: 0, Height: 0); }
+        $C.@TextField #actionDetailChanged { Anchor: (Width: 0, Height: 0); }
       }
     }
   }

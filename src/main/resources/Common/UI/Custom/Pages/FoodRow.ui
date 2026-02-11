@@ -1,0 +1,22 @@
+$C = "../Common.ui";
+
+// Food row for the food picker in the config detail panel
+// Appended dynamically via cmd.append("#foodList", "Pages/FoodRow.ui")
+// Layout: [icon 24px] [name button fills]
+
+Group {
+  LayoutMode: Left;
+  Anchor: (Height: 28, Bottom: 2);
+
+  // Icon / status indicator
+  Group #foodIcon { Anchor: (Width: 24, Height: 24, Right: 4); }
+
+  TextButton #foodBtn {
+    FlexWeight: 1;
+    Anchor: (Height: 28);
+    Text: "";
+    Style: $C.@SecondaryTextButtonStyle;
+  }
+
+  $C.@TextField #foodAction { Anchor: (Width: 0, Height: 0); }
+}

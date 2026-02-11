@@ -5,6 +5,7 @@ import com.hypixel.hytale.codec.builder.BuilderCodec;
 import com.hypixel.hytale.codec.codecs.simple.StringCodec;
 import com.hypixel.hytale.component.Ref;
 import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.protocol.packets.interface_.CustomPage;
 import com.hypixel.hytale.protocol.packets.interface_.CustomPageLifetime;
 import com.hypixel.hytale.protocol.packets.interface_.CustomUIEventBindingType;
 import com.hypixel.hytale.protocol.packets.interface_.Page;
@@ -24,31 +25,63 @@ import com.hytame.util.ConfigManager;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Configuration panel for Animal Breeding plugin.
  *
  * Layout:
  * - Left column: Preset list with search/pagination + preset settings
- * - Right column: Animal table with inline editing (icon, toggle, cooldown, growth, foods)
+ * - Right column: Scrollable animal list + detail panel for selected animal
  *
  * UI File: src/main/resources/Common/UI/Custom/Pages/ConfigPanel.ui
  */
 public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage.ConfigEventData> {
 
-    private static final int PRESETS_PER_PAGE = 8;
-    private static final int ANIMALS_PER_PAGE = 10;
+    // Known food items for the food picker
+    private static final String[][] KNOWN_FOODS = {
+        // Crops
+        {"Plant_Crop_Wheat_Item", "Wheat"},
+        {"Plant_Crop_Carrot_Item", "Carrot"},
+        {"Plant_Crop_Potato_Item", "Potato"},
+        {"Plant_Crop_Cauliflower_Item", "Cauliflower"},
+        {"Plant_Crop_Lettuce_Item", "Lettuce"},
+        {"Plant_Crop_Corn_Item", "Corn"},
+        {"Plant_Crop_Rice_Item", "Rice"},
+        {"Plant_Crop_Chilli_Item", "Chilli"},
+        {"Plant_Crop_Mushroom_Cap_Brown", "Brown Mushroom"},
+        {"Plant_Crop_Mushroom_Cap_Red", "Red Mushroom"},
+        // Fruits & Plants
+        {"Plant_Fruit_Apple", "Apple"},
+        {"Plant_Fruit_Berries_Red", "Red Berries"},
+        {"Plant_Cactus_Flower", "Cactus Flower"},
+        // Raw Meats
+        {"Food_Beef_Raw", "Raw Beef"},
+        {"Food_Chicken_Raw", "Raw Chicken"},
+        {"Food_Pork_Raw", "Raw Pork"},
+        {"Food_Fish_Raw", "Raw Fish"},
+        {"Food_Wildmeat_Raw", "Raw Wildmeat"},
+        // Cooked Meats
+        {"Food_Fish_Grilled", "Grilled Fish"},
+        {"Food_Wildmeat_Cooked", "Cooked Wildmeat"},
+        // Other
+        {"Food_Bread", "Bread"},
+    };
 
     // State
-    private int presetPage = 0;
-    private int animalPage = 0;
     private String presetSearchFilter = "";
     private String animalSearchFilter = "";
+    private String foodSearchFilter = "";
+    private String selectedAnimalName = null;
     private boolean dirty = false;
+
+    // Cached lists matching what's currently in the UI (set during build/search, used by sendUpdate)
+    private List<AnimalType> currentFilteredAnimals = new ArrayList<>();
+    private List<String> currentFilteredPresets = new ArrayList<>();
 
     /**
      * Event data received from UI interactions.
-     * Contains preset fields + 24 row fields (8 rows x 3 editable fields).
+     * Contains preset fields + detail panel fields (for selected animal).
      */
     public static class ConfigEventData {
         public String action;
@@ -57,9 +90,9 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
         public String presetSearch;
         public String animalSearch;
         public String presetRename;
-        public String[] rowCooldown = new String[10];
-        public String[] rowGrowth = new String[10];
-        public String[] rowFoods = new String[10];
+        public String detailCooldown;
+        public String detailGrowth;
+        public String foodSearch;
 
         public static final BuilderCodec<ConfigEventData> CODEC = BuilderCodec
             .builder(ConfigEventData.class, ConfigEventData::new)
@@ -87,105 +120,17 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                 (obj, val) -> obj.presetRename = val,
                 obj -> obj.presetRename)
             .add()
-            // Row 0
-            .append(new KeyedCodec<>("@row0Cooldown", new StringCodec()),
-                (obj, val) -> obj.rowCooldown[0] = val, obj -> obj.rowCooldown[0])
+            .append(new KeyedCodec<>("@detailCooldown", new StringCodec()),
+                (obj, val) -> obj.detailCooldown = val,
+                obj -> obj.detailCooldown)
             .add()
-            .append(new KeyedCodec<>("@row0Growth", new StringCodec()),
-                (obj, val) -> obj.rowGrowth[0] = val, obj -> obj.rowGrowth[0])
+            .append(new KeyedCodec<>("@detailGrowth", new StringCodec()),
+                (obj, val) -> obj.detailGrowth = val,
+                obj -> obj.detailGrowth)
             .add()
-            .append(new KeyedCodec<>("@row0Foods", new StringCodec()),
-                (obj, val) -> obj.rowFoods[0] = val, obj -> obj.rowFoods[0])
-            .add()
-            // Row 1
-            .append(new KeyedCodec<>("@row1Cooldown", new StringCodec()),
-                (obj, val) -> obj.rowCooldown[1] = val, obj -> obj.rowCooldown[1])
-            .add()
-            .append(new KeyedCodec<>("@row1Growth", new StringCodec()),
-                (obj, val) -> obj.rowGrowth[1] = val, obj -> obj.rowGrowth[1])
-            .add()
-            .append(new KeyedCodec<>("@row1Foods", new StringCodec()),
-                (obj, val) -> obj.rowFoods[1] = val, obj -> obj.rowFoods[1])
-            .add()
-            // Row 2
-            .append(new KeyedCodec<>("@row2Cooldown", new StringCodec()),
-                (obj, val) -> obj.rowCooldown[2] = val, obj -> obj.rowCooldown[2])
-            .add()
-            .append(new KeyedCodec<>("@row2Growth", new StringCodec()),
-                (obj, val) -> obj.rowGrowth[2] = val, obj -> obj.rowGrowth[2])
-            .add()
-            .append(new KeyedCodec<>("@row2Foods", new StringCodec()),
-                (obj, val) -> obj.rowFoods[2] = val, obj -> obj.rowFoods[2])
-            .add()
-            // Row 3
-            .append(new KeyedCodec<>("@row3Cooldown", new StringCodec()),
-                (obj, val) -> obj.rowCooldown[3] = val, obj -> obj.rowCooldown[3])
-            .add()
-            .append(new KeyedCodec<>("@row3Growth", new StringCodec()),
-                (obj, val) -> obj.rowGrowth[3] = val, obj -> obj.rowGrowth[3])
-            .add()
-            .append(new KeyedCodec<>("@row3Foods", new StringCodec()),
-                (obj, val) -> obj.rowFoods[3] = val, obj -> obj.rowFoods[3])
-            .add()
-            // Row 4
-            .append(new KeyedCodec<>("@row4Cooldown", new StringCodec()),
-                (obj, val) -> obj.rowCooldown[4] = val, obj -> obj.rowCooldown[4])
-            .add()
-            .append(new KeyedCodec<>("@row4Growth", new StringCodec()),
-                (obj, val) -> obj.rowGrowth[4] = val, obj -> obj.rowGrowth[4])
-            .add()
-            .append(new KeyedCodec<>("@row4Foods", new StringCodec()),
-                (obj, val) -> obj.rowFoods[4] = val, obj -> obj.rowFoods[4])
-            .add()
-            // Row 5
-            .append(new KeyedCodec<>("@row5Cooldown", new StringCodec()),
-                (obj, val) -> obj.rowCooldown[5] = val, obj -> obj.rowCooldown[5])
-            .add()
-            .append(new KeyedCodec<>("@row5Growth", new StringCodec()),
-                (obj, val) -> obj.rowGrowth[5] = val, obj -> obj.rowGrowth[5])
-            .add()
-            .append(new KeyedCodec<>("@row5Foods", new StringCodec()),
-                (obj, val) -> obj.rowFoods[5] = val, obj -> obj.rowFoods[5])
-            .add()
-            // Row 6
-            .append(new KeyedCodec<>("@row6Cooldown", new StringCodec()),
-                (obj, val) -> obj.rowCooldown[6] = val, obj -> obj.rowCooldown[6])
-            .add()
-            .append(new KeyedCodec<>("@row6Growth", new StringCodec()),
-                (obj, val) -> obj.rowGrowth[6] = val, obj -> obj.rowGrowth[6])
-            .add()
-            .append(new KeyedCodec<>("@row6Foods", new StringCodec()),
-                (obj, val) -> obj.rowFoods[6] = val, obj -> obj.rowFoods[6])
-            .add()
-            // Row 7
-            .append(new KeyedCodec<>("@row7Cooldown", new StringCodec()),
-                (obj, val) -> obj.rowCooldown[7] = val, obj -> obj.rowCooldown[7])
-            .add()
-            .append(new KeyedCodec<>("@row7Growth", new StringCodec()),
-                (obj, val) -> obj.rowGrowth[7] = val, obj -> obj.rowGrowth[7])
-            .add()
-            .append(new KeyedCodec<>("@row7Foods", new StringCodec()),
-                (obj, val) -> obj.rowFoods[7] = val, obj -> obj.rowFoods[7])
-            .add()
-            // Row 8
-            .append(new KeyedCodec<>("@row8Cooldown", new StringCodec()),
-                (obj, val) -> obj.rowCooldown[8] = val, obj -> obj.rowCooldown[8])
-            .add()
-            .append(new KeyedCodec<>("@row8Growth", new StringCodec()),
-                (obj, val) -> obj.rowGrowth[8] = val, obj -> obj.rowGrowth[8])
-            .add()
-            .append(new KeyedCodec<>("@row8Foods", new StringCodec()),
-                (obj, val) -> obj.rowFoods[8] = val, obj -> obj.rowFoods[8])
-            .add()
-            // Row 9
-            .append(new KeyedCodec<>("@row9Cooldown", new StringCodec()),
-                (obj, val) -> obj.rowCooldown[9] = val, obj -> obj.rowCooldown[9])
-            .add()
-            .append(new KeyedCodec<>("@row9Growth", new StringCodec()),
-                (obj, val) -> obj.rowGrowth[9] = val, obj -> obj.rowGrowth[9])
-            .add()
-            .append(new KeyedCodec<>("@row9Foods", new StringCodec()),
-                (obj, val) -> obj.rowFoods[9] = val, obj -> obj.rowFoods[9])
+            .append(new KeyedCodec<>("@foodSearch", new StringCodec()),
+                (obj, val) -> obj.foodSearch = val,
+                obj -> obj.foodSearch)
             .add()
             .build();
     }
@@ -195,15 +140,15 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
     }
 
     /**
-     * Constructor with state preservation for pagination and dirty tracking.
+     * Constructor with state preservation for selected animal and dirty tracking.
      */
-    public ConfigPanelUIPage(PlayerRef playerRef, int presetPage, int animalPage,
-                             String presetSearch, String animalSearch, boolean dirty) {
+    public ConfigPanelUIPage(PlayerRef playerRef,
+                             String presetSearch, String animalSearch,
+                             String selectedAnimalName, boolean dirty) {
         super(playerRef, CustomPageLifetime.CanDismiss, ConfigEventData.CODEC);
-        this.presetPage = presetPage;
-        this.animalPage = animalPage;
         this.presetSearchFilter = presetSearch != null ? presetSearch : "";
         this.animalSearchFilter = animalSearch != null ? animalSearch : "";
+        this.selectedAnimalName = selectedAnimalName;
         this.dirty = dirty;
     }
 
@@ -224,9 +169,15 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
         List<String> presets = getFilteredPresets(config);
         populatePresetList(cmd, events, presets, config.getActivePreset());
 
-        // Populate animal table
+        // Populate scrollable animal list
         List<AnimalType> animals = getFilteredAnimals();
         populateAnimalTable(cmd, events, animals, config);
+
+        // Populate detail panel for selected animal
+        populateDetailPanel(cmd, config);
+
+        // Populate food picker for selected animal
+        populateFoodPicker(cmd, events, config);
 
         // Set up action markers and event bindings
         setupEventBindings(cmd, events);
@@ -234,6 +185,7 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
         // Restore search field values so they persist across page rebuilds
         cmd.set("#presetSearch.Value", presetSearchFilter);
         cmd.set("#animalSearch.Value", animalSearchFilter);
+        cmd.set("#foodSearch.Value", foodSearchFilter);
 
         // Dirty state indicator on save button
         cmd.set("#saveBtn.Text", dirty ? "SAVE TO FILE *" : "SAVE TO FILE");
@@ -246,6 +198,7 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
         String activePreset = config.getActivePreset();
         cmd.set("#presetRenameInput.Value", activePreset != null ? activePreset : "none");
         cmd.set("#growthToggleBtn.Text", config.isGrowthEnabled() ? "ON" : "OFF");
+        cmd.set("#growthToggleBtn.Background", config.isGrowthEnabled() ? "#2a6a2a" : "#6a2a2a");
         cmd.set("#growthTimeInput.Value", String.valueOf(config.getDefaultGrowthTimeMinutes()));
         cmd.set("#cooldownInput.Value", String.valueOf(config.getDefaultBreedCooldownMinutes()));
     }
@@ -269,52 +222,32 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
     }
 
     /**
-     * Populate the preset list slots.
+     * Populate the preset list with dynamic rows.
      */
     private void populatePresetList(UICommandBuilder cmd, UIEventBuilder events,
                                     List<String> presets, String activePreset) {
-        int totalPages = Math.max(1, (presets.size() + PRESETS_PER_PAGE - 1) / PRESETS_PER_PAGE);
-        presetPage = Math.min(presetPage, totalPages - 1);
+        cmd.clear("#presetList");
+        this.currentFilteredPresets = new ArrayList<>(presets);
 
-        int startIndex = presetPage * PRESETS_PER_PAGE;
+        for (int i = 0; i < presets.size(); i++) {
+            String presetName = presets.get(i);
+            String sel = "#presetList[" + i + "]";
 
-        for (int i = 0; i < PRESETS_PER_PAGE; i++) {
-            int presetIndex = startIndex + i;
-            String slotId = "#preset" + i;
-            String actionFieldId = "#presetAction" + i;
+            cmd.append("#presetList", "Pages/ConfigPresetRow.ui");
+            cmd.set(sel + " #presetBtn.Text", presetName);
+            cmd.set(sel + " #presetAction.Value", "SELECT_PRESET:" + presetName);
 
-            if (presetIndex < presets.size()) {
-                String presetName = presets.get(presetIndex);
-                cmd.set(slotId + ".Text", presetName);
-                cmd.set(actionFieldId + ".Value", "SELECT_PRESET:" + presetName);
-
-                events.addEventBinding(CustomUIEventBindingType.Activating, slotId,
-                    new EventData()
-                        .append("@action", actionFieldId + ".Value")
-                        .append("@presetSearch", "#presetSearch.Value")
-                        .append("@animalSearch", "#animalSearch.Value"));
-            } else {
-                cmd.set(slotId + ".Text", "");
-                cmd.set(actionFieldId + ".Value", "");
+            // Highlight active preset
+            if (presetName.equals(activePreset)) {
+                cmd.set(sel + ".Background", "#3a5a8a");
             }
+
+            events.addEventBinding(CustomUIEventBindingType.Activating, sel + " #presetBtn",
+                new EventData()
+                    .append("@action", sel + " #presetAction.Value")
+                    .append("@presetSearch", "#presetSearch.Value")
+                    .append("@animalSearch", "#animalSearch.Value"));
         }
-
-        cmd.set("#presetPageLabel.Text", (presetPage + 1) + "/" + totalPages);
-
-        cmd.set("#actionPresetPrev.Value", "PRESET_PREV");
-        cmd.set("#actionPresetNext.Value", "PRESET_NEXT");
-
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#presetPrevBtn",
-            new EventData()
-                .append("@action", "#actionPresetPrev.Value")
-                .append("@presetSearch", "#presetSearch.Value")
-                .append("@animalSearch", "#animalSearch.Value"));
-
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#presetNextBtn",
-            new EventData()
-                .append("@action", "#actionPresetNext.Value")
-                .append("@presetSearch", "#presetSearch.Value")
-                .append("@animalSearch", "#animalSearch.Value"));
     }
 
     /**
@@ -341,110 +274,215 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
     }
 
     /**
-     * Populate the animal table rows with inline-editable fields.
+     * Populate the scrollable animal list with dynamic rows.
      */
     private void populateAnimalTable(UICommandBuilder cmd, UIEventBuilder events,
                                       List<AnimalType> animals, ConfigManager config) {
-        int totalPages = Math.max(1, (animals.size() + ANIMALS_PER_PAGE - 1) / ANIMALS_PER_PAGE);
-        animalPage = Math.min(animalPage, totalPages - 1);
+        cmd.clear("#animalRows");
 
-        int startIndex = animalPage * ANIMALS_PER_PAGE;
+        // Cache the filtered list so sendUpdate actions can find indices
+        this.currentFilteredAnimals = new ArrayList<>(animals);
 
-        for (int i = 0; i < ANIMALS_PER_PAGE; i++) {
-            int animalIndex = startIndex + i;
-            String rowPrefix = "#row" + i;
+        for (int i = 0; i < animals.size(); i++) {
+            AnimalType animal = animals.get(i);
+            ConfigManager.AnimalConfig animalConfig = config.getAnimalConfig(animal);
+            String sel = "#animalRows[" + i + "]";
 
-            if (animalIndex < animals.size()) {
-                AnimalType animal = animals.get(animalIndex);
-                ConfigManager.AnimalConfig animalConfig = config.getAnimalConfig(animal);
+            // Append a row template
+            cmd.append("#animalRows", "Pages/AnimalRow.ui");
 
-                // Set name label above icon
-                cmd.set(rowPrefix + "Name.Text", getAbbreviatedName(animal));
+            // Set name on select button (full name since button stretches)
+            cmd.set(sel + " #selectBtn.Text", animal.getModelAssetId());
 
-                // Build icon via appendInline
-                cmd.clear(rowPrefix + "Icon");
-                String iconPath = getAnimalIconPath(animal);
-                StringBuilder iconMarkup = new StringBuilder();
-                iconMarkup.append("Group #icon {\n");
-                iconMarkup.append("  Anchor: (Width: 48, Height: 48);\n");
-                if (iconPath != null) {
-                    iconMarkup.append("  Background: (TexturePath: \"").append(iconPath).append("\");\n");
-                } else {
-                    iconMarkup.append("  Background: ").append(getAnimalBackgroundColor(animal)).append(";\n");
-                }
-                iconMarkup.append("}");
-                cmd.appendInline(rowPrefix + "Icon", iconMarkup.toString());
-
-                // Breeding toggle text
-                boolean breedEnabled = animalConfig != null && animalConfig.breedingEnabled;
-                cmd.set(rowPrefix + "Toggle.Text", breedEnabled ? "ON" : "OFF");
-
-                // Taming toggle text
-                boolean tameEnabled = animalConfig != null && animalConfig.tamingEnabled;
-                cmd.set(rowPrefix + "TameToggle.Text", tameEnabled ? "ON" : "OFF");
-
-                // Cooldown value
-                double cooldownVal = animalConfig != null ? animalConfig.breedCooldownMinutes : 0;
-                cmd.set(rowPrefix + "Cooldown.Value", String.valueOf(cooldownVal));
-
-                // Growth value
-                double growthVal = animalConfig != null ? animalConfig.growthTimeMinutes : 0;
-                cmd.set(rowPrefix + "Growth.Value", String.valueOf(growthVal));
-
-                // Foods value (comma-separated)
-                String foods = "";
-                if (animalConfig != null) {
-                    List<String> foodList = animalConfig.getEffectiveBreedingFoods();
-                    if (foodList != null) {
-                        foods = String.join(", ", foodList);
-                    }
-                }
-                cmd.set(rowPrefix + "Foods.Value", foods);
-
-                // Set hidden action fields and bind toggle buttons
-                cmd.set("#rowAction" + i + ".Value", "TOGGLE_ROW:" + animal.name());
-                events.addEventBinding(CustomUIEventBindingType.Activating, rowPrefix + "Toggle",
-                    buildFullEventData("#rowAction" + i + ".Value"));
-
-                cmd.set("#rowTamingAction" + i + ".Value", "TOGGLE_TAMING:" + animal.name());
-                events.addEventBinding(CustomUIEventBindingType.Activating, rowPrefix + "TameToggle",
-                    buildFullEventData("#rowTamingAction" + i + ".Value"));
+            // Build icon via appendInline
+            String iconPath = getAnimalIconPath(animal);
+            StringBuilder iconMarkup = new StringBuilder();
+            iconMarkup.append("Group {\n");
+            iconMarkup.append("  Anchor: (Width: 36, Height: 36);\n");
+            if (iconPath != null) {
+                iconMarkup.append("  Background: (TexturePath: \"").append(iconPath).append("\");\n");
             } else {
-                // Empty row — clear content (row stays at full height)
-                cmd.clear(rowPrefix);
+                iconMarkup.append("  Background: ").append(getAnimalBackgroundColor(animal)).append(";\n");
             }
+            iconMarkup.append("}");
+            cmd.appendInline(sel + " #icon", iconMarkup.toString());
+
+            // Breeding toggle
+            boolean breedEnabled = animalConfig != null && animalConfig.breedingEnabled;
+            cmd.set(sel + " #breedToggle.Text", breedEnabled ? "ON" : "OFF");
+            cmd.set(sel + " #breedToggle.Background", breedEnabled ? "#2a6a2a" : "#6a2a2a");
+
+            // Taming toggle
+            boolean tameEnabled = animalConfig != null && animalConfig.tamingEnabled;
+            cmd.set(sel + " #tameToggle.Text", tameEnabled ? "ON" : "OFF");
+            cmd.set(sel + " #tameToggle.Background", tameEnabled ? "#2a6a2a" : "#6a2a2a");
+
+            // Highlight selected row
+            if (animal.name().equals(selectedAnimalName)) {
+                cmd.set(sel + ".Background", "#3a5a8a");
+            }
+
+            // Set hidden action field values for this row
+            cmd.set(sel + " #selectAction.Value", "SELECT_ANIMAL:" + animal.name());
+            cmd.set(sel + " #breedAction.Value", "TOGGLE_BREED:" + animal.name());
+            cmd.set(sel + " #tameAction.Value", "TOGGLE_TAMING:" + animal.name());
+
+            // Event bindings — each references its own hidden action field
+            events.addEventBinding(CustomUIEventBindingType.Activating, sel + " #selectBtn",
+                buildDetailEventData(sel + " #selectAction.Value"));
+
+            events.addEventBinding(CustomUIEventBindingType.Activating, sel + " #breedToggle",
+                buildDetailEventData(sel + " #breedAction.Value"));
+
+            events.addEventBinding(CustomUIEventBindingType.Activating, sel + " #tameToggle",
+                buildDetailEventData(sel + " #tameAction.Value"));
         }
-
-        // Pagination
-        cmd.set("#animalPageLabel.Text", (animalPage + 1) + "/" + totalPages);
-
-        cmd.set("#actionAnimalPrev.Value", "ANIMAL_PREV");
-        cmd.set("#actionAnimalNext.Value", "ANIMAL_NEXT");
-
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#animalPrevBtn",
-            buildFullEventData("#actionAnimalPrev.Value"));
-        events.addEventBinding(CustomUIEventBindingType.Activating, "#animalNextBtn",
-            buildFullEventData("#actionAnimalNext.Value"));
     }
 
     /**
-     * Build EventData that captures all row fields + preset fields + action.
-     * Shared by toggle buttons, save button, pagination, and growth toggle.
+     * Populate the detail panel with the selected animal's values.
      */
-    private EventData buildFullEventData(String actionRef) {
-        EventData data = new EventData()
+    private void populateDetailPanel(UICommandBuilder cmd, ConfigManager config) {
+        if (selectedAnimalName == null) {
+            cmd.set("#detailTitle.Text", "Select an animal");
+            cmd.set("#detailCooldown.Value", "");
+            cmd.set("#detailGrowth.Value", "");
+            return;
+        }
+
+        try {
+            AnimalType animal = AnimalType.valueOf(selectedAnimalName);
+            ConfigManager.AnimalConfig animalConfig = config.getAnimalConfig(animal);
+
+            cmd.set("#detailTitle.Text", animal.getModelAssetId());
+
+            if (animalConfig != null) {
+                cmd.set("#detailCooldown.Value", String.valueOf(animalConfig.breedCooldownMinutes));
+                cmd.set("#detailGrowth.Value", String.valueOf(animalConfig.growthTimeMinutes));
+            } else {
+                cmd.set("#detailCooldown.Value", "0");
+                cmd.set("#detailGrowth.Value", "0");
+            }
+        } catch (Exception e) {
+            cmd.set("#detailTitle.Text", "Unknown animal");
+            cmd.set("#detailCooldown.Value", "");
+            cmd.set("#detailGrowth.Value", "");
+        }
+    }
+
+    /**
+     * Populate the food picker list for the selected animal.
+     * Enabled foods pinned at top with highlighted background.
+     */
+    private void populateFoodPicker(UICommandBuilder cmd, UIEventBuilder events, ConfigManager config) {
+        cmd.clear("#foodList");
+
+        if (selectedAnimalName == null) return;
+
+        List<String> enabledFoods;
+        try {
+            AnimalType animal = AnimalType.valueOf(selectedAnimalName);
+            ConfigManager.AnimalConfig ac = config.getAnimalConfig(animal);
+            enabledFoods = ac != null ? ac.getEffectiveBreedingFoods() : new ArrayList<>();
+        } catch (Exception e) {
+            enabledFoods = new ArrayList<>();
+        }
+
+        List<String[]> filtered = getFilteredFoods(enabledFoods);
+
+        for (int i = 0; i < filtered.size(); i++) {
+            String[] food = filtered.get(i);
+            String foodId = food[0];
+            String displayName = food[1];
+            boolean enabled = enabledFoods.contains(foodId);
+            String sel = "#foodList[" + i + "]";
+
+            cmd.append("#foodList", "Pages/FoodRow.ui");
+
+            // Food icon via TexturePath (appendInline with simple string Background)
+            String foodIconPath = getFoodIconPath(foodId);
+            if (foodIconPath != null) {
+                cmd.appendInline(sel + " #foodIcon",
+                    "Group { Anchor: (Width: 24, Height: 24); Background: \"" + foodIconPath + "\"; }");
+            } else {
+                cmd.set(sel + " #foodIcon.Background", enabled ? "#2a6a2a" : "#1a1a2a");
+            }
+
+            String label = displayName + (enabled ? "  [ON]" : "  [OFF]");
+            cmd.set(sel + " #foodBtn.Text", label);
+            cmd.set(sel + " #foodAction.Value", "TOGGLE_FOOD:" + foodId);
+
+            if (enabled) {
+                cmd.set(sel + ".Background", "#3a5a8a");
+            }
+
+            events.addEventBinding(CustomUIEventBindingType.Activating, sel + " #foodBtn",
+                new EventData()
+                    .append("@action", sel + " #foodAction.Value")
+                    .append("@detailCooldown", "#detailCooldown.Value")
+                    .append("@detailGrowth", "#detailGrowth.Value")
+                    .append("@foodSearch", "#foodSearch.Value")
+                    .append("@growthTime", "#growthTimeInput.Value")
+                    .append("@cooldown", "#cooldownInput.Value")
+                    .append("@presetSearch", "#presetSearch.Value")
+                    .append("@animalSearch", "#animalSearch.Value")
+                    .append("@presetRename", "#presetRenameInput.Value"));
+        }
+    }
+
+    /**
+     * Get known foods filtered by foodSearchFilter, sorted with enabled first then alphabetical.
+     */
+    private List<String[]> getFilteredFoods(List<String> enabledFoods) {
+        List<String[]> enabled = new ArrayList<>();
+        List<String[]> disabled = new ArrayList<>();
+
+        String filter = foodSearchFilter != null ? foodSearchFilter.toLowerCase() : "";
+
+        for (String[] food : KNOWN_FOODS) {
+            String foodId = food[0];
+            String displayName = food[1];
+
+            // Apply search filter
+            if (!filter.isEmpty() &&
+                !displayName.toLowerCase().contains(filter) &&
+                !foodId.toLowerCase().contains(filter)) {
+                continue;
+            }
+
+            if (enabledFoods.contains(foodId)) {
+                enabled.add(food);
+            } else {
+                disabled.add(food);
+            }
+        }
+
+        // Sort each group alphabetically by display name
+        enabled.sort((a, b) -> a[1].compareToIgnoreCase(b[1]));
+        disabled.sort((a, b) -> a[1].compareToIgnoreCase(b[1]));
+
+        // Enabled first, then disabled
+        List<String[]> result = new ArrayList<>(enabled);
+        result.addAll(disabled);
+        return result;
+    }
+
+    /**
+     * Build EventData that captures detail panel + global fields + action.
+     * Used for all row interactions (select, toggle breed, toggle tame).
+     * @param actionRef UI element path to read action from (e.g., "#animalRows[0] #selectAction.Value")
+     */
+    private EventData buildDetailEventData(String actionRef) {
+        return new EventData()
             .append("@action", actionRef)
+            .append("@detailCooldown", "#detailCooldown.Value")
+            .append("@detailGrowth", "#detailGrowth.Value")
+            .append("@foodSearch", "#foodSearch.Value")
             .append("@growthTime", "#growthTimeInput.Value")
             .append("@cooldown", "#cooldownInput.Value")
             .append("@presetSearch", "#presetSearch.Value")
             .append("@animalSearch", "#animalSearch.Value")
             .append("@presetRename", "#presetRenameInput.Value");
-        for (int i = 0; i < ANIMALS_PER_PAGE; i++) {
-            data.append("@row" + i + "Cooldown", "#row" + i + "Cooldown.Value");
-            data.append("@row" + i + "Growth", "#row" + i + "Growth.Value");
-            data.append("@row" + i + "Foods", "#row" + i + "Foods.Value");
-        }
-        return data;
     }
 
     /**
@@ -457,14 +495,34 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
         cmd.set("#actionSearchPresets.Value", "SEARCH_PRESETS");
         cmd.set("#actionSearchAnimals.Value", "SEARCH_ANIMALS");
         cmd.set("#actionRenamePreset.Value", "RENAME_PRESET");
+        cmd.set("#actionSearchFoods.Value", "SEARCH_FOODS");
+        cmd.set("#actionDetailChanged.Value", "DETAIL_CHANGED");
 
         // Growth toggle button
         events.addEventBinding(CustomUIEventBindingType.Activating, "#growthToggleBtn",
-            buildFullEventData("#actionToggleGrowth.Value"));
+            new EventData()
+                .append("@action", "#actionToggleGrowth.Value")
+                .append("@detailCooldown", "#detailCooldown.Value")
+                .append("@detailGrowth", "#detailGrowth.Value")
+                .append("@foodSearch", "#foodSearch.Value")
+                .append("@growthTime", "#growthTimeInput.Value")
+                .append("@cooldown", "#cooldownInput.Value")
+                .append("@presetSearch", "#presetSearch.Value")
+                .append("@animalSearch", "#animalSearch.Value")
+                .append("@presetRename", "#presetRenameInput.Value"));
 
         // Save button
         events.addEventBinding(CustomUIEventBindingType.Activating, "#saveBtn",
-            buildFullEventData("#actionSave.Value"));
+            new EventData()
+                .append("@action", "#actionSave.Value")
+                .append("@detailCooldown", "#detailCooldown.Value")
+                .append("@detailGrowth", "#detailGrowth.Value")
+                .append("@foodSearch", "#foodSearch.Value")
+                .append("@growthTime", "#growthTimeInput.Value")
+                .append("@cooldown", "#cooldownInput.Value")
+                .append("@presetSearch", "#presetSearch.Value")
+                .append("@animalSearch", "#animalSearch.Value")
+                .append("@presetRename", "#presetRenameInput.Value"));
 
         // Add preset button
         events.addEventBinding(CustomUIEventBindingType.Activating, "#addPresetBtn",
@@ -473,7 +531,7 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                 .append("@presetSearch", "#presetSearch.Value")
                 .append("@animalSearch", "#animalSearch.Value"));
 
-        // Rename preset button — only capture rename field, not row data
+        // Rename preset button
         events.addEventBinding(CustomUIEventBindingType.Activating, "#renamePresetBtn",
             new EventData()
                 .append("@action", "#actionRenamePreset.Value")
@@ -481,84 +539,27 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                 .append("@presetSearch", "#presetSearch.Value")
                 .append("@animalSearch", "#animalSearch.Value"));
 
-        // Search buttons (GO) — click to apply search filter
+        // Search buttons (GO)
         events.addEventBinding(CustomUIEventBindingType.Activating, "#presetSearchBtn",
-            new EventData()
-                .append("@action", "#actionSearchPresets.Value")
-                .append("@presetSearch", "#presetSearch.Value")
-                .append("@animalSearch", "#animalSearch.Value"));
+            buildDetailEventData("#actionSearchPresets.Value"));
         events.addEventBinding(CustomUIEventBindingType.Activating, "#animalSearchBtn",
-            new EventData()
-                .append("@action", "#actionSearchAnimals.Value")
-                .append("@presetSearch", "#presetSearch.Value")
-                .append("@animalSearch", "#animalSearch.Value"));
-    }
+            buildDetailEventData("#actionSearchAnimals.Value"));
 
-    /**
-     * Apply all row edits from event data to in-memory config.
-     * Returns true if any parsing errors occurred.
-     */
-    private boolean applyRowEdits(ConfigEventData data, ConfigManager config) {
-        List<AnimalType> animals = getFilteredAnimals();
-        int startIndex = animalPage * ANIMALS_PER_PAGE;
-        boolean hasErrors = false;
+        // Live search — ValueChanged fires on every keystroke
+        events.addEventBinding(CustomUIEventBindingType.ValueChanged, "#presetSearch",
+            buildDetailEventData("#actionSearchPresets.Value"));
+        events.addEventBinding(CustomUIEventBindingType.ValueChanged, "#animalSearch",
+            buildDetailEventData("#actionSearchAnimals.Value"));
 
-        for (int i = 0; i < ANIMALS_PER_PAGE; i++) {
-            int animalIndex = startIndex + i;
-            if (animalIndex >= animals.size()) break;
+        // Food search — live filter
+        events.addEventBinding(CustomUIEventBindingType.ValueChanged, "#foodSearch",
+            buildDetailEventData("#actionSearchFoods.Value"));
 
-            AnimalType animal = animals.get(animalIndex);
-
-            // Parse and apply cooldown
-            String cooldownStr = data.rowCooldown[i];
-            if (cooldownStr != null && !cooldownStr.isEmpty()) {
-                try {
-                    double val = Double.parseDouble(cooldownStr.trim());
-                    if (val >= 0) {
-                        config.setBreedingCooldown(animal, val);
-                    } else {
-                        hasErrors = true;
-                    }
-                } catch (NumberFormatException e) {
-                    hasErrors = true;
-                }
-            }
-
-            // Parse and apply growth
-            String growthStr = data.rowGrowth[i];
-            if (growthStr != null && !growthStr.isEmpty()) {
-                try {
-                    double val = Double.parseDouble(growthStr.trim());
-                    if (val > 0) {
-                        config.setGrowthTime(animal, val);
-                    } else {
-                        hasErrors = true;
-                    }
-                } catch (NumberFormatException e) {
-                    hasErrors = true;
-                }
-            }
-
-            // Parse and apply foods (comma-separated)
-            String foodsStr = data.rowFoods[i];
-            if (foodsStr != null) {
-                String trimmed = foodsStr.trim();
-                if (!trimmed.isEmpty()) {
-                    List<String> foods = new ArrayList<>();
-                    for (String f : trimmed.split(",")) {
-                        String ft = f.trim();
-                        if (!ft.isEmpty()) {
-                            foods.add(ft);
-                        }
-                    }
-                    if (!foods.isEmpty()) {
-                        config.setBreedingFoods(animal, foods);
-                    }
-                }
-            }
-        }
-
-        return hasErrors;
+        // Detail field dirty tracking — fire on every keystroke in cooldown/growth
+        events.addEventBinding(CustomUIEventBindingType.ValueChanged, "#detailCooldown",
+            buildDetailEventData("#actionDetailChanged.Value"));
+        events.addEventBinding(CustomUIEventBindingType.ValueChanged, "#detailGrowth",
+            buildDetailEventData("#actionDetailChanged.Value"));
     }
 
     /**
@@ -589,59 +590,46 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
     }
 
     /**
-     * Preserve current field edits to in-memory config before any page refresh.
-     * Checks for differences BEFORE applying edits so dirty tracking works correctly.
+     * Preserve detail panel edits to the selected animal's config before page refresh.
      */
-    private void preserveEdits(ConfigEventData data, ConfigManager config) {
+    private void preserveDetailEdits(ConfigEventData data, ConfigManager config) {
+        if (selectedAnimalName == null) return;
+
         boolean changed = false;
 
-        // Check global settings for changes BEFORE applying
-        if (data.growthTime != null && !data.growthTime.isEmpty()) {
-            try {
-                double val = Double.parseDouble(data.growthTime.trim());
-                if (val > 0 && val != config.getDefaultGrowthTimeMinutes()) changed = true;
-            } catch (NumberFormatException ignored) {}
-        }
-        if (data.cooldown != null && !data.cooldown.isEmpty()) {
-            try {
-                double val = Double.parseDouble(data.cooldown.trim());
-                if (val >= 0 && val != config.getDefaultBreedCooldownMinutes()) changed = true;
-            } catch (NumberFormatException ignored) {}
+        // Apply global settings
+        if (applyGlobalSettings(data, config)) {
+            changed = true;
         }
 
-        // Check row values for changes BEFORE applying
-        List<AnimalType> animals = getFilteredAnimals();
-        int startIndex = animalPage * ANIMALS_PER_PAGE;
-        for (int i = 0; i < ANIMALS_PER_PAGE; i++) {
-            int animalIndex = startIndex + i;
-            if (animalIndex >= animals.size()) break;
-            AnimalType animal = animals.get(animalIndex);
+        // Apply detail panel edits to selected animal
+        try {
+            AnimalType animal = AnimalType.valueOf(selectedAnimalName);
             ConfigManager.AnimalConfig ac = config.getAnimalConfig(animal);
-            if (ac == null) continue;
+            if (ac == null) return;
 
-            if (data.rowCooldown[i] != null && !data.rowCooldown[i].isEmpty()) {
+            // Cooldown
+            if (data.detailCooldown != null && !data.detailCooldown.isEmpty()) {
                 try {
-                    double val = Double.parseDouble(data.rowCooldown[i].trim());
-                    if (val >= 0 && val != ac.breedCooldownMinutes) changed = true;
+                    double val = Double.parseDouble(data.detailCooldown.trim());
+                    if (val >= 0 && val != ac.breedCooldownMinutes) {
+                        config.setBreedingCooldown(animal, val);
+                        changed = true;
+                    }
                 } catch (NumberFormatException ignored) {}
             }
-            if (data.rowGrowth[i] != null && !data.rowGrowth[i].isEmpty()) {
+
+            // Growth
+            if (data.detailGrowth != null && !data.detailGrowth.isEmpty()) {
                 try {
-                    double val = Double.parseDouble(data.rowGrowth[i].trim());
-                    if (val > 0 && val != ac.growthTimeMinutes) changed = true;
+                    double val = Double.parseDouble(data.detailGrowth.trim());
+                    if (val > 0 && val != ac.growthTimeMinutes) {
+                        config.setGrowthTime(animal, val);
+                        changed = true;
+                    }
                 } catch (NumberFormatException ignored) {}
             }
-            if (data.rowFoods[i] != null && !data.rowFoods[i].trim().isEmpty()) {
-                String current = "";
-                List<String> foodList = ac.getEffectiveBreedingFoods();
-                if (foodList != null) current = String.join(", ", foodList);
-                if (!data.rowFoods[i].trim().equals(current)) changed = true;
-            }
-        }
-
-        // NOW apply edits after checking
-        applyGlobalSettings(data, config);
-        applyRowEdits(data, config);
+        } catch (Exception ignored) {}
 
         if (changed) dirty = true;
     }
@@ -670,6 +658,9 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
             if (data.animalSearch != null) {
                 animalSearchFilter = data.animalSearch;
             }
+            if (data.foodSearch != null) {
+                foodSearchFilter = data.foodSearch;
+            }
 
             String action = data.action;
             if (action == null) {
@@ -679,30 +670,260 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
 
             log("Config panel action: " + action);
 
-            // --- Search actions (immediate filtering) ---
+            // --- Search actions (live filtering via sendPartialUpdate) ---
             if (action.equals("SEARCH_PRESETS")) {
-                preserveEdits(data, config);
-                presetPage = 0;
-                reopenPage(player, ref, store);
+                preserveDetailEdits(data, config);
+                presetSearchFilter = data.presetSearch != null ? data.presetSearch : "";
+                List<String> presets = getFilteredPresets(config);
+
+                UICommandBuilder cmd = new UICommandBuilder();
+                UIEventBuilder ev = new UIEventBuilder();
+                populatePresetList(cmd, ev, presets, config.getActivePreset());
+                cmd.set("#saveBtn.Text", dirty ? "SAVE TO FILE *" : "SAVE TO FILE");
+
+                sendPartialUpdate(cmd, ev);
                 return;
             }
             if (action.equals("SEARCH_ANIMALS")) {
-                preserveEdits(data, config);
-                animalPage = 0;
-                reopenPage(player, ref, store);
+                preserveDetailEdits(data, config);
+                animalSearchFilter = data.animalSearch != null ? data.animalSearch : "";
+                List<AnimalType> animals = getFilteredAnimals();
+
+                UICommandBuilder cmd = new UICommandBuilder();
+                UIEventBuilder ev = new UIEventBuilder();
+                populateAnimalTable(cmd, ev, animals, config);
+                populateDetailPanel(cmd, config);
+                populateFoodPicker(cmd, ev, config);
+                cmd.set("#saveBtn.Text", dirty ? "SAVE TO FILE *" : "SAVE TO FILE");
+
+                sendPartialUpdate(cmd, ev);
+                return;
+            }
+
+            // --- Food search (live filtering) ---
+            if (action.equals("SEARCH_FOODS")) {
+                foodSearchFilter = data.foodSearch != null ? data.foodSearch : "";
+
+                UICommandBuilder cmd = new UICommandBuilder();
+                UIEventBuilder ev = new UIEventBuilder();
+                populateFoodPicker(cmd, ev, config);
+
+                sendPartialUpdate(cmd, ev);
+                return;
+            }
+
+            // --- Detail field dirty tracking (cooldown/growth keystroke) ---
+            if (action.equals("DETAIL_CHANGED")) {
+                if (selectedAnimalName != null) {
+                    try {
+                        AnimalType animal = AnimalType.valueOf(selectedAnimalName);
+                        ConfigManager.AnimalConfig ac = config.getAnimalConfig(animal);
+                        if (ac != null) {
+                            boolean fieldDirty = false;
+                            if (data.detailCooldown != null && !data.detailCooldown.isEmpty()) {
+                                try {
+                                    double val = Double.parseDouble(data.detailCooldown.trim());
+                                    if (val != ac.breedCooldownMinutes) fieldDirty = true;
+                                } catch (NumberFormatException ignored) {}
+                            }
+                            if (data.detailGrowth != null && !data.detailGrowth.isEmpty()) {
+                                try {
+                                    double val = Double.parseDouble(data.detailGrowth.trim());
+                                    if (val != ac.growthTimeMinutes) fieldDirty = true;
+                                } catch (NumberFormatException ignored) {}
+                            }
+                            if (fieldDirty && !dirty) {
+                                dirty = true;
+                                UICommandBuilder cmd = new UICommandBuilder();
+                                cmd.set("#saveBtn.Text", "SAVE TO FILE *");
+                                sendUpdate(cmd);
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+                return;
+            }
+
+            // --- Toggle food in picker ---
+            if (action.startsWith("TOGGLE_FOOD:")) {
+                String foodId = action.substring("TOGGLE_FOOD:".length());
+                preserveDetailEdits(data, config);
+
+                if (selectedAnimalName != null) {
+                    try {
+                        AnimalType animal = AnimalType.valueOf(selectedAnimalName);
+                        ConfigManager.AnimalConfig ac = config.getAnimalConfig(animal);
+                        if (ac != null) {
+                            List<String> foods = new ArrayList<>(ac.getEffectiveBreedingFoods());
+                            if (foods.contains(foodId)) {
+                                foods.remove(foodId);
+                            } else {
+                                foods.add(foodId);
+                            }
+                            config.setBreedingFoods(animal, foods);
+                            dirty = true;
+
+                            // Rebuild food list (order changes when toggling)
+                            UICommandBuilder cmd = new UICommandBuilder();
+                            UIEventBuilder ev = new UIEventBuilder();
+                            populateFoodPicker(cmd, ev, config);
+                            cmd.set("#saveBtn.Text", "SAVE TO FILE *");
+
+                            sendPartialUpdate(cmd, ev);
+                        }
+                    } catch (Exception e) {
+                        log("Error toggling food: " + e.getMessage());
+                    }
+                }
+                return;
+            }
+
+            // --- Select animal (show in detail panel) ---
+            // Uses sendUpdate() to preserve scroll position
+            if (action.startsWith("SELECT_ANIMAL:")) {
+                String animalName = action.substring("SELECT_ANIMAL:".length());
+                preserveDetailEdits(data, config);
+
+                int oldIdx = findAnimalIndex(selectedAnimalName);
+                int newIdx = findAnimalIndex(animalName);
+                selectedAnimalName = animalName;
+                foodSearchFilter = "";  // Reset food search on animal change
+
+                UICommandBuilder cmd = new UICommandBuilder();
+                UIEventBuilder ev = new UIEventBuilder();
+
+                // Remove old highlight
+                if (oldIdx >= 0) {
+                    cmd.set("#animalRows[" + oldIdx + "].Background", "#00000000");
+                }
+                // Add new highlight
+                if (newIdx >= 0) {
+                    cmd.set("#animalRows[" + newIdx + "].Background", "#3a5a8a");
+                }
+                // Update detail panel
+                populateDetailPanel(cmd, config);
+                // Rebuild food picker for new animal
+                populateFoodPicker(cmd, ev, config);
+                cmd.set("#foodSearch.Value", "");
+                // Update save button (preserveDetailEdits may have set dirty)
+                cmd.set("#saveBtn.Text", dirty ? "SAVE TO FILE *" : "SAVE TO FILE");
+
+                sendPartialUpdate(cmd, ev);
+                return;
+            }
+
+            // --- Breed toggle ---
+            // Uses sendUpdate() to preserve scroll position
+            if (action.startsWith("TOGGLE_BREED:")) {
+                String animalName = action.substring("TOGGLE_BREED:".length());
+                preserveDetailEdits(data, config);
+                try {
+                    AnimalType animal = AnimalType.valueOf(animalName);
+                    ConfigManager.AnimalConfig animalConfig = config.getAnimalConfig(animal);
+                    if (animalConfig != null) {
+                        boolean newState = !animalConfig.breedingEnabled;
+                        config.setAnimalEnabled(animal, newState);
+
+                        dirty = true;
+                        int idx = findAnimalIndex(animalName);
+                        UICommandBuilder cmd = new UICommandBuilder();
+                        if (idx >= 0) {
+                            cmd.set("#animalRows[" + idx + "] #breedToggle.Text", newState ? "ON" : "OFF");
+                            cmd.set("#animalRows[" + idx + "] #breedToggle.Background", newState ? "#2a6a2a" : "#6a2a2a");
+                        }
+                        cmd.set("#saveBtn.Text", "SAVE TO FILE *");
+                        sendUpdate(cmd);
+
+                        if (player != null) {
+                            player.sendMessage(Message.raw(animal.getModelAssetId() + " breeding " +
+                                (newState ? "enabled" : "disabled")).color(newState ? "#55FF55" : "#FF9900"));
+                        }
+                    }
+                } catch (Exception e) {
+                    log("Error toggling animal breeding: " + e.getMessage());
+                }
+                return;
+            }
+
+            // --- Taming toggle ---
+            // Uses sendUpdate() to preserve scroll position
+            if (action.startsWith("TOGGLE_TAMING:")) {
+                String animalName = action.substring("TOGGLE_TAMING:".length());
+                preserveDetailEdits(data, config);
+                try {
+                    AnimalType animal = AnimalType.valueOf(animalName);
+                    ConfigManager.AnimalConfig animalConfig = config.getAnimalConfig(animal);
+                    if (animalConfig != null) {
+                        boolean newState = !animalConfig.tamingEnabled;
+                        config.setTamingEnabled(animal, newState);
+
+                        dirty = true;
+                        int idx = findAnimalIndex(animalName);
+                        UICommandBuilder cmd = new UICommandBuilder();
+                        if (idx >= 0) {
+                            cmd.set("#animalRows[" + idx + "] #tameToggle.Text", newState ? "ON" : "OFF");
+                            cmd.set("#animalRows[" + idx + "] #tameToggle.Background", newState ? "#2a6a2a" : "#6a2a2a");
+                        }
+                        cmd.set("#saveBtn.Text", "SAVE TO FILE *");
+                        sendUpdate(cmd);
+
+                        if (player != null) {
+                            player.sendMessage(Message.raw(animal.getModelAssetId() + " taming " +
+                                (newState ? "enabled" : "disabled")).color(newState ? "#55FF55" : "#FF9900"));
+                        }
+                    }
+                } catch (Exception e) {
+                    log("Error toggling animal taming: " + e.getMessage());
+                }
                 return;
             }
 
             // --- Preset selection ---
+            // Uses sendUpdate() to preserve animal list scroll position
             if (action.startsWith("SELECT_PRESET:")) {
                 String presetName = action.substring("SELECT_PRESET:".length());
+                String oldPreset = config.getActivePreset();
                 if (config.applyPreset(presetName)) {
                     if (player != null) {
                         player.sendMessage(Message.raw("Applied preset: " + presetName).color("#55FF55"));
                     }
                 }
                 dirty = false;
-                reopenPage(player, ref, store);
+
+                UICommandBuilder cmd = new UICommandBuilder();
+                UIEventBuilder ev = new UIEventBuilder();
+
+                // Update preset highlights
+                int oldPresetIdx = findPresetIndex(oldPreset);
+                int newPresetIdx = findPresetIndex(presetName);
+                if (oldPresetIdx >= 0) {
+                    cmd.set("#presetList[" + oldPresetIdx + "].Background", "#00000000");
+                }
+                if (newPresetIdx >= 0) {
+                    cmd.set("#presetList[" + newPresetIdx + "].Background", "#2a3a5a");
+                }
+
+                // Update preset settings section
+                populatePresetSettings(cmd, config);
+
+                // Update all animal toggles (preset changes everything)
+                for (int i = 0; i < currentFilteredAnimals.size(); i++) {
+                    AnimalType animal = currentFilteredAnimals.get(i);
+                    ConfigManager.AnimalConfig ac = config.getAnimalConfig(animal);
+                    boolean breedEnabled = ac != null && ac.breedingEnabled;
+                    boolean tameEnabled = ac != null && ac.tamingEnabled;
+                    cmd.set("#animalRows[" + i + "] #breedToggle.Text", breedEnabled ? "ON" : "OFF");
+                    cmd.set("#animalRows[" + i + "] #breedToggle.Background", breedEnabled ? "#2a6a2a" : "#6a2a2a");
+                    cmd.set("#animalRows[" + i + "] #tameToggle.Text", tameEnabled ? "ON" : "OFF");
+                    cmd.set("#animalRows[" + i + "] #tameToggle.Background", tameEnabled ? "#2a6a2a" : "#6a2a2a");
+                }
+
+                // Update detail panel, food picker, and save button
+                populateDetailPanel(cmd, config);
+                populateFoodPicker(cmd, ev, config);
+                cmd.set("#saveBtn.Text", "SAVE TO FILE");
+
+                sendPartialUpdate(cmd, ev);
                 return;
             }
 
@@ -746,87 +967,9 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                 return;
             }
 
-            // --- Row breeding toggle ---
-            if (action.startsWith("TOGGLE_ROW:")) {
-                String animalName = action.substring("TOGGLE_ROW:".length());
-                preserveEdits(data, config);
-                try {
-                    AnimalType animal = AnimalType.valueOf(animalName);
-                    ConfigManager.AnimalConfig animalConfig = config.getAnimalConfig(animal);
-                    if (animalConfig != null) {
-                        boolean newState = !animalConfig.breedingEnabled;
-                        config.setAnimalEnabled(animal, newState);
-                        if (player != null) {
-                            player.sendMessage(Message.raw(animal.getModelAssetId() + " breeding " +
-                                (newState ? "enabled" : "disabled")).color(newState ? "#55FF55" : "#FF9900"));
-                        }
-                    }
-                } catch (Exception e) {
-                    log("Error toggling animal breeding: " + e.getMessage());
-                }
-                dirty = true;
-                reopenPage(player, ref, store);
-                return;
-            }
-
-            // --- Row taming toggle ---
-            if (action.startsWith("TOGGLE_TAMING:")) {
-                String animalName = action.substring("TOGGLE_TAMING:".length());
-                preserveEdits(data, config);
-                try {
-                    AnimalType animal = AnimalType.valueOf(animalName);
-                    ConfigManager.AnimalConfig animalConfig = config.getAnimalConfig(animal);
-                    if (animalConfig != null) {
-                        boolean newState = !animalConfig.tamingEnabled;
-                        config.setTamingEnabled(animal, newState);
-                        if (player != null) {
-                            player.sendMessage(Message.raw(animal.getModelAssetId() + " taming " +
-                                (newState ? "enabled" : "disabled")).color(newState ? "#55FF55" : "#FF9900"));
-                        }
-                    }
-                } catch (Exception e) {
-                    log("Error toggling animal taming: " + e.getMessage());
-                }
-                dirty = true;
-                reopenPage(player, ref, store);
-                return;
-            }
-
-            // --- Preset pagination ---
-            if (action.equals("PRESET_PREV")) {
-                preserveEdits(data, config);
-                if (presetPage > 0) presetPage--;
-                reopenPage(player, ref, store);
-                return;
-            }
-            if (action.equals("PRESET_NEXT")) {
-                preserveEdits(data, config);
-                List<String> presets = getFilteredPresets(config);
-                int totalPages = (presets.size() + PRESETS_PER_PAGE - 1) / PRESETS_PER_PAGE;
-                if (presetPage < totalPages - 1) presetPage++;
-                reopenPage(player, ref, store);
-                return;
-            }
-
-            // --- Animal pagination (preserve edits before changing page) ---
-            if (action.equals("ANIMAL_PREV")) {
-                preserveEdits(data, config);
-                if (animalPage > 0) animalPage--;
-                reopenPage(player, ref, store);
-                return;
-            }
-            if (action.equals("ANIMAL_NEXT")) {
-                preserveEdits(data, config);
-                List<AnimalType> animals = getFilteredAnimals();
-                int totalPages = (animals.size() + ANIMALS_PER_PAGE - 1) / ANIMALS_PER_PAGE;
-                if (animalPage < totalPages - 1) animalPage++;
-                reopenPage(player, ref, store);
-                return;
-            }
-
             // --- Toggle growth ---
             if (action.equals("TOGGLE_GROWTH")) {
-                preserveEdits(data, config);
+                preserveDetailEdits(data, config);
                 boolean newState = !config.isGrowthEnabled();
                 config.setGrowthEnabled(newState);
                 if (player != null) {
@@ -839,15 +982,11 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
 
             // --- Save ---
             if (action.equals("SAVE")) {
-                boolean hasErrors = false;
-
                 // Apply global settings
                 applyGlobalSettings(data, config);
 
-                // Apply all row edits
-                if (applyRowEdits(data, config)) {
-                    hasErrors = true;
-                }
+                // Apply detail panel edits for selected animal
+                preserveDetailEdits(data, config);
 
                 // Save to file and sync patches
                 config.saveToFile();
@@ -858,11 +997,7 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                 dirty = false;
 
                 if (player != null) {
-                    if (hasErrors) {
-                        player.sendMessage(Message.raw("Saved with some invalid values ignored.").color("#FFAA00"));
-                    } else {
-                        player.sendMessage(Message.raw("Configuration saved and patches synced!").color("#55FF55"));
-                    }
+                    player.sendMessage(Message.raw("Configuration saved and patches synced!").color("#55FF55"));
                 }
                 reopenPage(player, ref, store);
                 return;
@@ -870,9 +1005,27 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
 
             // --- Add preset ---
             if (action.equals("ADD_PRESET")) {
-                if (player != null) {
-                    player.sendMessage(Message.raw("Use /breedconfig savepreset <name> to save current config as preset").color("#FFAA00"));
+                preserveDetailEdits(data, config);
+                String baseName = "custom";
+                List<String> existing = config.getAvailablePresets();
+                String newName = baseName;
+                int counter = 1;
+                while (existing.contains(newName)) {
+                    newName = baseName + "_" + counter;
+                    counter++;
                 }
+                if (config.saveAsPreset(newName)) {
+                    config.applyPreset(newName);
+                    dirty = false;
+                    if (player != null) {
+                        player.sendMessage(Message.raw("Created preset: " + newName).color("#55FF55"));
+                    }
+                } else {
+                    if (player != null) {
+                        player.sendMessage(Message.raw("Failed to create preset.").color("#FF5555"));
+                    }
+                }
+                reopenPage(player, ref, store);
                 return;
             }
 
@@ -889,8 +1042,9 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
             try {
                 PlayerRef playerRef = player.getPlayerRef();
                 player.getPageManager().openCustomPage(ref, store,
-                    new ConfigPanelUIPage(playerRef, presetPage, animalPage,
-                        presetSearchFilter, animalSearchFilter, dirty));
+                    new ConfigPanelUIPage(playerRef,
+                        presetSearchFilter, animalSearchFilter,
+                        selectedAnimalName, dirty));
             } catch (Exception e) {
                 log("Failed to reopen config page: " + e.getMessage());
             }
@@ -934,31 +1088,42 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
         return name;
     }
 
+    // Animals without a Memories icon — show colored fallback instead of red X
+    private static final Set<String> NO_MEMORY_ICON = Set.of(
+        "Pig_Wild", "Mosshorn_Plain", "Frog_Blue", "Frog_Orange", "Dragon_Fire",
+        "Skeleton", "Skeleton_Burnt", "Skeleton_Frost", "Skeleton_Sand",
+        "Skeleton_Pirate", "Skeleton_Incandescent", "Golem_Guardian_Void",
+        "Kweebec_Razorleaf", "Kweebec_Elder", "Hatworm"
+    );
+
     /**
      * Get the icon path for an animal model.
+     * Returns null for animals without a Memories icon.
      */
     private String getAnimalIconPath(AnimalType animal) {
-        String modelAssetId = animal.getModelAssetId();
+        String id = animal.getModelAssetId();
+        if (NO_MEMORY_ICON.contains(id)) return null;
+        return "Pages/Memories/npcs/" + id + ".png";
+    }
 
-        if (modelAssetId.contains("_")) {
-            String[] parts = modelAssetId.split("_");
-            String suffix = parts[parts.length - 1];
-
-            boolean hasOwnIcon = suffix.equals("Calf") || suffix.equals("Piglet") ||
-                suffix.equals("Chick") || suffix.equals("Lamb") || suffix.equals("Foal") ||
-                suffix.equals("Kid") || suffix.equals("Undead") || suffix.equals("Ice") ||
-                suffix.equals("Void") || suffix.equals("Grizzly") || suffix.equals("Polar") ||
-                suffix.equals("Doe") || suffix.equals("Stag") || suffix.equals("Bull") ||
-                suffix.equals("Desert") || suffix.equals("Snow") || suffix.equals("Black") ||
-                suffix.equals("White") || suffix.equals("Frost") || suffix.equals("Electric");
-
-            if (!hasOwnIcon) {
-                String baseName = parts[0];
-                return "Pages/Memories/npcs/" + baseName + ".png";
-            }
+    /**
+     * Get the icon path for a food item.
+     * Item icons live at Common/Icons/ItemsGenerated/{id}.png
+     * UI TexturePath resolves from Common/UI/Custom/ — try relative escape first.
+     * Change FOOD_ICON_FORMAT to test different path formats.
+     */
+    private static final int FOOD_ICON_FORMAT = 5;
+    private String getFoodIconPath(String foodId) {
+        // Strip "_Item" suffix if present (e.g. "Plant_Crop_Lettuce_Item" -> "Plant_Crop_Lettuce")
+        String iconId = foodId.endsWith("_Item") ? foodId.substring(0, foodId.length() - 5) : foodId;
+        switch (FOOD_ICON_FORMAT) {
+            case 1: return "../../Icons/ItemsGenerated/" + iconId + ".png";
+            case 2: return "Icons/ItemsGenerated/" + iconId + ".png";
+            case 3: return "../../../Common/Icons/ItemsGenerated/" + iconId + ".png";
+            case 4: return "Pages/Memories/npcs/Sheep.png"; // TEST: known-working animal path
+            case 5: return "Pages/Icons/" + iconId + ".png"; // Bundled in mod resources
+            default: return null; // solid color fallback
         }
-
-        return "Pages/Memories/npcs/" + modelAssetId + ".png";
     }
 
     /**
@@ -986,6 +1151,43 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
             default:
                 return "#2a2a3a";
         }
+    }
+
+    /**
+     * Find the index of an animal in the cached filtered list.
+     * Returns -1 if not found.
+     */
+    private int findAnimalIndex(String animalName) {
+        if (animalName == null || currentFilteredAnimals == null) return -1;
+        for (int i = 0; i < currentFilteredAnimals.size(); i++) {
+            if (currentFilteredAnimals.get(i).name().equals(animalName)) return i;
+        }
+        return -1;
+    }
+
+    /**
+     * Find the index of a preset in the cached filtered list.
+     */
+    private int findPresetIndex(String presetName) {
+        if (presetName == null || currentFilteredPresets == null) return -1;
+        for (int i = 0; i < currentFilteredPresets.size(); i++) {
+            if (currentFilteredPresets.get(i).equals(presetName)) return i;
+        }
+        return -1;
+    }
+
+    /**
+     * Send a partial update with both commands AND event bindings, without clearing the page.
+     * Unlike sendUpdate(), this includes event bindings (needed when rebuilding dynamic rows).
+     */
+    private void sendPartialUpdate(UICommandBuilder cmd, UIEventBuilder events) {
+        Ref<EntityStore> ref = this.playerRef.getReference();
+        if (ref == null) return;
+        Store<EntityStore> store = ref.getStore();
+        Player playerComponent = store.getComponent(ref, Player.getComponentType());
+        playerComponent.getPageManager().updateCustomPage(
+            new CustomPage(this.getClass().getName(), false, false, this.getLifetime(),
+                cmd.getCommands(), events.getEvents()));
     }
 
     private void log(String message) {
