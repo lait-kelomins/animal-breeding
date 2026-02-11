@@ -423,18 +423,13 @@ public class HyTamePlugin extends JavaPlugin {
         // Initialize taming manager (always needed for in-memory taming)
         tamingManager = new TamingManager();
 
-        // Initialize persistence only if enabled (disabled = capture crate handles it)
-        if (configManager.isPersistenceEnabled()) {
-            persistenceManager = new PersistenceManager();
-            persistenceManager.initialize(configDirectory);
-            tamingManager.setPersistenceManager(persistenceManager);
-            tamingManager.setGracePeriodMs(configManager.getInitializationGracePeriodSeconds() * 1000);
+        // Initialize persistence — loads legacy tamed_animals.json, removes dead entries on save
+        persistenceManager = new PersistenceManager();
+        persistenceManager.initialize(configDirectory);
+        tamingManager.setPersistenceManager(persistenceManager);
 
-            java.util.List<TamedAnimalData> savedAnimals = persistenceManager.loadData();
-            tamingManager.loadFromPersistence(savedAnimals);
-        } else {
-            logVerbose("Persistence disabled - tamed animals will not be saved/loaded/respawned");
-        }
+        java.util.List<TamedAnimalData> savedAnimals = persistenceManager.loadData();
+        tamingManager.loadFromPersistence(savedAnimals);
 
         // Initialize breeding tick manager
         breedingTickManager = new BreedingTickManager(breedingManager, configManager);

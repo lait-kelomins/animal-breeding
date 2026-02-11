@@ -1,10 +1,6 @@
-# Currently merging this mod with TheBrandolorian's "Tameable Animals"
-
 # **HyTame**
 
-[![Personal discord](https://img.shields.io/badge/Join%20our%20Discord-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/uSKWDCq8e) [![X Twitter profile](https://img.shields.io/badge/Follow%20@lait__kelomins%20On%20X-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins)</br></br>
-
-[![Mod%20Community%20Discord](https://img.shields.io/discord/1461295822137327673?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Mod%20Community)](https://discord.gg/UKQCgN5SJ)
+[![HyTame%20Discord](https://img.shields.io/discord/1461517685753122819?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Join%20our%20Discord)](https://discord.gg/uSKWDCq8e) [![X Twitter profile](https://img.shields.io/badge/Follow%20@lait__kelomins%20On%20X-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins)</br></br>
 
 This mod is actively being developed. For issues or suggestions, click on one of the links above.
 
@@ -26,9 +22,7 @@ This mod is actively being developed. For issues or suggestions, click on one of
 **What It Can't Do (Yet)**
 
 *   Define which foods attract animals (uses base game foods)
-*   Make animals follow you (taming planned)
 *   Feed babies to speed up growth (planned)
-*   Interrupt animals that are fleeing or sleeping (the mod doesn't change animal behavior)
 
 **Quick Start:** Find two animals → feed each one their favorite food → they breed → baby grows up.
 
@@ -38,72 +32,24 @@ This mod is actively being developed. For issues or suggestions, click on one of
 
 ***
 
-# Releasing 1.4.0 on Beta channel for feedback. Always make backups and install at your own risk.
+## What's New in v1.5.0
 
-**Known mod incompatibility:**
+**Tamed Animal Behaviors**
+*   Tamed animals no longer attack or flee from players — works for all animal types including wolves, bears, predators, livestock, critters, etc.
+*   Hold a tamed animal's favorite food to have it follow you indefinitely
+*   Hold meat near a wild wolf or bear to temporarily calm and lure it closer for taming
+*   Changing taming foods in config now updates which foods make animals follow you
 
-*   More mounts
+**Better Mod Compatibility**
+*   Now uses HyTalor to surgically edit game assets instead of replacing them entirely, making HyTame compatible with more mods
+*   HyTalor is now a required dependency — a clear warning is shown if it's missing
 
-***
-
-## What's New in v1.4.0
-
-*   **Command Rename** - All commands renamed from `/breed` to `/hytame` (old `/breed` still works with deprecation warning but will be removed in future updates)
-*   **Quick Food Reference** - New `/hytame foods` command shows all animals and their breeding foods at a glance
-*   **Separate Breeding/Taming Control** - You can now enable/disable breeding and taming independently per animal
-*   **Permission System** - Admin commands now use permission nodes (`hytame.admin.*`) - Creative mode also grants admin access
-*   **Informative Commands for Everyone** - `/hytame foods`, `/hytame config info`, and `/hytame config list` are available to all players
-*   **Taming** - Merged with TheBrandolorian's "Tameable Animals" to add taming to the mod. Now animals need to be tamed before you can breed and name them.
-*   **Animal Persistence** - All tamed animals are now persisted and should be restored if they are removed for some reason. Only deceased animals won't respawn.
-*   **Food-based Taming** - Feed taming food to wild animals to tame them. The configuration now defines base food which can be overridden by taming food, healing food (WIP) and breeding food.
-*   **(WIP for Release) Peaceful tamed animals** - Animals will stop being scared or agressive once tamed
-
-## What's New in v1.3.x (doesn't work in solo, enable alpha files for server)
-
-*   Fixed a bug with animals disappearing on game restart after using name tags (data may be recoverable in next update but no)
-*   Fixed a bug that made the mod break in solo games
-*   Removed excessive logging in the server console
-
-## What's New in v1.3.0 (doesn't work in solo, enable alpha files for server)
-
-#### Deprecated Commands
-
-The following legacy commands still work but show deprecation warnings. Use the unified `/breed` command instead:
-
-*   `/laitsbreeding` → `/breed help`
-*   `/breedstatus` → `/breed status`
-*   `/breedconfig` → `/breed config`
-
-### Fixed
-
-*   Various performance improvements
-*   Various bug fixes including handling multiple worlds, potential memory leaks, potential server crashes
-*   Horse feeding and mounting should now work (might still need to hit them once like in the base game)
-*   Various bugs caused by changing the model of the player or spawning a model
-
-## New Features Preview (some features might not work)
-
-#### Animal Taming System
-
-*   **Name Tags** - You can now craft name tags at the farming bench and tame an animal
-*   **Random cute names** - Animals get random names like Fluffy, Spot, Buddy, Luna, etc.
-*   **Ownership system** - Tamed animals belong to the player who tamed them
-
-#### Entity Persistence
-
-*   **Persistent taming data** - Tamed animals are saved to `tamed_animals.json` and survive server restarts
-*   **Respawn system** - Tamed animals that despawn will respawn at their last position when a player approaches (64 block radius)
-*   **State preservation** - Growth stage, breeding cooldowns, and all taming data are preserved across respawns
-*   **Auto-save** - Data auto-saves every 5 minutes
-*   **Shutdown save** - Data is always saved on server shutdown
-
-#### Custom Animals (from other mods or future updates)
-
-*   **Role-first registration** - `/breed custom add <npcRole> <food>` register by NPC role
-*   **Auto model discovery** - Plugin validates the role exists, spawns a temp entity, and auto-discovers the model asset ID
-*   **Baby role mapping** - New `/breed custom setbaby <model> <babyRole>` command for dedicated baby NPC spawning
-*   **Scaling fallback** - If no baby role defined, babies spawn as scaled-down adults (40% size)
-*   **Custom animal spawn detection** - Custom animals are now detected immediately when they spawn (same as built-in animals)
+**Quality of Life**
+*   Nametags are now applied by pressing the F key (or Use hotkey)
+*   Horse mounting works properly as long as you don't have a loved food in hand
+*   Milking and shearing work properly
+*   Dead animals are now automatically removed from tamed_animals.json
+*   Various crash and freeze fixes — server initialization may take a moment to refresh assets
 
 ***
 
@@ -373,8 +319,6 @@ Config file: `mods/laits-breeding-config.json`
 
 This mod is actively being developed. For issues or suggestions, click on one of the links below.
 
-[![Personal discord](https://img.shields.io/badge/Join%20our%20Discord-white?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge)](https://discord.gg/uSKWDCq8e) [![X Twitter profile](https://img.shields.io/badge/Follow%20@lait__kelomins%20On%20X-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins)</br></br>
-
-[![Mod%20Community%20Discord](https://img.shields.io/discord/1461295822137327673?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Mod%20Community)](https://discord.gg/UKQCgN5SJ)
+[![HyTame%20Discord](https://img.shields.io/discord/1461517685753122819?color=3E4F93&labelColor=gray&logo=discord&logoColor=white&style=for-the-badge&label=Join%20our%20Discord)](https://discord.gg/uSKWDCq8e) [![X Twitter profile](https://img.shields.io/badge/Follow%20@lait__kelomins%20On%20X-white?color=7948A3&labelColor=gray&logo=x&logoColor=white&style=for-the-badge)](https://x.com/lait_kelomins)</br></br>
 
 [![BisectHosting partnership program, code lait for 25% discount on a gaming server](https://www.bisecthosting.com/partners/custom-banners/2aa6078b-c5d0-416b-89a6-347d410d20cb.webp)](https://bisecthosting.com/lait)

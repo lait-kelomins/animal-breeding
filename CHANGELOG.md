@@ -4,11 +4,13 @@
 
 ### Added
 - **HyTalor dependency** - Now uses HyTalor to surgically edit assets without replacing them entirely for mod compatibility
+- **Loved foods config** - Changing the taming foods for an animal will now make the animal follow you with those foods in hand
 - **Tamed animal behaviors** - Tamed animals no longer attack or flee from players. Works for all animal types (wolves, bears, predators, livestock, critters, etc.)
 - **Tamed follow** - Tamed animals follow you indefinitely when you hold their favorite food
 - **Wild predator luring** - Hold meat near a wild wolf/bear to temporarily calm it and lure it closer
 
 ### Changed
+- **Nametags on F key** - Nametags are now applied by pressing the F key (or Use hotkey)
 - **Package renamed** - `com.laits.breeding` -> `com.hytame` (internal, no user impact)
 - **Asset pack renamed** - Now registers as `Config_HyTame` for cleaner mod folder structure
 - **Hytalor is now a required dependency** - Clear warning shown if Hytalor is not installed
@@ -18,6 +20,7 @@
 - **Milking and Shearing** - Works properly too
 - **Various crash and freeze sources** - There should be way less issues like that, but server/game initialization may take some time to refresh the assets
 - **Mod compatibility** - Should now be compatible with more mods but mods that heavily change the assets may still be incompatible
+- **Dead animals cleanup** - Removes dead animals from the tamed_animals.json file
 
 ---
 
