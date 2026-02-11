@@ -173,7 +173,6 @@ public class HyTameCaptureInteraction extends SimpleBlockInteraction {
             if (modelAsset != null) {
                 meta.setIconPath(modelAsset.getIcon());
             }
-            meta.setRoleIndex(npc.getRoleIndex());
             String npcName = NPCPlugin.get().getName(npc.getRoleIndex());
             if (npcName != null) {
                 meta.setNpcNameKey(npcName);
@@ -293,7 +292,7 @@ public class HyTameCaptureInteraction extends SimpleBlockInteraction {
 
         NPCPlugin npcModule = NPCPlugin.get();
         Store<EntityStore> store = commandBuffer.getStore();
-        int roleIndex = existingMeta.getRoleIndex();
+        int roleIndex = NPCPlugin.get().getIndex(existingMeta.getNpcNameKey());
 
         // Spawn and apply HyTame metadata
         final UUID fHytameId = hytameId;

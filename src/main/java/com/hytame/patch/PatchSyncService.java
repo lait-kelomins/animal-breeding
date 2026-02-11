@@ -145,11 +145,11 @@ public class PatchSyncService {
                     "Auto-generated asset patches from HyTame config",
                     new ArrayList<>(), // authors
                     "", // website
-                    null, // serverVersion
-                    null, // source
+                    null, // main
+                    "*", // serverVersion (now String)
                     new HashMap<>(), // dependencies
                     new HashMap<>(), // optionalDependencies
-                    new HashMap<>(), // conflicts
+                    new HashMap<>(), // loadBefore
                     new ArrayList<>(), // subPlugins
                     false // disabledByDefault
             );
@@ -157,7 +157,8 @@ public class PatchSyncService {
             AssetModule.get().registerPack(
                     "com.hytame:" + ASSET_PACK_NAME,
                     assetPackRoot,
-                    manifest);
+                    manifest,
+                    false);
 
             logVerbose(
                     "Registered asset pack: com.hytame:" + ASSET_PACK_NAME + " at " + assetPackRoot.toAbsolutePath());

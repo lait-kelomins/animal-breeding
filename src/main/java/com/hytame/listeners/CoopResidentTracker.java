@@ -23,6 +23,7 @@ import com.hypixel.hytale.server.core.universe.world.chunk.WorldChunk;
 import com.hypixel.hytale.server.core.universe.world.storage.ChunkStore;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
 import com.hypixel.hytale.server.npc.metadata.CapturedNPCMetadata;
+import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hytame.HyTamePlugin;
 import com.hytame.coop.CoopCodecExtender;
 import com.hytame.coop.HyTameCoopData;
@@ -304,7 +305,7 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
                 boolean deployed = resident.getDeployedToWorld();
                 PersistentRef pRef = resident.getPersistentRef();
                 boolean hasHyTame = CoopCodecExtender.hasHyTameData(meta);
-                int metaRole = meta.getRoleIndex();
+                int metaRole = NPCPlugin.get().getIndex(meta.getNpcNameKey());
 
                 if (!deployed && pRef == null && !hasHyTame) {
                     if (entityRoleIndex >= 0 && metaRole == entityRoleIndex) {
