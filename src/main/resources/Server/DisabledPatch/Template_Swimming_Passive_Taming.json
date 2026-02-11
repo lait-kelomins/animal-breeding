@@ -1,0 +1,58 @@
+{
+  "$Comment": "Add taming/feeding support to passive swimming creatures",
+  "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Swimming_Passive",
+  "Parameters": {
+    "LovedItems": {
+      "Value": ["Plant_Crop_Wheat_Item"],
+      "TypeHint": "String",
+      "Description": "Items that can be used to tame/feed this animal"
+    }
+  },
+  "InteractionInstruction": {
+    "Enabled": {
+      "Compute": "!isEmptyStringArray(LovedItems)"
+    },
+    "Instructions": [
+      {
+        "Enabled": {
+          "Compute": "!isEmptyStringArray(LovedItems)"
+        },
+        "Instructions": [
+          {
+            "$Comment": "Wild creature = Tame hint",
+            "Continue": true,
+            "Sensor": {
+              "Type": "Not",
+              "Sensor": {
+                "Type": "Tamed",
+                "Set": true
+              }
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "animalbreeding.interactionHints.tame"
+              }
+            ]
+          },
+          {
+            "$Comment": "Tamed creature = Feed hint",
+            "Continue": true,
+            "Sensor": {
+              "Type": "Tamed",
+              "Set": true
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "animalbreeding.interactionHints.feed"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

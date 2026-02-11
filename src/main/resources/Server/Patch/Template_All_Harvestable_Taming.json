@@ -1,0 +1,57 @@
+{
+    "$Comment": "Add taming to harvestable creatures (if another mod adds harvesting)",
+    "_BaseAssetPath": "regex:Server/NPC/Roles/_Core/Templates/Template_(?!Animal_Neutral\\b).+\\.json",
+    "_priority": 100,
+    "InteractionInstruction": {
+        "Instructions": [
+            {
+                "_find": { "Enabled": { "Compute": "IsHarvestable" } },
+                "Instructions": [
+                    {
+                        "_op": "addBefore",
+                        "_index": 0,
+                        "$Comment": "Always create Interactable component (required for interaction system)",
+                        "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+                        "Continue": true,
+                        "Sensor": { "Type": "Any" },
+                        "Actions": [
+                            { "Type": "SetInteractable", "Interactable": true, "ShowPrompt": true }
+                        ]
+                    },
+                    {
+                        "_op": "addBefore",
+                        "_index": 1,
+                        "$Comment": "Taming hint: Wild + IsTameable + player has LovedItems",
+                        "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                { "Type": "IsTameable", "Set": true },
+                                { "Type": "Not", "Sensor": { "Type": "Tamed", "Set": true } },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [{ "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            { "Type": "SetInteractable", "Interactable": true, "ShowPrompt": true }
+                        ]
+                    },
+                    {
+                        "_op": "addBefore",
+                        "_index": 2,
+                        "$Comment": "Execute taming action on F-key (separate from hint)",
+                        "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+                        "Sensor": { "Type": "HasInteracted" },
+                        "Actions": [
+                            { "Type": "HyTameFeedInteraction" }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

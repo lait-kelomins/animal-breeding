@@ -1,0 +1,40 @@
+{
+    "$Comment": "Require taming before mounting - modify vanilla Mount sensor to include Tamed check",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
+    "InteractionInstruction": {
+        "Instructions": [
+            {
+                "_find": { "Enabled": { "Compute": "IsMountable" } },
+                "Instructions": [
+                    {
+                        "_op": "replace",
+                        "_find": {
+                            "Sensor": { "Type": "HasInteracted" },
+                            "Actions": [{
+                                "Type": "Mount",
+                                "AnchorX": { "Compute": "MountAnchorX" },
+                                "AnchorY": { "Compute": "MountAnchorY" },
+                                "AnchorZ": { "Compute": "MountAnchorZ" },
+                                "MovementConfig": { "Compute": "MountMovementConfig" }
+                            }]
+                        },
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                { "Type": "Tamed", "Set": true },
+                                { "Type": "HasInteracted" }
+                            ]
+                        },
+                        "Actions": [{
+                            "Type": "Mount",
+                            "AnchorX": { "Compute": "MountAnchorX" },
+                            "AnchorY": { "Compute": "MountAnchorY" },
+                            "AnchorZ": { "Compute": "MountAnchorZ" },
+                            "MovementConfig": { "Compute": "MountMovementConfig" }
+                        }]
+                    }
+                ]
+            }
+        ]
+    }
+}

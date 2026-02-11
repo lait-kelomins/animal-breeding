@@ -1,0 +1,10 @@
+{
+    "$Comment": "Default LovedItems for cactee creatures",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Beasts_Passive_Cactee.json",
+    "_priority": 100,
+    "Parameters": {
+        "LovedItems": {
+            "Value": ["Plant_Cactus_Flower"]
+        }
+    }
+}

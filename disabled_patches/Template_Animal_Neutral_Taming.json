@@ -1,0 +1,52 @@
+{
+  "$Comment": "Test with known working hint key",
+  "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+  "InteractionInstruction": {
+    "Instructions": [
+      {
+        "_find": "$[?(@.Enabled.Compute == 'IsMountable')]",
+        "_op": "replace",
+        "Enabled": {
+          "Compute": "IsMountable"
+        },
+        "Instructions": [
+          {
+            "Continue": true,
+            "Sensor": {
+              "Type": "Any"
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "server.interactionHints.shear"
+              }
+            ]
+          },
+          {
+            "Sensor": {
+              "Type": "HasInteracted"
+            },
+            "Actions": [
+              {
+                "Type": "Mount",
+                "AnchorX": {
+                  "Compute": "MountAnchorX"
+                },
+                "AnchorY": {
+                  "Compute": "MountAnchorY"
+                },
+                "AnchorZ": {
+                  "Compute": "MountAnchorZ"
+                },
+                "MovementConfig": {
+                  "Compute": "MountMovementConfig"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

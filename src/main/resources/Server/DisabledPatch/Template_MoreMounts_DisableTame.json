@@ -1,0 +1,6 @@
+{
+    "_BaseAssetPath": "regex:^Server\/NPC\/Roles(?!.*_Tamed).*?(Antelope|Bison|Camel|Deer_Doe|Deer_Stag|Horse|Moose_Bull|Moose_Cow|Armadillo).*.json$",
+    "Modify": {
+        "IsTameable": false
+    }
+}

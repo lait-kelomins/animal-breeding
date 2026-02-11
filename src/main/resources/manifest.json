@@ -1,5 +1,5 @@
 {
-    "Group": "Lait",
+    "Group": "HyTame",
     "Name": "${modName}",
     "Version": "${version}",
     "Description": "Adds realistic breeding mechanics for farm animals",
@@ -8,10 +8,18 @@
             "Name": "Lait",
             "Email": "lait.kelomins@gmail.com",
             "Url": ""
+        },
+        {
+            "Name": "TheBrandolorian",
+            "Email": "",
+            "Url": ""
         }
     ],
     "Website": "",
-    "Main": "com.laits.breeding.LaitsBreedingPlugin",
+    "Main": "com.hytame.HyTamePlugin",
     "ServerVersion": "*",
+    "Dependencies": {
+        "com.hypersonicsharkz:Hytalor": "*"
+    },
     "IncludesAssetPack": true
 }

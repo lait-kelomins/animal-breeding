@@ -1,0 +1,58 @@
+{
+  "$Comment": "Add taming/feeding support to passive cactee creatures",
+  "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Beasts_Passive_Cactee",
+  "Parameters": {
+    "LovedItems": {
+      "Value": ["Plant_Cactus_Flower"],
+      "TypeHint": "String",
+      "Description": "Items that can be used to tame/feed this animal"
+    }
+  },
+  "InteractionInstruction": {
+    "Enabled": {
+      "Compute": "!isEmptyStringArray(LovedItems)"
+    },
+    "Instructions": [
+      {
+        "Enabled": {
+          "Compute": "!isEmptyStringArray(LovedItems)"
+        },
+        "Instructions": [
+          {
+            "$Comment": "Wild cactee = Tame hint",
+            "Continue": true,
+            "Sensor": {
+              "Type": "Not",
+              "Sensor": {
+                "Type": "Tamed",
+                "Set": true
+              }
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "animalbreeding.interactionHints.tame"
+              }
+            ]
+          },
+          {
+            "$Comment": "Tamed cactee = Feed hint",
+            "Continue": true,
+            "Sensor": {
+              "Type": "Tamed",
+              "Set": true
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "animalbreeding.interactionHints.feed"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

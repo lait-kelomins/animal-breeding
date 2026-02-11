@@ -1,0 +1,65 @@
+{
+    "$Comment": "Block harvesting when wild - only tamed animals can be harvested",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
+    "InteractionInstruction": {
+        "Instructions": [
+            {
+                "_find": {
+                    "Enabled": {
+                        "Compute": "IsHarvestable"
+                    }
+                },
+                "Instructions": [
+                    {
+                        "_op": "replace",
+                        "_find": {
+                            "Actions": [
+                                {
+                                    "Type": "State",
+                                    "State": "$Harvest"
+                                }
+                            ]
+                        },
+                        "$Comment": "Harvest action triggered by contextual use (bucket/shears) - ONLY IF TAMED. Player(LockOnTarget) sets the target for $Harvest bucket checks.",
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "$Comment": "Must be tamed to harvest",
+                                    "Type": "Tamed",
+                                    "Set": true
+                                },
+                                {
+                                    "Enabled": {
+                                        "Compute": "!isEmpty(HarvestInteractionContext)"
+                                    },
+                                    "Type": "InteractionContext",
+                                    "Context": {
+                                        "Compute": "HarvestInteractionContext"
+                                    }
+                                },
+                                {
+                                    "Type": "Alarm",
+                                    "Name": "Harvest_Ready",
+                                    "State": "Unset"
+                                },
+                                {
+                                    "$Comment": "Lock player LAST (avoids side-effect if earlier sensors fail). Sets target for $Harvest bucket/inventory checks.",
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "LockOnTarget": true
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "State",
+                                "State": "$Harvest"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

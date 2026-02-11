@@ -1,0 +1,139 @@
+{
+    "$Comment": "Add taming to wild mountable animals with LovedItems",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
+    "_priority": 98,
+    "InteractionInstruction": {
+        "Instructions": [
+            {
+                "_find": {
+                    "Enabled": {
+                        "Compute": "IsMountable"
+                    }
+                },
+                "Instructions": [
+                    {
+                        "_op": "add",
+                        "_index": 2,
+                        "$Comment": "[HYTAME] Harvestable Taming: Reset interaction state (handles case where player interacted without loved item on untamed animal",
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Not",
+                                    "Sensor": {
+                                        "Type": "Tamed",
+                                        "Set": true
+                                    }
+                                },
+                                {
+                                    "Type": "Not",
+                                    "Sensor": {
+                                        "Type": "Player",
+                                        "Range": 5,
+                                        "Filters": [
+                                            {
+                                                "Type": "ItemInHand",
+                                                "Items": {
+                                                    "Compute": "LovedItems"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "Type": "HasInteracted"
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": false,
+                                "ShowPrompt": false
+                            }
+                        ]
+                    },
+                    {
+                        "_op": "add",
+                        "_index": 3,
+                        "$Comment": "[HYTAME] Mountable Taming: Consume interaction",
+                        "Enabled": {
+                            "Compute": "!isEmptyStringArray(LovedItems)"
+                        },
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Not",
+                                    "Sensor": {
+                                        "Type": "Tamed",
+                                        "Set": true
+                                    }
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Type": "HasInteracted"
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "HyTameFeedInteraction"
+                            }
+                        ]
+                    },
+                    {
+                        "_op": "add",
+                        "_index": 4,
+                        "$Comment": "[HYTAME] Mountable Taming: Show prompt when wild + LovedItems",
+                        "Enabled": {
+                            "Compute": "!isEmptyStringArray(LovedItems)"
+                        },
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Not",
+                                    "Sensor": {
+                                        "Type": "Tamed",
+                                        "Set": true
+                                    }
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": true
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

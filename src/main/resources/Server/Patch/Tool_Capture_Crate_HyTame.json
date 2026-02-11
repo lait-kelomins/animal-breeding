@@ -1,0 +1,39 @@
+{
+    "$Comment": "Replace UseCaptureCrate with HyTameCapture for taming metadata persistence",
+    "_BaseAssetPath": "Server/Item/Items/Tool/Capture_Crate/Tool_Capture_Crate.json",
+    "Interactions": {
+        "Primary": {
+            "Interactions": [
+                {
+                    "_op": "replace",
+                    "_index": 0,
+                    "Type": "Simple",
+                    "Effects": {
+                        "ItemAnimationId": "Interact"
+                    },
+                    "RunTime": 0.05,
+                    "Next": {
+                        "Type": "HyTameCapture",
+                        "AcceptedNpcGroups": [
+                            "Capture_Crate"
+                        ],
+                        "FullIcon": "Icons/ItemsGenerated/Tool_Capture_Crate_Full.png",
+                        "Failed": {
+                            "Type": "Simple",
+                            "Effects": {
+                                "LocalSoundEventId": "SFX_Capture_Crate_Capture_Fail_Local"
+                            }
+                        },
+                        "Next": {
+                            "Type": "Simple",
+                            "Effects": {
+                                "LocalSoundEventId": "SFX_Capture_Crate_Capture_Succeed_Local",
+                                "WorldSoundEventId": "SFX_Capture_Crate_Capture_Succeed"
+                            }
+                        }
+                    }
+                }
+            ]
+        }
+    }
+}

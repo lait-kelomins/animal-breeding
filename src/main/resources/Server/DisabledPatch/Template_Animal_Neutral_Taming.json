@@ -1,0 +1,239 @@
+{
+    "$Comment": "Add taming/feeding to all animals with LovedItems, including harvestable/mountable ones",
+    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "_op": "replace",
+    "_find": "$[InteractionInstruction]",
+    "InteractionInstruction": {
+        "Enabled": {
+            "Compute": "IsHarvestable || IsMountable || !isEmptyStringArray(LovedItems)"
+        },
+        "Instructions": [
+            {
+                "$Comment": "Block 0: Simple tameable animals (not mountable, not harvestable)",
+                "Enabled": {
+                    "Compute": "!isEmptyStringArray(LovedItems) && !IsMountable && !IsHarvestable"
+                },
+                "Instructions": [
+                    {
+                        "$Comment": "Wild animal = Tame",
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "Not",
+                            "Sensor": {
+                                "Type": "Tamed",
+                                "Set": true
+                            }
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": false
+                            }
+                        ]
+                    },
+                    {
+                        "$Comment": "Tamed animal = Feed",
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "Tamed",
+                            "Set": true
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": false
+                            }
+                        ]
+                    },
+                    {
+                        "Sensor": {
+                            "Type": "HasInteracted"
+                        },
+                        "Actions": [
+                            {
+                                "Type": "HyTameFeedInteraction"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "$Comment": "Block 1: Modify harvestable block - add tame/feed checks BEFORE harvest logic",
+                "Instructions": [
+                    {
+                        "$Comment": "NEW: Wild harvestable + player has loved item = Tame",
+                        "Enabled": {
+                            "Compute": "!isEmptyStringArray(LovedItems)"
+                        },
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Not",
+                                    "Sensor": {
+                                        "Type": "Tamed",
+                                        "Set": true
+                                    }
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": false
+                            }
+                        ]
+                    },
+                    {
+                        "$Comment": "NEW: Tamed harvestable + player has loved item = Feed",
+                        "Enabled": {
+                            "Compute": "!isEmptyStringArray(LovedItems)"
+                        },
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Tamed",
+                                    "Set": true
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": false
+                            }
+                        ]
+                    },
+                    {
+                        "Sensor": {
+                            "Type": "HasInteracted"
+                        },
+                        "Actions": [
+                            {
+                                "Type": "HyTameFeedInteraction"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "$Comment": "Block 2: Modify mountable block - add tame/feed checks BEFORE mount logic",
+                "Instructions": [
+                    {
+                        "$Comment": "NEW: Wild mountable + player has loved item = Tame (STOP to prevent mounting)",
+                        "Enabled": {
+                            "Compute": "!isEmptyStringArray(LovedItems)"
+                        },
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Not",
+                                    "Sensor": {
+                                        "Type": "Tamed",
+                                        "Set": true
+                                    }
+                                },
+                                {
+                                    "Type": "Not",
+                                    "Sensor": {
+                                        "Type": "Player",
+                                        "Range": 5,
+                                        "Filters": [
+                                            {
+                                                "Type": "ItemInHand",
+                                                "Items": {
+                                                    "Compute": "LovedItems"
+                                                }
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": false
+                            }
+                        ]
+                    },
+                    {
+                        "$Comment": "NEW: Tamed mountable + player has loved item = Feed (STOP to prevent mounting)",
+                        "Enabled": {
+                            "Compute": "!isEmptyStringArray(LovedItems)"
+                        },
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Tamed",
+                                    "Set": true
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": false
+                            }
+                        ]
+                    },
+                    {
+                        "Sensor": {
+                            "Type": "HasInteracted"
+                        },
+                        "Actions": [
+                            {
+                                "Type": "HyTameFeedInteraction"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

@@ -1,0 +1,39 @@
+{
+  "$Comment": "Add feeding support to summoned allies",
+  "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Summoned_Ally",
+  "Parameters": {
+    "LovedItems": {
+      "Value": [],
+      "TypeHint": "String",
+      "Description": "Items that can be used to feed this summoned ally"
+    }
+  },
+  "InteractionInstruction": {
+    "Enabled": {
+      "Compute": "!isEmptyStringArray(LovedItems)"
+    },
+    "Instructions": [
+      {
+        "Enabled": {
+          "Compute": "!isEmptyStringArray(LovedItems)"
+        },
+        "Instructions": [
+          {
+            "$Comment": "Summoned ally = Feed hint (already tamed by definition)",
+            "Continue": true,
+            "Sensor": {
+              "Type": "Any"
+            },
+            "Actions": [
+              {
+                "Type": "SetInteractable",
+                "Interactable": true,
+                "Hint": "animalbreeding.interactionHints.feed"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

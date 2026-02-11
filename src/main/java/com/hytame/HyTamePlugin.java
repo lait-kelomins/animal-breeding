@@ -1,0 +1,1640 @@
+package com.hytame;
+
+import com.hypixel.hytale.server.core.plugin.JavaPlugin;
+import com.hypixel.hytale.server.core.plugin.JavaPluginInit;
+import com.hypixel.hytale.server.core.command.system.AbstractCommand;
+import com.hypixel.hytale.server.core.command.system.CommandContext;
+import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg;
+import com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg;
+import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes;
+import com.hypixel.hytale.server.core.Message;
+import com.hypixel.hytale.server.core.event.events.player.PlayerMouseButtonEvent;
+import com.hypixel.hytale.server.core.event.events.player.PlayerInteractEvent;
+import com.hypixel.hytale.server.core.event.events.player.PlayerConnectEvent;
+import com.hypixel.hytale.server.core.event.events.entity.EntityRemoveEvent;
+import com.hypixel.hytale.server.core.entity.Entity;
+import com.hypixel.hytale.server.core.entity.InteractionContext;
+import com.hypixel.hytale.server.core.entity.LivingEntity;
+import com.hypixel.hytale.server.core.entity.entities.Player;
+import com.hypixel.hytale.server.core.inventory.Inventory;
+import com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent;
+import com.hypixel.hytale.server.core.asset.type.item.config.Item;
+import com.hypixel.hytale.server.core.modules.interaction.interaction.config.RootInteraction;
+import com.hypixel.hytale.server.core.HytaleServer;
+import com.hypixel.hytale.math.vector.Vector3d;
+import com.hypixel.hytale.server.core.universe.PlayerRef;
+import com.hypixel.hytale.server.core.universe.Universe;
+import com.hypixel.hytale.server.core.universe.world.ParticleUtil;
+import com.hypixel.hytale.server.core.universe.world.World;
+import com.hypixel.hytale.server.core.universe.world.npc.INonPlayerCharacter;
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.component.Store;
+import com.hypixel.hytale.logger.HytaleLogger;
+import com.hypixel.hytale.component.Holder;
+import com.hypixel.hytale.assetstore.AssetMap;
+import com.hypixel.hytale.assetstore.map.DefaultAssetMap;
+import com.hypixel.hytale.component.AddReason;
+import com.hypixel.hytale.component.RemoveReason;
+import com.hypixel.hytale.component.ComponentType;
+import com.hypixel.hytale.component.Ref;
+import com.hypixel.hytale.component.ArchetypeChunk;
+import com.hypixel.hytale.component.CommandBuffer;
+import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent;
+import com.hypixel.hytale.server.core.modules.entity.player.PlayerCreativeSettings;
+import com.hypixel.hytale.server.core.modules.entity.player.PlayerSettings;
+import com.hypixel.hytale.server.core.modules.entity.component.ModelComponent;
+import com.hypixel.hytale.server.core.modules.entity.DespawnComponent;
+import com.hypixel.hytale.server.core.modules.entity.component.Interactable;
+import com.hypixel.hytale.server.core.modules.interaction.Interactions;
+import com.hypixel.hytale.server.core.entity.UUIDComponent;
+import com.hypixel.hytale.server.npc.NPCPlugin;
+import com.hypixel.hytale.server.npc.entities.NPCEntity;
+import com.hypixel.hytale.server.core.asset.type.model.config.Model;
+import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset;
+
+import com.hytame.managers.BreedingManager;
+import com.hytame.managers.BreedingTickManager;
+import com.hytame.managers.GrowthManager;
+import com.hytame.managers.RespawnManager;
+import com.hytame.managers.SpawningManager;
+import com.hytame.managers.InteractionSetupManager;
+import com.hytame.managers.TamedRoleManager;
+import com.hytame.handlers.MouseInteractionHandler;
+import com.hytame.managers.TamingManager;
+import com.hytame.managers.PersistenceManager;
+import com.hytame.patch.PatchSyncService;
+import com.hytame.models.TamedAnimalData;
+import com.hytame.ui.NametagUIPage;
+import com.hytame.listeners.UseBlockHandler;
+import com.hytame.listeners.DetectTamedDeath;
+import com.hytame.listeners.DetectTamedDespawn;
+import com.hytame.listeners.CoopResidentTracker;
+
+import com.hytame.listeners.NewAnimalSpawnDetector;
+import com.hytame.interactions.FeedAnimalInteraction;
+import com.hytame.interactions.HyTameCaptureInteraction;
+import com.hytame.interactions.NameAnimalInteraction;
+import com.hytame.models.AnimalType;
+import com.hytame.models.CustomAnimalConfig;
+import com.hypixel.hytale.server.core.modules.interaction.interaction.config.Interaction;
+import com.hytame.models.BreedingData;
+import com.hytame.models.GrowthStage;
+import com.hytame.util.ConfigManager;
+import com.hytame.util.AnimalFinder;
+import com.hytame.util.EcsReflectionUtil;
+import com.hytame.util.EntityUtil;
+import com.hytame.util.NameplateUtil;
+import com.hytame.interactions.InteractionStateCache;
+import com.hytame.effects.EffectsManager;
+import com.hytame.components.HyTameInteractionComponent;
+
+import com.hytame.commands.BreedCommand;
+import com.hytame.commands.HytameCommand;
+import com.hytame.commands.BreedingConfigCommand;
+import com.hytame.commands.CustomAnimalCommand;
+import com.hytame.commands.LegacyCommands;
+
+// Taming integration imports
+import com.hytame.tame.HyTameComponent;
+import com.hytame.tame.HyTameSystems;
+import com.hytame.tame.actions.BuilderActionHyTameFeedInteraction;
+import com.hytame.tame.actions.BuilderActionRemovePlayerHeldItems;
+import com.hytame.tame.actions.BuilderActionClearBreedCooldownFlag;
+import com.hytame.tame.actions.BuilderActionGrowToNextStage;
+import com.hytame.tame.sensors.BuilderSensorIsTameable;
+import com.hytame.tame.sensors.BuilderSensorTamed;
+import com.hytame.tame.sensors.BuilderSensorGrowthReady;
+import com.hytame.tame.sensors.BuilderSensorNeedsBreedCooldown;
+import com.hytame.tame.sensors.BuilderSensorScaledBaby;
+import com.hypixel.hytale.server.npc.role.support.WorldSupport;
+import java.lang.reflect.Field;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
+
+/**
+ * Main plugin class for Lait's Animal Breeding.
+ */
+public class HyTamePlugin extends JavaPlugin {
+
+    public static final String VERSION = "2.0.0";
+
+    private static HyTamePlugin instance;
+    private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClassFull();
+
+    // Static reflection field for setting NPC attitude to REVERED when tamed
+    private static final Field ATTITUDE_FIELD;
+    static {
+        try {
+            ATTITUDE_FIELD = WorldSupport.class.getDeclaredField("defaultPlayerAttitude");
+            ATTITUDE_FIELD.setAccessible(true);
+        } catch (NoSuchFieldException e) {
+            throw new RuntimeException("Failed to access defaultPlayerAttitude", e);
+        }
+    }
+
+    /**
+     * Get the attitude field for setting NPC attitude on taming.
+     */
+    public static Field getAttitudeField() {
+        return ATTITUDE_FIELD;
+    }
+
+    // NOTE: Breeding constants (BREEDING_DISTANCE, LOVE_DURATION) moved to
+    // BreedingTickManager
+
+    private ConfigManager configManager;
+    private BreedingManager breedingManager;
+    private GrowthManager growthManager;
+    private TamingManager tamingManager;
+    private PersistenceManager persistenceManager;
+    private BreedingTickManager breedingTickManager;
+    private EffectsManager effectsManager;
+    private SpawningManager spawningManager;
+    private RespawnManager respawnManager;
+    private InteractionSetupManager interactionSetupManager;
+    private MouseInteractionHandler mouseInteractionHandler;
+    private TamedRoleManager tamedRoleManager;
+    private PatchSyncService patchSyncService;
+    private java.nio.file.Path configDirectory;
+
+    // Asset-based taming feature flag
+    // When true: Uses RoleChangeSystem to apply tamed roles (persistent behavior)
+    // When false: Uses legacy reflection-based approach (InteractionSetupManager)
+    private boolean useAssetBasedTaming = true;
+
+    // Hytalor detection - some features require Hytalor for asset patching
+    // If Hytalor is not installed, patches in Server/Patch/ are not applied
+    private boolean hytalorInstalled = false;
+    private static final String HYTALOR_WARNING = "[Warning] Hytalor not detected. Some features like taming hints and asset-based roles require Hytalor to be installed.";
+
+    // HyTameComponent type for ECS integration
+    private ComponentType<EntityStore, HyTameComponent> hyTameComponentType;
+    // HyTameInteractionComponent type for persisting original interactions across
+    // restarts
+    private ComponentType<EntityStore, HyTameInteractionComponent> hyTameInteractionComponentType;
+    private ScheduledExecutorService tickScheduler;
+    private final List<ScheduledFuture<?>> scheduledTasks = new ArrayList<>();
+    private NewAnimalSpawnDetector spawnDetector;
+
+    // Flag to track if first player has connected (for grace period start)
+    private volatile boolean firstPlayerConnected = false;
+
+    // Getter for tick scheduler (used by commands)
+    public ScheduledExecutorService getTickScheduler() {
+        return tickScheduler;
+    }
+
+    // Getter for spawn detector (used by commands)
+    public NewAnimalSpawnDetector getSpawnDetector() {
+        return spawnDetector;
+    }
+
+    // ECS component types are now in EcsReflectionUtil
+
+    // Track last detected despawn UUIDs for debugging (max 10)
+    private static final java.util.List<UUID> lastDetectedDespawns = java.util.Collections
+            .synchronizedList(new java.util.ArrayList<>());
+    private static final int MAX_DESPAWN_TRACKED = 10;
+
+    /**
+     * Get the last detected despawn UUIDs (most recent first).
+     */
+    public static java.util.List<UUID> getLastDetectedDespawns() {
+        synchronized (lastDetectedDespawns) {
+            return new java.util.ArrayList<>(lastDetectedDespawns);
+        }
+    }
+
+    /**
+     * Clear the tracked despawn UUIDs.
+     */
+    public static void clearTrackedDespawns() {
+        lastDetectedDespawns.clear();
+    }
+
+    private static void trackDetectedDespawn(UUID uuid) {
+        synchronized (lastDetectedDespawns) {
+            // Add at beginning (most recent first)
+            lastDetectedDespawns.add(0, uuid);
+            // Keep only max entries
+            while (lastDetectedDespawns.size() > MAX_DESPAWN_TRACKED) {
+                lastDetectedDespawns.remove(lastDetectedDespawns.size() - 1);
+            }
+        }
+    }
+
+    // Verbose logging toggle (controlled by /hytame debug log command)
+    private static boolean verboseLogging = false;
+
+    public static boolean isVerboseLogging() {
+        return verboseLogging;
+    }
+
+    public static boolean isAlarmBasedBreedCooldown() {
+        return USE_ALARM_BASED_BREED_COOLDOWN;
+    }
+
+    public static void setVerboseLogging(boolean enabled) {
+        verboseLogging = enabled;
+    }
+
+    // Development debug mode - broadcasts to all players in-game (controlled by
+    // /breeddev command)
+    // Set to false for production builds
+    private static boolean devMode = false;
+
+    public static boolean isDevMode() {
+        return devMode;
+    }
+
+    public static void setDevMode(boolean enabled) {
+        devMode = enabled;
+    }
+
+    // Entity-based interaction system - controlled by build variant (see
+    // BuildConfig)
+    // When true: Sets "Press [F] to Feed" hints directly on animal entities (Use
+    // key)
+    // When false: Uses item-based Ability2 interactions (food templates have
+    // Ability2: Root_FeedAnimal)
+    // Value is set at build time via Gradle: buildAbility2 (false) or
+    // buildEntityBased (true)
+    private static final boolean USE_ENTITY_BASED_INTERACTIONS = BuildConfig.USE_ENTITY_BASED_INTERACTIONS;
+
+    // Legacy FeedAnimalInteraction system toggle
+    // When true: Uses FeedAnimalInteraction to handle feeding via Use key on
+    // animals
+    // When false: Disables interaction-based feeding (ActionHyTameFeedInteraction via
+    // behavior tree)
+    // Note: Action-based system had issues, reverted to legacy interaction system
+    private static final boolean USE_LEGACY_FEED_INTERACTION = false;
+
+    // Show interaction hints on animals even when using item-based Ability2
+    // When true: Animals show "Press [Ability2] to Feed" hint (but actual feeding
+    // is via item)
+    // When false: No hints on animals (player must know to use Ability2)
+    // Only applies when USE_ENTITY_BASED_INTERACTIONS is false
+    private static final boolean SHOW_ABILITY2_HINTS_ON_ENTITIES = true;
+
+    // Java-based growth system toggle (legacy)
+    // When true: Uses GrowthManager.tickGrowth() for baby animal growth (Java timing)
+    // When false: Uses alarm-based growth via patches (Growth_Ready alarm + GrowToNextStage action)
+    // Default: false (alarm-based system is preferred)
+    private static final boolean USE_JAVA_BASED_GROWTH = false;
+
+    // Alarm-based breed cooldown toggle
+    // When true: Uses Breed_Cooldown alarm via passive instructions (survives chunk reload)
+    // When false: Uses Java-based BreedingData.lastBreedTime + System.currentTimeMillis() comparison
+    // Default: true (alarm-based system is preferred)
+    private static final boolean USE_ALARM_BASED_BREED_COOLDOWN = true;
+
+    /** Broadcast a message to all online players in chat (all worlds) */
+    private void broadcastToChat(String message) {
+        try {
+            // Broadcast to all worlds for multi-world support
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null)
+                    continue;
+
+                world.getPlayers().forEach(player -> {
+                    try {
+                        player.sendMessage(Message.raw("[Breeding] " + message).color("#AAAAAA"));
+                    } catch (Exception e) {
+                        // Silent
+                    }
+                });
+            }
+        } catch (Exception e) {
+            // Silent
+        }
+    }
+
+    /** Log verbose/debug message (only when verbose logging is enabled) */
+    private void logVerbose(String message) {
+        if (verboseLogging) {
+            LOGGER.atInfo().log("[HyTame] " + message);
+            // Also broadcast to chat if devMode is enabled
+            if (devMode) {
+                broadcastToChat(message);
+            }
+        }
+    }
+
+    /** Log warning message */
+    private void logWarning(String message) {
+        LOGGER.atWarning().log("[HyTame] " + message);
+    }
+
+    /**
+     * Check if Hytalor is installed by searching the PluginManager.
+     * Hytalor applies patches from Server/Patch/ directory - without it, patches are ignored.
+     */
+    private boolean detectHytalor() {
+        try {
+            com.hypixel.hytale.server.core.plugin.PluginManager pm = HytaleServer.get().getPluginManager();
+            if (pm == null) {
+                getLogger().atInfo().log("PluginManager not available for Hytalor detection");
+                return false;
+            }
+
+            // Search for Hytalor plugin by name
+            for (com.hypixel.hytale.server.core.plugin.PluginBase plugin : pm.getPlugins()) {
+                String name = plugin.getName();
+                if (name != null && name.toLowerCase().contains("hytalor")) {
+                    getLogger().atInfo().log("Hytalor plugin detected: %s", name);
+                    return true;
+                }
+            }
+
+            // Hytalor not found in plugin list
+            return false;
+        } catch (Exception e) {
+            getLogger().atWarning().log("Failed to detect Hytalor: %s", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Check if Hytalor is installed. Returns cached result.
+     */
+    public boolean isHytalorInstalled() {
+        return hytalorInstalled;
+    }
+
+    /**
+     * Log a warning about Hytalor not being installed (called once per feature).
+     */
+    public void warnHytalorRequired(String feature) {
+        if (!hytalorInstalled) {
+            getLogger().atWarning().log("[HyTame] Feature '%s' requires Hytalor to be installed.", feature);
+            getLogger().atWarning().log("[HyTame] Without Hytalor, asset patches in Server/Patch/ are not applied.");
+        }
+    }
+
+    // NOTE: logError() and devLog() removed - unused dead code
+
+    public HyTamePlugin(JavaPluginInit init) {
+        super(init);
+        instance = this;
+    }
+
+    @Override
+    protected void setup() {
+        // Log build variant info
+        getLogger().atInfo().log("=== Lait's Animal Breeding v%s ===", BuildConfig.VERSION);
+        getLogger().atInfo().log("Build variant: %s", BuildConfig.VARIANT);
+        getLogger().atInfo().log("Feeding mode: %s",
+                USE_LEGACY_FEED_INTERACTION ? (USE_ENTITY_BASED_INTERACTIONS ? "Entity-based (F key)" : "Item Ability2 (E key)") : "Asset-based patches (F key)");
+
+        // Note: Hytalor detection moved to start() - PluginManager not ready during setup()
+
+        // Extend CapturedNPCMetadata.CODEC with HyTame fields for coop persistence
+        // Must be called before any world/chunk loading
+        com.hytame.coop.CoopCodecExtender.extend();
+
+        // Initialize config manager and load from file
+        configManager = new ConfigManager();
+
+        // Resolve config directory: Config_HyTame, with migration from Lait_AnimalBreeding
+        configDirectory = resolveConfigDirectory();
+        configManager.loadFromFile(configDirectory.resolve("config.json"));
+
+        // Initialize patch sync service (syncs LovedItems from config to asset patches)
+        patchSyncService = new PatchSyncService();
+        patchSyncService.initialize(configManager);
+
+        breedingManager = new BreedingManager(configManager);
+        growthManager = new GrowthManager(configManager, breedingManager);
+
+        // Initialize taming manager (always needed for in-memory taming)
+        tamingManager = new TamingManager();
+
+        // Initialize persistence only if enabled (disabled = capture crate handles it)
+        if (configManager.isPersistenceEnabled()) {
+            persistenceManager = new PersistenceManager();
+            persistenceManager.initialize(configDirectory);
+            tamingManager.setPersistenceManager(persistenceManager);
+            tamingManager.setGracePeriodMs(configManager.getInitializationGracePeriodSeconds() * 1000);
+
+            java.util.List<TamedAnimalData> savedAnimals = persistenceManager.loadData();
+            tamingManager.loadFromPersistence(savedAnimals);
+        } else {
+            logVerbose("Persistence disabled - tamed animals will not be saved/loaded/respawned");
+        }
+
+        // Initialize breeding tick manager
+        breedingTickManager = new BreedingTickManager(breedingManager, configManager);
+        breedingTickManager.setVerboseLogging(verboseLogging);
+
+        // Initialize effects manager
+        effectsManager = new EffectsManager();
+
+        // Initialize spawning manager
+        spawningManager = new SpawningManager();
+        spawningManager.setBreedingManager(breedingManager);
+        spawningManager.setTamingManager(tamingManager);
+        spawningManager.setHyTameTypeSupplier(() -> hyTameComponentType);
+        spawningManager.setModelAssetIdGetter(
+                args -> getEntityModelAssetId((Store<EntityStore>) args[0], (Ref<EntityStore>) args[1]));
+
+        // Register custom animal birth callback
+        breedingManager.setOnCustomBirthCallback(event -> {
+            try {
+                String modelId = event.getModelAssetId();
+                CustomAnimalConfig customConfig = configManager.getCustomAnimal(modelId);
+                if (customConfig == null) {
+                    getLogger().atWarning().log("[CustomBreed] No config for model: %s", modelId);
+                    return;
+                }
+                Vector3d pos1 = EntityUtil.getPositionFromRef(event.getParent1EntityRef());
+                Vector3d pos2 = EntityUtil.getPositionFromRef(event.getParent2EntityRef());
+                if (pos1 == null && pos2 == null) {
+                    getLogger().atWarning().log("[CustomBreed] Could not get any parent position");
+                    return;
+                }
+                // Spawn at midpoint between parents (or at whichever parent has a position)
+                Vector3d spawnPos;
+                if (pos1 != null && pos2 != null) {
+                    spawnPos = new Vector3d(
+                            (pos1.getX() + pos2.getX()) / 2.0,
+                            (pos1.getY() + pos2.getY()) / 2.0,
+                            (pos1.getZ() + pos2.getZ()) / 2.0);
+                } else {
+                    spawnPos = pos1 != null ? pos1 : pos2;
+                }
+                // Get world name from parent ref
+                String worldName = null;
+                BreedingManager.CustomAnimalLoveData loveData = breedingManager.getCustomAnimalLoveData(event.getParent1Id());
+                if (loveData != null) {
+                    worldName = loveData.getWorldName();
+                }
+                spawningManager.spawnCustomAnimalBaby(modelId, customConfig, spawnPos, worldName,
+                        event.getParent1Id(), event.getParent2Id());
+                if (verboseLogging) {
+                    getLogger().atInfo().log("[CustomBreed] Spawning baby %s at midpoint", modelId);
+                }
+            } catch (Exception e) {
+                getLogger().atWarning().log("[CustomBreed] Error in birth callback: %s", e.getMessage());
+            }
+        });
+
+        // Initialize respawn manager (only if persistence enabled)
+        if (configManager.isPersistenceEnabled()) {
+            respawnManager = new RespawnManager();
+            respawnManager.setTamingManager(tamingManager);
+            respawnManager.setBreedingManager(breedingManager);
+            respawnManager.setHyTameTypeSupplier(() -> hyTameComponentType);
+            respawnManager.setPositionGetter(ref -> EntityUtil.getPositionFromRef(ref));
+        }
+
+        // Initialize interaction setup manager
+        interactionSetupManager = new InteractionSetupManager(configManager, breedingManager);
+        interactionSetupManager.setHyTameInteractionTypeSupplier(() -> hyTameInteractionComponentType);
+        interactionSetupManager.setUseEntityBasedInteractions(USE_ENTITY_BASED_INTERACTIONS);
+        interactionSetupManager.setUseLegacyFeedInteraction(USE_LEGACY_FEED_INTERACTION);
+        interactionSetupManager.setShowAbility2HintsOnEntities(SHOW_ABILITY2_HINTS_ON_ENTITIES);
+
+        // Initialize mouse interaction handler
+        mouseInteractionHandler = new MouseInteractionHandler(configManager, breedingManager, effectsManager, interactionSetupManager);
+        mouseInteractionHandler.setTamingManager(tamingManager);
+
+        // Initialize tamed role manager for asset-based taming
+        tamedRoleManager = new TamedRoleManager();
+
+        // Set up breeding callbacks
+        breedingTickManager.setOnBreedingComplete((type, animals) -> {
+            // Get positions for midpoint calculation
+            Vector3d pos1 = spawningManager.getPositionFromBreedingData(animals[0]);
+            Vector3d pos2 = spawningManager.getPositionFromBreedingData(animals[1]);
+            if (pos1 != null && pos2 != null) {
+                Vector3d midpoint = new Vector3d(
+                        (pos1.getX() + pos2.getX()) / 2.0,
+                        (pos1.getY() + pos2.getY()) / 2.0,
+                        (pos1.getZ() + pos2.getZ()) / 2.0);
+                // Use world name from either parent (prefer first, fall back to second)
+                String worldName = animals[0].getWorldName();
+                if (worldName == null) {
+                    worldName = animals[1].getWorldName();
+                }
+                spawningManager.spawnBabyAnimal(type, midpoint, animals[0].getAnimalId(), animals[1].getAnimalId(),
+                        worldName);
+            }
+        });
+
+        breedingTickManager.setOnCustomBreedingComplete((modelAssetId, animals) -> {
+            // Get positions for midpoint calculation
+            Vector3d pos1 = EntityUtil.getPositionFromRef(animals[0].getEntityRef());
+            Vector3d pos2 = EntityUtil.getPositionFromRef(animals[1].getEntityRef());
+            if (pos1 != null && pos2 != null) {
+                Vector3d midpoint = new Vector3d(
+                        (pos1.getX() + pos2.getX()) / 2.0,
+                        (pos1.getY() + pos2.getY()) / 2.0,
+                        (pos1.getZ() + pos2.getZ()) / 2.0);
+                // Use world name from either parent (prefer first, fall back to second)
+                String worldName = animals[0].getWorldName();
+                if (worldName == null) {
+                    worldName = animals[1].getWorldName();
+                }
+                CustomAnimalConfig customConfig = configManager.getCustomAnimal(modelAssetId);
+                spawningManager.spawnCustomAnimalBaby(modelAssetId, customConfig, midpoint, worldName,
+                        animals[0].getAnimalId(), animals[1].getAnimalId());
+            }
+        });
+
+        // Heart particle spawner for custom animals (uses entity ref)
+        breedingTickManager.setHeartParticleSpawner(entityRef -> {
+            // Find the world that contains this entity by comparing stores
+            World targetWorld = null;
+            if (entityRef instanceof Ref) {
+                @SuppressWarnings("unchecked")
+                Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+                Store<EntityStore> entityStore = ref.getStore();
+                if (entityStore != null) {
+                    for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                        World w = entry.getValue();
+                        if (w == null)
+                            continue;
+                        try {
+                            if (w.getEntityStore().getStore() == entityStore) {
+                                targetWorld = w;
+                                break;
+                            }
+                        } catch (Exception e) {
+                            // Skip this world
+                        }
+                    }
+                }
+            }
+            // Fallback to default world if not found
+            if (targetWorld == null) {
+                targetWorld = Universe.get().getDefaultWorld();
+            }
+            if (targetWorld != null) {
+                final World finalWorld = targetWorld;
+                finalWorld.execute(() -> {
+                    try {
+                        Store<EntityStore> store = finalWorld.getEntityStore().getStore();
+                        effectsManager.spawnHeartParticlesAtRef(store, entityRef);
+                    } catch (Exception e) {
+                        // Silent
+                    }
+                });
+            }
+        });
+
+        // Heart particle spawner for regular animals (uses position + store directly)
+        breedingTickManager.setHeartParticlePositionSpawner((position, store) -> {
+            try {
+                Vector3d heartsPos = new Vector3d(position.getX(), position.getY() + 1.5, position.getZ());
+                ParticleUtil.spawnParticleEffect("BreedingHearts", heartsPos, store);
+            } catch (Exception e) {
+                // Silent
+            }
+        });
+
+        // Set up growth callback - handle growth stage changes (Java-based growth system)
+        // Only active when USE_JAVA_BASED_GROWTH is true
+        // When disabled, growth is handled by alarm-based system via ActionGrowToNextStage
+        if (USE_JAVA_BASED_GROWTH) {
+            growthManager.setOnGrowthCallback(event -> {
+                logVerbose("New growth stage: " + event.getNewStage().toString());
+                if (event.usesScaling()) {
+                    logVerbose("Using scaling for: " + event.getAnimalType().toString());
+                    // Creatures without baby variants: update scale at each stage
+                    spawningManager.updateEntityScale(event.getAnimalId(), event.getAnimalType(), event.getTargetScale());
+                    if (event.getNewStage() == GrowthStage.ADULT) {
+                        // Clean up tracking data when fully grown
+                        breedingManager.removeData(event.getAnimalId());
+                    }
+                } else {
+                    // Animals with baby variants: replace entity when adult
+                    logVerbose("Using baby variant for: " + event.getAnimalType().toString());
+                    if (event.getNewStage() == GrowthStage.ADULT) {
+                        spawningManager.transformBabyToAdult(event.getAnimalId(), event.getAnimalType());
+                    }
+                }
+            });
+        }
+
+        // *** IMPORTANT: Register events in setup(), not start() ***
+        // Per docs: "Setup Phase - Register commands, events, and initialize resources
+        // here"
+        registerInteractionHandler();
+
+        // Register our custom FeedAnimalInteraction type with the codec
+        try {
+            getCodecRegistry(Interaction.CODEC)
+                    .register("FeedAnimal", FeedAnimalInteraction.class, FeedAnimalInteraction.CODEC);
+        } catch (Exception e) {
+            logWarning("FeedAnimalInteraction codec registration skipped (may already exist): " + e.getMessage());
+        }
+
+        // Register our custom NameAnimalInteraction type with the codec
+        try {
+            getCodecRegistry(Interaction.CODEC)
+                    .register("NameAnimal", NameAnimalInteraction.class, NameAnimalInteraction.CODEC);
+        } catch (Exception e) {
+            logWarning("NameAnimalInteraction codec registration skipped (may already exist): " + e.getMessage());
+        }
+
+        // Register HyTameCaptureInteraction (replaces UseCaptureCrate with metadata support)
+        try {
+            getCodecRegistry(Interaction.CODEC)
+                    .register("HyTameCapture", HyTameCaptureInteraction.class, HyTameCaptureInteraction.CODEC);
+            logVerbose("HyTameCaptureInteraction registered");
+        } catch (Exception e) {
+            logWarning("HyTameCaptureInteraction codec registration skipped (may already exist): " + e.getMessage());
+        }
+
+        // Register HyTameComponent for ECS-based taming
+        try {
+            hyTameComponentType = getEntityStoreRegistry().registerComponent(
+                    HyTameComponent.class, "HyTame", HyTameComponent.CODEC);
+            getLogger().atInfo().log("HyTameComponent registered successfully");
+        } catch (Exception e) {
+            logWarning("HyTameComponent registration failed: " + e.getMessage());
+        }
+
+        // Register HyTameInteractionComponent for persisting original interactions
+        // across restarts
+        try {
+            hyTameInteractionComponentType = getEntityStoreRegistry().registerComponent(
+                    HyTameInteractionComponent.class, "OriginalInteraction", HyTameInteractionComponent.CODEC);
+            getLogger().atInfo().log("HyTameInteractionComponent registered successfully");
+        } catch (Exception e) {
+            logWarning("HyTameInteractionComponent registration failed: " + e.getMessage());
+        }
+
+        // Register ECS system for block interactions
+        try {
+            getEntityStoreRegistry().registerSystem(new UseBlockHandler());
+        } catch (Exception e) {
+            // Silent
+        }
+
+        // Register death and despawn detection for tamed animals (only if persistence enabled)
+        if (configManager.isPersistenceEnabled()) {
+            try {
+                getEntityStoreRegistry().registerSystem(new DetectTamedDeath());
+                getEntityStoreRegistry().registerSystem(new DetectTamedDespawn());
+                logVerbose("DetectTamedDeath/Despawn systems registered");
+            } catch (Exception e) {
+                logWarning("Failed to register DetectTamedDeath: " + e.getMessage());
+            }
+        }
+
+        // Register coop/capture crate tracking to prevent duplication
+        try {
+            getEntityStoreRegistry().registerSystem(new CoopResidentTracker());
+            logVerbose("CoopResidentTracker system registered");
+        } catch (Exception e) {
+            logWarning("Failed to register CoopResidentTracker: " + e.getMessage());
+        }
+
+// NOTE: NewAnimalSpawnDetector is registered in start() after world is ready
+
+        // Register unified /hytame command (primary)
+        getCommandRegistry().registerCommand(new HytameCommand());
+
+        // Register deprecated /breed alias (for backwards compatibility)
+        getCommandRegistry().registerCommand(new BreedCommand());
+
+        // Register legacy commands (with deprecation warnings)
+        // These are kept for backwards compatibility but show deprecation notices
+        getCommandRegistry().registerCommand(new LegacyCommands.BreedingHelpCommand()); // Use /breed help
+        getCommandRegistry().registerCommand(new LegacyCommands.BreedingStatusCommand()); // Use /breed status
+        getCommandRegistry().registerCommand(new BreedingConfigCommand()); // Use /breed config
+        getCommandRegistry().registerCommand(new LegacyCommands.BreedingGrowthCommand()); // Use /breed growth
+        getCommandRegistry().registerCommand(new LegacyCommands.NameTagCommand()); // Use /breed tame
+        getCommandRegistry().registerCommand(new LegacyCommands.TamingInfoCommand()); // Use /breed info
+        getCommandRegistry().registerCommand(new LegacyCommands.TamingSettingsCommand()); // Use /breed settings
+        getCommandRegistry().registerCommand(new LegacyCommands.UntameCommand()); // Use /breed untame
+        getCommandRegistry().registerCommand(new CustomAnimalCommand()); // Use /breed custom
+
+        // Dev/debug commands (no unified equivalent)
+        getCommandRegistry().registerCommand(new LegacyCommands.BreedingLogsCommand());
+        getCommandRegistry().registerCommand(new LegacyCommands.BreedingDevCommand());
+        getCommandRegistry().registerCommand(new LegacyCommands.BreedingHintCommand());
+        getCommandRegistry().registerCommand(new LegacyCommands.BreedingScanCommand());
+        getCommandRegistry().registerCommand(new LegacyCommands.BreedingCachesCommand());
+        getCommandRegistry().registerCommand(new LegacyCommands.NoClipCommand());
+    }
+
+    @Override
+    protected void start() {
+        // Detect Hytalor for patch-dependent features
+        // Must be done in start() because PluginManager is not fully populated during setup()
+        hytalorInstalled = detectHytalor();
+        if (hytalorInstalled) {
+            getLogger().atInfo().log("Hytalor detected - asset patching enabled");
+        } else {
+            getLogger().atWarning().log(HYTALOR_WARNING);
+        }
+
+        // Configure RootInteraction chain (after assets are loaded)
+        RootInteraction rootInt = RootInteraction.getRootInteractionOrUnknown("Root_FeedAnimal");
+        String[] ids = rootInt.getInteractionIds();
+
+        if (ids == null || ids.length == 0) {
+            String[] newIds = new String[] { "FeedAnimal" };
+            rootInt.build(Set.of(newIds));
+        }
+
+        // Initialize TamedRoleManager (must happen after assets are loaded)
+        if (tamedRoleManager != null) {
+            try {
+                tamedRoleManager.initialize();
+                getLogger().atInfo().log("Asset-based taming enabled: " + tamedRoleManager.getStats());
+            } catch (Exception e) {
+                getLogger().atWarning().log("TamedRoleManager initialization failed: " + e.getMessage());
+                getLogger().atWarning().log("Falling back to legacy taming system");
+                useAssetBasedTaming = false;
+            }
+        }
+
+        // Start tick scheduler for pregnancy and growth updates
+        tickScheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+            try {
+                breedingManager.tickPregnancies();
+                // Java-based growth (legacy) - controlled by USE_JAVA_BASED_GROWTH flag
+                // When disabled, growth is handled by alarm-based system:
+                // See Template_Baby_Growth.json and Template_Scaled_Baby_Growth.json patches
+                if (USE_JAVA_BASED_GROWTH) {
+                    growthManager.tickGrowth();
+                }
+                breedingTickManager.tick(); // Handle love mode, heart particles, breeding
+                interactionSetupManager.updateTrackedAnimalStates(); // Dynamic hint switching
+            } catch (Exception e) {
+                // Log tick errors for debugging
+                logWarning("[Tick] Error: " + e.getMessage());
+                e.printStackTrace();
+            }
+        }, 1, 1, TimeUnit.SECONDS));
+
+        // Start taming persistence auto-save and respawn check (only if persistence enabled)
+        if (configManager.isPersistenceEnabled()) {
+            if (persistenceManager != null && tamingManager != null) {
+                persistenceManager.startAutoSave(tickScheduler,
+                        () -> tamingManager.getAllTamedAnimals(),
+                        5); // 5 minutes
+            }
+
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                try {
+                    if (respawnManager != null) {
+                        respawnManager.checkAndRespawnTamedAnimals();
+                    }
+                } catch (Exception e) {
+                    getLogger().atWarning().log("[RespawnCheck] Exception in scheduler: " + e.getMessage());
+                    e.printStackTrace();
+                }
+            }, 5, 5, TimeUnit.SECONDS));
+        }
+
+        // Attach Root_FeedAnimal interaction to all breedable animals
+        attachInteractionsToAnimals();
+
+        // Register first player connection handler to start grace period (only if persistence enabled)
+        if (configManager.isPersistenceEnabled()) {
+            getEventRegistry().register(PlayerConnectEvent.class, event -> {
+                if (!firstPlayerConnected && tamingManager != null) {
+                    firstPlayerConnected = true;
+                    tamingManager.markInitialized();
+                    logVerbose("First player connected - grace period started");
+                }
+            });
+        }
+
+        // Register entity removal listener to clean up breeding data when animals die
+        registerEntityRemovalListener();
+
+        // Register ECS systems for taming and breeding
+        try {
+            // Register NewAnimalSpawnDetector (RefSystem pattern for immediate detection)
+            spawnDetector = new NewAnimalSpawnDetector();
+            getEntityStoreRegistry().registerSystem(spawnDetector);
+            logVerbose("NewAnimalSpawnDetector registered (RefSystem pattern)");
+
+            // Register HyTameActivateSystem (sets REVERED attitude when tamed)
+            getEntityStoreRegistry().registerSystem(new HyTameSystems.HyTameActivateSystem());
+            logVerbose("HyTameActivateSystem registered");
+
+            // Register HyTameTickSystem (manages actionReady state based on cooldowns)
+            getEntityStoreRegistry().registerSystem(new HyTameSystems.HyTameTickSystem());
+            logVerbose("HyTameTickSystem registered");
+
+            // Register NPC core components for behavior tree support (only when not using
+            // legacy interactions)
+            // "HyTameFeedInteraction" routes feeding to taming (wild) or breeding (tamed)
+            NPCPlugin.get().registerCoreComponentType("Tamed", BuilderSensorTamed::new);
+            NPCPlugin.get().registerCoreComponentType("IsTameable", BuilderSensorIsTameable::new);
+            NPCPlugin.get().registerCoreComponentType("HyTameFeedInteraction", BuilderActionHyTameFeedInteraction::new);
+            if (!USE_LEGACY_FEED_INTERACTION) {
+                NPCPlugin.get().registerCoreComponentType("RemovePlayerHeldItems",
+                        BuilderActionRemovePlayerHeldItems::new);
+                logVerbose("NPC taming components registered (HyTameFeedInteraction, Tamed, RemovePlayerHeldItems)");
+            } else {
+                logVerbose("NPC taming components skipped (using legacy FeedAnimalInteraction)");
+            }
+
+            // Register baby growth sensors and action for alarm-based growth system
+            NPCPlugin.get().registerCoreComponentType("GrowthReady", BuilderSensorGrowthReady::new);
+            NPCPlugin.get().registerCoreComponentType("ScaledBaby", BuilderSensorScaledBaby::new);
+            NPCPlugin.get().registerCoreComponentType("GrowToNextStage", BuilderActionGrowToNextStage::new);
+            logVerbose("Baby growth components registered (GrowthReady, ScaledBaby, GrowToNextStage)");
+
+            // Register breed cooldown sensor and action for alarm-based breed cooldown system
+            NPCPlugin.get().registerCoreComponentType("NeedsBreedCooldown", BuilderSensorNeedsBreedCooldown::new);
+            NPCPlugin.get().registerCoreComponentType("ClearBreedCooldownFlag", BuilderActionClearBreedCooldownFlag::new);
+            logVerbose("Breed cooldown components registered (NeedsBreedCooldown, ClearBreedCooldownFlag)");
+
+            // Periodically update player UUIDs for the spawn detector to exclude players
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                try {
+                    if (spawnDetector == null)
+                        return;
+
+                    // Defensive null checks for early initialization
+                    if (Universe.get() == null)
+                        return;
+                    var worlds = Universe.get().getWorlds();
+                    if (worlds == null)
+                        return;
+
+                    Set<UUID> currentPlayerUuids = ConcurrentHashMap.newKeySet();
+                    // Collect player UUIDs from all worlds
+                    for (java.util.Map.Entry<String, World> entry : worlds.entrySet()) {
+                        World world = entry.getValue();
+                        if (world == null)
+                            continue;
+                        for (Player p : world.getPlayers()) {
+                            UUID pUuid = EntityUtil.getEntityUUID(p);
+                            if (pUuid != null) {
+                                currentPlayerUuids.add(pUuid);
+                            }
+                        }
+                    }
+                    spawnDetector.updatePlayerUuids(currentPlayerUuids);
+                } catch (Exception e) {
+                    // Silent - may happen during early initialization
+                }
+            }, 2, 5, TimeUnit.SECONDS)); // Delay start by 2 seconds to allow initialization
+
+            // Periodically clear the processedEntities cache to prevent memory leak
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                try {
+                    if (spawnDetector != null) {
+                        int cacheSize = spawnDetector.getProcessedCacheSize();
+                        spawnDetector.clearProcessedCache();
+                        if (cacheSize > 0) {
+                            logVerbose("Cleared spawn detector cache (" + cacheSize + " entries)");
+                        }
+                    }
+                } catch (Exception e) {
+                    // Silent
+                }
+            }, 5, 5, TimeUnit.MINUTES));
+
+            // Periodically clean up originalStates map (safety net for missed
+            // EntityRemoveEvents)
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                try {
+                    int removed = InteractionStateCache.getInstance().cleanupStaleEntries();
+                    if (removed > 0) {
+                        logVerbose("Cleaned " + removed + " stale interaction entries");
+                    }
+                } catch (Exception e) {
+                    // Silent
+                }
+            }, 10, 10, TimeUnit.MINUTES));
+
+            // Periodically clean up stale breeding data
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                try {
+                    int removed = breedingManager.cleanupStaleEntries();
+                    if (removed > 0) {
+                        logVerbose("Cleaned " + removed + " stale breeding entries");
+                    }
+                } catch (Exception e) {
+                    // Silent
+                }
+            }, 5, 5, TimeUnit.MINUTES));
+
+            // Periodically update tamed animal positions (every 30 seconds) - persistence only
+            if (configManager.isPersistenceEnabled() && respawnManager != null) {
+                scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                    try {
+                        respawnManager.updateTamedAnimalPositions();
+                    } catch (Exception e) {
+                        // Silent
+                    }
+                }, 30, 30, TimeUnit.SECONDS));
+
+                // Periodically reset recently spawned animals (every 75 seconds)
+                scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                    try {
+                        respawnManager.clearRecentlySpawned();
+                    } catch (Exception e) {
+                        // Silent
+                    }
+                }, 75, 75, TimeUnit.SECONDS));
+            }
+
+            // Periodically scan for untracked babies (every 30 seconds)
+            // This catches babies that slipped through primary detection
+            scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+                try {
+                    scanForUntrackedBabies();
+                } catch (Exception e) {
+                    // Silent
+                }
+            }, 30, 30, TimeUnit.SECONDS));
+
+        } catch (Exception e) {
+            logWarning("ECS system registration failed: " + e.getMessage());
+            spawnDetector = null;
+        }
+
+        // Start deferred patch sync (waits 10 seconds for server to fully initialize)
+        if (patchSyncService != null) {
+            patchSyncService.syncAllPatchesDeferred(10);
+        }
+
+        getLogger().atInfo().log("[HyTame] Plugin started! Command: /hytame");
+    }
+
+    /**
+     * Attaching interactions to animals via periodic scanning.
+     * Note: Event-based detection (PrefabPlaceEntityEvent, LoadedNPCEvent) was
+     * tested
+     * but these events don't fire for natural animal spawns in Hytale.
+     *
+     * LEGACY: This method is disabled when USE_LEGACY_FEED_INTERACTION is false.
+     * The new ActionHyTameFeedInteraction system handles feeding/taming via NPC behavior
+     * tree.
+     */
+    public void attachInteractionsToAnimals() {
+        // Skip if legacy feed interaction system is disabled
+        if (!USE_LEGACY_FEED_INTERACTION) {
+            logVerbose("Legacy FeedAnimalInteraction disabled - skipping interaction attachment");
+            return;
+        }
+
+        // DISABLED: AnimalFinder scans cause 5+ second world thread blocks
+        // NewAnimalSpawnDetector (RefSystem) now handles real-time spawn detection
+        // Keep autoSetupNearbyAnimals() method for manual use via commands if needed
+        //
+        // getEventRegistry().register(PlayerConnectEvent.class, event -> {
+        // tickScheduler.schedule(() -> autoSetupNearbyAnimals(), 1, TimeUnit.SECONDS);
+        // tickScheduler.schedule(() -> autoSetupNearbyAnimals(), 3, TimeUnit.SECONDS);
+        // tickScheduler.schedule(() -> autoSetupNearbyAnimals(), 5, TimeUnit.SECONDS);
+        // });
+        //
+        // scheduledTasks.add(tickScheduler.scheduleAtFixedRate(() -> {
+        // autoSetupNearbyAnimals();
+        // }, 5, 5, TimeUnit.MINUTES));
+    }
+
+    // NOTE: setupSingleEntity() moved to InteractionSetupManager
+
+    /**
+     * Callback from NewAnimalSpawnDetector when a new animal is detected.
+     * Delegates to InteractionSetupManager and syncs tamed entities with TamingManager.
+     */
+    public void onNewAnimalDetected(Store<EntityStore> store, Ref<EntityStore> entityRef,
+            String modelAssetId, AnimalType animalType, World world) {
+        interactionSetupManager.onNewAnimalDetected(store, entityRef, modelAssetId, animalType, world);
+
+        // Sync tamed entities with TamingManager (re-links entities after restart)
+        if (world != null && tamingManager != null && hyTameComponentType != null) {
+            final Ref<EntityStore> syncRef = entityRef;
+            world.execute(() -> {
+                try {
+                    if (!syncRef.isValid()) return;
+                    Store<EntityStore> s = syncRef.getStore();
+                    if (s == null) return;
+
+                    HyTameComponent hyTame = s.getComponent(syncRef, hyTameComponentType);
+                    if (hyTame == null || !hyTame.isTamed() || hyTame.getHytameId() == null) return;
+
+                    UUID entityUuid = EcsReflectionUtil.getUuidFromRef(syncRef);
+                    if (entityUuid == null) return;
+
+                    // Already linked by UUID - just update entityRef if needed
+                    if (tamingManager.isTamed(entityUuid)) {
+                        TamedAnimalData data = tamingManager.getTamedData(entityUuid);
+                        if (data != null && data.getEntityRef() == null) {
+                            data.setEntityRef(syncRef);
+                            data.setDespawned(false);
+                        }
+                        return;
+                    }
+
+                    // Not linked by UUID - sync via hytameId (handles UUID changes after restart)
+                    TransformComponent transform = s.getComponent(syncRef, EcsReflectionUtil.TRANSFORM_TYPE);
+                    double x = 0, y = 0, z = 0;
+                    if (transform != null && transform.getPosition() != null) {
+                        x = transform.getPosition().getX();
+                        y = transform.getPosition().getY();
+                        z = transform.getPosition().getZ();
+                    }
+                    tamingManager.syncEntity(entityUuid, hyTame.getHytameId(), true,
+                            hyTame.getTamerUUID(), hyTame.getTamerName(), syncRef, x, y, z);
+                } catch (Exception e) {
+                    // Silent
+                }
+            });
+        }
+    }
+
+    /**
+     * Get the model asset ID from an entity reference.
+     */
+    private String getEntityModelAssetId(Store<EntityStore> store, Ref<EntityStore> entityRef) {
+        return EcsReflectionUtil.getEntityModelAssetId(store, entityRef);
+    }
+
+    // NOTE: setupEntityInteractions, setupCustomAnimalInteractions,
+    // updateAnimalInteractionState,
+    // updateTrackedAnimalStates, setupAbility2HintOnly,
+    // storeOriginalInteractionIdForCustom
+    // moved to InteractionSetupManager
+
+    /**
+     * Register listener to clean up breeding data when entities are removed (death,
+     * despawn, etc.)
+     */
+    private void registerEntityRemovalListener() {
+        try {
+            getEventRegistry().registerGlobal(EntityRemoveEvent.class, event -> {
+                try {
+                    Entity entity = event.getEntity();
+                    if (entity == null)
+                        return;
+
+                    UUID entityId = EntityUtil.getEntityUUID(entity);
+
+                    // Debug: Log all entity removals to check if event is firing
+                    try {
+                        Ref<EntityStore> debugRef = entity.getReference();
+                        Integer debugRefIndex = (debugRef != null) ? debugRef.getIndex() : null;
+                        boolean debugIsTamed = (tamingManager != null && tamingManager.isTamed(entityId));
+                        logVerbose("EntityRemoveEvent: entity removed - refIndex=" + debugRefIndex + ", uuid="
+                                + entityId + ", isTamed=" + debugIsTamed);
+                    } catch (Exception e) {
+                        // Silent
+                    }
+
+                    // Check if this is a tamed animal - don't delete, mark for respawn
+                    if (tamingManager != null && tamingManager.isTamed(entityId)) {
+                        // Check if animal is captured in a crate (metadata-based)
+                        TamedAnimalData tamedData = tamingManager.getTamedData(entityId);
+                        if (tamedData != null && tamedData.isCaptured()) {
+                            logVerbose("Tamed animal captured in crate (not marking as despawned): " + entityId);
+                            return;
+                        }
+
+                        // Get position before entity is fully removed
+                        Vector3d pos = null;
+                        try {
+                            if (entity instanceof LivingEntity) {
+                                LivingEntity le = (LivingEntity) entity;
+                                pos = le.getTransformComponent().getPosition();
+                            }
+                        } catch (Exception e) {
+                            // Try alternate method
+                        }
+
+                        double x = pos != null ? pos.getX() : 0;
+                        double y = pos != null ? pos.getY() : 0;
+                        double z = pos != null ? pos.getZ() : 0;
+
+                        // Track despawn for debugging
+                        trackDetectedDespawn(entityId);
+
+                        // Mark as despawned but keep data for respawn
+                        tamingManager.onTamedAnimalDespawn(entityId, x, y, z);
+                        logVerbose("Tamed animal despawned (marked for respawn): " + entityId);
+
+                        // Don't remove breeding data for tamed animals
+                        return;
+                    }
+
+                    // Regular animal cleanup
+                    BreedingData data = breedingManager.getData(entityId);
+                    if (data != null) {
+                        breedingManager.removeData(entityId);
+                    }
+
+                    // Clean up interaction state cache to prevent memory leak
+                    try {
+                        Ref<EntityStore> ref = entity.getReference();
+
+                        if (ref != null) {
+                            InteractionStateCache.getInstance().remove(ref);
+                        }
+                    } catch (Exception ex) {
+                        // Silent - entity may not have getReference method
+                    }
+                } catch (Exception e) {
+                    // Silent
+                }
+            });
+        } catch (Exception e) {
+            // Silent
+        }
+    }
+
+    /**
+     * Automatically set up interactions on all farm animals in all worlds.
+     * Public so it can be called from command classes.
+     */
+    public void autoSetupNearbyAnimals() {
+        if (verboseLogging)
+            getLogger().atInfo().log("[AutoScan] autoSetupNearbyAnimals CALLED");
+        try {
+            // Collect player UUIDs from all worlds to exclude from animal detection
+            final Set<UUID> playerUuids = new HashSet<>();
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null)
+                    continue;
+                for (Player p : world.getPlayers()) {
+                    UUID pUuid = EntityUtil.getEntityUUID(p);
+                    if (pUuid != null) {
+                        playerUuids.add(pUuid);
+                    }
+                }
+            }
+
+            // Scan all worlds for animals
+            if (verboseLogging)
+                getLogger().atInfo().log("[AutoScan] Starting animal scan in all worlds (customAnimals registered: %d)",
+                        configManager.getCustomAnimals().size());
+
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                String worldName = entry.getKey();
+                World world = entry.getValue();
+                if (world == null)
+                    continue;
+
+                if (verboseLogging)
+                    getLogger().atInfo().log("[AutoScan] Scanning world: %s", worldName);
+
+                AnimalFinder.findAnimals(world, false, animals -> {
+                    try {
+                        if (verboseLogging)
+                            getLogger().atInfo().log("[AutoScan] Found %d animals in world %s", animals.size(),
+                                    worldName);
+                        if (animals.isEmpty())
+                            return;
+
+                        // Log the registered custom animals for debugging (only once)
+                        if (verboseLogging && worldName.equals(Universe.get().getWorlds().keySet().iterator().next()))
+                            getLogger().atInfo().log("[AutoScan] Registered custom animals: %s",
+                                    String.join(", ", configManager.getCustomAnimals().keySet()));
+
+                        for (AnimalFinder.FoundAnimal animal : animals) {
+                            scanAnimal(animal, playerUuids);
+                        }
+                    } catch (Exception e) {
+                        // Log errors from animal processing
+                        logWarning("autoSetupNearbyAnimals callback error in " + worldName + ": "
+                                + e.getClass().getSimpleName() + ": "
+                                + e.getMessage());
+                        if (verboseLogging && e.getCause() != null) {
+                            logWarning("  Caused by: " + e.getCause().getMessage());
+                        }
+                    }
+                });
+            }
+
+        } catch (Exception e) {
+            // Log errors from initial setup
+            logWarning("autoSetupNearbyAnimals setup error: " + e.getClass().getSimpleName() + ": " + e.getMessage());
+        }
+    }
+
+    private void scanAnimal(AnimalFinder.FoundAnimal animal, Set<UUID> playerUuids) {
+        Ref<EntityStore> entityRef = animal.getEntityRef();
+        AnimalType animalType = animal.getAnimalType();
+        String modelId = animal.getModelAssetId();
+
+        // Check if this modelId matches any registered custom animal
+        if (configManager.isCustomAnimal(modelId)) {
+            if (verboseLogging)
+                getLogger().atInfo().log(
+                        "[AutoScan] Processing potential custom animal: '%s' (animalType=%s)", modelId,
+                        animalType);
+        }
+
+        // Skip if this is a player entity (prevents attaching interactions to players
+        // with animal models)
+        if (entityRef instanceof Ref) {
+            @SuppressWarnings("unchecked")
+            Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+            // Skip UUID check if ref is stale - entity despawned, just proceed
+            if (!ref.isValid()) {
+                logVerbose("[AnimalScan] Skipping stale entity ref for " + animal.getModelAssetId());
+                return;
+            }
+            try {
+                Store<EntityStore> refStore = ref.getStore();
+                if (refStore != null) {
+                    UUIDComponent uuidComp = refStore.getComponent(ref, EcsReflectionUtil.UUID_TYPE);
+                    if (uuidComp != null && uuidComp.getUuid() != null) {
+                        if (playerUuids.contains(uuidComp.getUuid())) {
+                            logVerbose("Skipping player entity with animal model: "
+                                    + animal.getModelAssetId());
+                            return;
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                // UUID check failed - this happens when UUIDComponent doesn't exist
+                // This is OK: the check is only to filter players, not to validate animals
+                // Don't skip any animals - proceed with interaction setup
+                if (configManager.isCustomAnimal(modelId)) {
+                    logVerbose("[CustomAnimal] " + modelId
+                            + " has no UUID component (expected for custom NPCs), proceeding");
+                } else {
+                    logVerbose("[AnimalScan] UUID check failed for " + animal.getModelAssetId()
+                            + " (proceeding anyway): " + e.getMessage());
+                }
+                // Note: Do NOT skip - both built-in and custom animals should proceed
+            }
+        }
+
+        // Check if it's a custom animal (from config)
+        CustomAnimalConfig customAnimal = null;
+        if (animalType == null) {
+            customAnimal = configManager.getCustomAnimal(modelId);
+            // Debug: log custom animal lookup attempts
+            if (customAnimal != null) {
+                if (verboseLogging)
+                    getLogger().atInfo().log("[CustomAnimal] Found match for '%s' (enabled=%s)",
+                            modelId, customAnimal.isEnabled());
+            } else if (configManager.getCustomAnimals().size() > 0) {
+                // Only log if there are custom animals registered - ALWAYS LOG THIS
+                if (verboseLogging)
+                    getLogger().atInfo().log("[CustomAnimal] No match for '%s' (registered: %s)",
+                            modelId, String.join(", ", configManager.getCustomAnimals().keySet()));
+            }
+        } else {
+            // Log if a potential custom animal is being detected as built-in
+            if (configManager.isCustomAnimal(modelId)) {
+                getLogger().atWarning().log(
+                        "[CustomAnimal] '%s' matched as built-in %s instead of custom!", modelId,
+                        animalType);
+            }
+        }
+
+        // Skip if not a recognized farm animal OR custom animal
+        if (animalType == null && customAnimal == null) {
+            return;
+        }
+
+        // Skip if neither breeding nor taming is enabled
+        if (animalType != null && !configManager.isBreedingEnabled(animalType)
+                && !configManager.isTamingEnabled(animalType)) {
+            logVerbose("Skipping disabled animal: " + animalType);
+            return;
+        }
+        if (customAnimal != null && !customAnimal.isBreedingEnabled() && !customAnimal.isTamingEnabled()) {
+            logVerbose("Skipping disabled custom animal: " + animal.getModelAssetId());
+            return;
+        }
+
+        // Check if this is a baby that needs growth tracking
+        if (animal.isBaby() && animalType != null) {
+            UUID babyId = UUID.nameUUIDFromBytes(entityRef.toString().getBytes());
+            if (breedingManager.getData(babyId) == null) {
+                breedingManager.registerBaby(babyId, animalType, entityRef);
+            }
+        }
+
+        // Set up interactions for adults (babies can't breed)
+        // NOTE: Disabled - asset-based patches now handle all interactions via InteractionInstruction + HyTameFeedInteraction
+        // Legacy code preserved but not executed
+        if (!animal.isBaby() && USE_LEGACY_FEED_INTERACTION) {
+            @SuppressWarnings("unchecked")
+            Ref<EntityStore> ref = (Ref<EntityStore>) entityRef;
+            Store<EntityStore> refStore = ref.getStore();
+            if (refStore != null) {
+                if (USE_ENTITY_BASED_INTERACTIONS) {
+                    // Legacy: Set up entity-based interactions (Use key)
+                    if (animalType != null) {
+                        logVerbose("Setting up interactions for adult: " + animal.getModelAssetId()
+                                + " (type: "
+                                + animalType + ")");
+                        interactionSetupManager.setupEntityInteractions(refStore, ref, animalType);
+                    } else if (customAnimal != null) {
+                        if (verboseLogging)
+                            getLogger().atInfo().log(
+                                    "[CustomAnimal] ABOUT TO CALL setupCustomAnimalInteractions for: %s",
+                                    animal.getModelAssetId());
+                        interactionSetupManager.setupCustomAnimalInteractions(refStore, ref, customAnimal);
+                    }
+                } else if (SHOW_ABILITY2_HINTS_ON_ENTITIES) {
+                    // Item-based with hints: Show Ability2 hint on animals
+                    String hintKey = (animalType != null && animalType.isMountable())
+                            ? "server.interactionHints.feed"
+                            : "server.interactionHints.feed";
+                    interactionSetupManager.setupAbility2HintOnly(refStore, ref, hintKey);
+                }
+            } else {
+                getLogger().atWarning().log("[CustomAnimal] refStore is NULL for: %s",
+                        animal.getModelAssetId());
+            }
+        } else {
+            if (customAnimal != null) {
+                if (verboseLogging)
+                    getLogger().atInfo().log("[CustomAnimal] Skipping baby custom animal: %s",
+                            animal.getModelAssetId());
+            }
+        }
+    }
+
+    /**
+     * Register the player interaction event handler for breeding.
+     * Delegates to MouseInteractionHandler for actual event processing.
+     */
+    private void registerInteractionHandler() {
+        try {
+            getEventRegistry().register(PlayerMouseButtonEvent.class, mouseInteractionHandler::onMouseButton);
+        } catch (Exception e) {
+        }
+        try {
+            getEventRegistry().registerGlobal(PlayerInteractEvent.class, mouseInteractionHandler::onPlayerInteract);
+        } catch (Exception e) {
+        }
+    }
+
+    // NOTE: onMouseButton, onPlayerInteract, handleMouseClick, capitalize moved to
+    // MouseInteractionHandler
+    // NOTE: consumeHeldItem(), playFeedingSound(), isNameTagItem(),
+    // spawnBabyAnimal() - removed as unused
+    // NOTE: Spawning moved to SpawningManager, breeding tick to BreedingTickManager
+
+    /**
+     * Scan the world for untracked baby animals and register them.
+     * This is a fallback detection system for babies that slipped through primary
+     * registration.
+     *
+     * @return Number of newly registered babies
+     */
+    @SuppressWarnings("unchecked")
+    public int scanForUntrackedBabies() {
+        int registered = 0;
+        try {
+            java.util.List<BreedingManager.UntrackedBaby> untrackedBabies = new java.util.ArrayList<>();
+
+            // Scan all worlds for untracked babies
+            for (java.util.Map.Entry<String, World> entry : Universe.get().getWorlds().entrySet()) {
+                World world = entry.getValue();
+                if (world == null)
+                    continue;
+
+                Store<EntityStore> store = world.getEntityStore().getStore();
+                if (store == null)
+                    continue;
+
+                world.execute(() -> {
+                    store.forEachChunk((ArchetypeChunk<EntityStore> chunk, CommandBuffer<EntityStore> buffer) -> {
+                        int size = chunk.size();
+                        for (int i = 0; i < size; i++) {
+                            try {
+                                Ref<EntityStore> ref = chunk.getReferenceTo(i);
+
+                                String modelAssetId = getEntityModelAssetId(store, ref);
+                                if (modelAssetId == null)
+                                    continue;
+
+                                // Check if this is a baby model
+                                if (!AnimalType.isBabyVariant(modelAssetId))
+                                    continue;
+
+                                // Get the animal type for this baby
+                                AnimalType animalType = AnimalType.fromModelAssetId(modelAssetId);
+                                if (animalType == null)
+                                    continue;
+
+                                // Check if already tracked
+                                UUID refUuid = UUID.nameUUIDFromBytes(ref.toString().getBytes());
+                                if (breedingManager.isBabyTracked(ref, refUuid))
+                                    continue;
+
+                                // Found an untracked baby
+                                synchronized (untrackedBabies) {
+                                    untrackedBabies
+                                            .add(new BreedingManager.UntrackedBaby(ref, modelAssetId, animalType));
+                                }
+                            } catch (Exception e) {
+                                // Skip invalid refs
+                            }
+                        }
+                    });
+                });
+            }
+
+            // Register all untracked babies
+            for (BreedingManager.UntrackedBaby baby : untrackedBabies) {
+                UUID babyId = UUID.nameUUIDFromBytes(baby.getEntityRef().toString().getBytes());
+                breedingManager.registerBaby(babyId, baby.getAnimalType(), baby.getEntityRef());
+                registered++;
+                logVerbose("[BabyScan] Registered untracked baby: " + baby.getModelAssetId());
+            }
+
+            if (registered > 0 || verboseLogging) {
+                if (registered > 0) {
+                    getLogger().atInfo().log("[BabyScan] Found %d untracked babies across all worlds, registered all",
+                            registered);
+                }
+            }
+
+        } catch (Exception e) {
+            logVerbose("[BabyScan] Error: " + e.getMessage());
+        }
+        return registered;
+    }
+
+    /**
+     * Resolve the config directory: Config_HyTame, with migration from Lait_AnimalBreeding.
+     */
+    private java.nio.file.Path resolveConfigDirectory() {
+        java.nio.file.Path parent = getDataDirectory().getParent();
+        java.nio.file.Path configDir = parent.resolve("Config_HyTame");
+        java.nio.file.Path oldDir = parent.resolve("Lait_AnimalBreeding");
+
+        if (!java.nio.file.Files.exists(configDir) && java.nio.file.Files.exists(oldDir)) {
+            try {
+                // Migrate: copy all files from old to new
+                java.nio.file.Files.createDirectories(configDir);
+                try (var stream = java.nio.file.Files.walk(oldDir)) {
+                    stream.forEach(source -> {
+                        java.nio.file.Path target = configDir.resolve(oldDir.relativize(source));
+                        try {
+                            if (java.nio.file.Files.isDirectory(source)) {
+                                java.nio.file.Files.createDirectories(target);
+                            } else {
+                                java.nio.file.Files.copy(source, target,
+                                        java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                            }
+                        } catch (java.io.IOException e) {
+                            getLogger().atWarning().log("Failed to migrate file: " + source + " -> " + e.getMessage());
+                        }
+                    });
+                }
+                getLogger().atInfo().log("Migrated config from Lait_AnimalBreeding to Config_HyTame");
+
+                // Delete old directory after successful migration
+                try (var stream = java.nio.file.Files.walk(oldDir)) {
+                    stream.sorted(java.util.Comparator.reverseOrder())
+                            .forEach(path -> {
+                                try { java.nio.file.Files.delete(path); } catch (java.io.IOException e) { /* skip */ }
+                            });
+                }
+                getLogger().atInfo().log("Deleted old Lait_AnimalBreeding directory");
+            } catch (java.io.IOException e) {
+                getLogger().atWarning().log("Config migration failed: " + e.getMessage());
+            }
+        }
+
+        try {
+            java.nio.file.Files.createDirectories(configDir);
+        } catch (java.io.IOException e) {
+            getLogger().atWarning().log("Failed to create config directory: " + e.getMessage());
+        }
+        return configDir;
+    }
+
+    @Override
+    protected void shutdown() {
+        getLogger().atInfo().log("[HyTame] Plugin shutdown");
+
+        // Stop tick scheduler and wait for tasks to finish
+        if (tickScheduler != null) {
+            // Cancel all scheduled tasks first
+            for (ScheduledFuture<?> task : scheduledTasks) {
+                task.cancel(false);
+            }
+            scheduledTasks.clear();
+
+            tickScheduler.shutdown();
+            try {
+                if (!tickScheduler.awaitTermination(5, TimeUnit.SECONDS)) {
+                    tickScheduler.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                tickScheduler.shutdownNow();
+            }
+        }
+
+        // Save tamed animal data before shutdown (only if persistence enabled)
+        if (configManager != null && configManager.isPersistenceEnabled()
+                && persistenceManager != null && tamingManager != null) {
+            getLogger().atInfo().log("[Taming] Saving tamed animals on shutdown...");
+            persistenceManager.stopAutoSave();
+            persistenceManager.forceSaveSync(tamingManager.getAllTamedAnimals());
+        }
+
+        // Clear breeding data
+        if (breedingManager != null) {
+            breedingManager.clearAll();
+        }
+
+        // Note: CoopResidentTracker no longer has in-memory storage (uses CODEC companion map)
+
+        // Clear static instance
+        instance = null;
+    }
+
+    public static HyTamePlugin getInstance() {
+        return instance;
+    }
+
+    public java.nio.file.Path getConfigDirectory() {
+        return configDirectory;
+    }
+
+    public ConfigManager getConfigManager() {
+        return configManager;
+    }
+
+    public BreedingManager getBreedingManager() {
+        return breedingManager;
+    }
+
+    public TamingManager getTamingManager() {
+        return tamingManager;
+    }
+
+    public PersistenceManager getPersistenceManager() {
+        return persistenceManager;
+    }
+
+    public GrowthManager getGrowthManager() {
+        return growthManager;
+    }
+
+    public SpawningManager getSpawningManager() {
+        return spawningManager;
+    }
+
+    /**
+     * Get the HyTameComponent type for ECS operations.
+     * Used by TameHelper and other classes that need to check/set tame state.
+     */
+    public ComponentType<EntityStore, HyTameComponent> getHyTameComponentType() {
+        return hyTameComponentType;
+    }
+
+    /**
+     * Get the HyTameInteractionComponent type for ECS operations.
+     * Used to persist original interaction state across server restarts.
+     */
+    public ComponentType<EntityStore, HyTameInteractionComponent> getHyTameInteractionComponentType() {
+        return hyTameInteractionComponentType;
+    }
+
+    /**
+     * Get the TamedRoleManager for asset-based taming.
+     * Used by TameHelper to apply tamed roles when animals are tamed.
+     */
+    public TamedRoleManager getTamedRoleManager() {
+        return tamedRoleManager;
+    }
+
+    /**
+     * Check if asset-based taming should be used.
+     * Returns true if enabled and TamedRoleManager is initialized.
+     * Falls back to legacy InteractionSetupManager if false.
+     */
+    public boolean shouldUseAssetBasedTaming() {
+        return useAssetBasedTaming && tamedRoleManager != null && tamedRoleManager.isInitialized();
+    }
+
+    /**
+     * Get the PatchSyncService for syncing LovedItems patches.
+     * Used by commands to trigger patch sync after food changes.
+     */
+    public PatchSyncService getPatchSyncService() {
+        return patchSyncService;
+    }
+
+}

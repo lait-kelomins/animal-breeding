@@ -22,7 +22,7 @@ growth:
     juvenile: 3
 
 # Enable debug logging
-debug: false
+debug: true
 
 # Customizable messages (supports color codes with &)
 messages:

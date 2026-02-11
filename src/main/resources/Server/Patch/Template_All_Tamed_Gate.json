@@ -1,0 +1,49 @@
+{
+    "$Comment": "[HYTAME] Suppress player aggression for all tamed animals (except Animal_Neutral which has its own gate with $Harvest check)",
+    "_BaseAssetPath": "regex:Server/NPC/Roles/_Core/Templates/Template_(?!Animal_Neutral\\b).+\\.json",
+    "_priority": 90,
+    "Instructions": [
+        {
+            "_op": "add",
+            "_index": 0,
+            "Continue": true,
+            "$Comment": "[HYTAME] Tamed: release stale Friendly targets (player after LovedItems override)",
+            "Sensor": {
+                "Type": "And",
+                "Sensors": [
+                    { "Type": "Tamed", "Set": true },
+                    {
+                        "Type": "Target",
+                        "Filters": [
+                            { "Type": "Attitude", "Attitudes": ["Friendly"] }
+                        ]
+                    }
+                ]
+            },
+            "Actions": [
+                { "Type": "ReleaseTarget" }
+            ]
+        },
+        {
+            "_op": "add",
+            "_index": 1,
+            "Continue": true,
+            "$Comment": "[HYTAME] Tamed + no target: override player to Friendly. Children nesting prevents LockOnTarget from hijacking prey targets.",
+            "Sensor": { "Type": "Tamed", "Set": true },
+            "Children": [
+                {
+                    "Sensor": { "Type": "Not", "Sensor": { "Type": "Target" } },
+                    "Children": [
+                        {
+                            "Sensor": { "Type": "Player", "Range": 30, "LockOnTarget": true },
+                            "Actions": [
+                                { "Type": "OverrideAttitude", "Attitude": "Friendly", "Duration": 300 },
+                                { "Type": "ReleaseTarget" }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

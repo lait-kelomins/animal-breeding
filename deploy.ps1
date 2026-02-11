@@ -1,4 +1,4 @@
-# deploy.ps1 - Lait's Animal Breeding build and deploy script
+# deploy.ps1 - HyTame build and deploy script
 # Builds both default (F key) and experimental (E key) variants
 # Usage: .\deploy.ps1
 #        .\deploy.ps1 -Reset    (clears saved configuration)
@@ -37,7 +37,7 @@ if ($Reset) {
 # CONFIGURATION
 # ============================================
 
-$PLUGIN_NAME = "laits-animal-breeding"
+$PLUGIN_NAME = "hytame"
 
 # Read version from build.gradle automatically
 $buildGradle = Get-Content "build.gradle" -Raw
@@ -90,7 +90,7 @@ function Get-ConfigValue {
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor Cyan
-Write-Host "   LAIT'S ANIMAL BREEDING DEPLOY SETUP     " -ForegroundColor Cyan
+Write-Host "          HYTAME DEPLOY SETUP               " -ForegroundColor Cyan
 Write-Host "============================================" -ForegroundColor Cyan
 
 # Use existing JAVA_HOME as default if available
@@ -205,6 +205,7 @@ function Deploy {
 
     Write-Host ""
 
+if ($false) {
     # ========================================
     # BUILD EXPERIMENTAL VERSION (E key)
     # ========================================
@@ -225,15 +226,16 @@ function Deploy {
     # Copy experimental JAR to client
     $expJar = "build\libs\$PLUGIN_NAME-$VERSION-experimental.jar"
     $expDestFile = Join-Path $dest "$PLUGIN_NAME-$VERSION-experimental.jar"
-    Copy-Item $expJar $expDestFile -Force
+    # Copy-Item $expJar $expDestFile -Force
     Write-Host "DEPLOYED (client): $expDestFile" -ForegroundColor Green
 
     # Deploy to server immediately if experimental is selected
     if (-not [string]::IsNullOrWhiteSpace($serverDest) -and $script:serverBuildType -eq "experimental") {
         $serverFile = Join-Path $serverDest "$PLUGIN_NAME-$VERSION-experimental.jar"
-        Copy-Item $expJar $serverFile -Force
+        # Copy-Item $expJar $serverFile -Force
         Write-Host "DEPLOYED (server): $serverFile" -ForegroundColor Yellow
     }
+}
 
     Write-Host ""
     Write-Host "============================================" -ForegroundColor Green
@@ -249,8 +251,8 @@ function Deploy {
     }
     Write-Host ""
     Write-Host "Reload commands:" -ForegroundColor Yellow
-    Write-Host "  /plugin unload Lait:AnimalBreeding" -ForegroundColor DarkGray
-    Write-Host "  /plugin load Lait:AnimalBreeding" -ForegroundColor DarkGray
+    Write-Host "  /plugin unload HyTame:HyTame" -ForegroundColor DarkGray
+    Write-Host "  /plugin load HyTame:HyTame" -ForegroundColor DarkGray
     Write-Host ""
 
     return $true
@@ -334,7 +336,7 @@ function ShowPrompt {
 # Main
 Clear-Host
 Write-Host ""
-Write-Host "  LAIT'S ANIMAL BREEDING DEPLOY" -ForegroundColor Cyan
+Write-Host "  HYTAME DEPLOY" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Build variants:" -ForegroundColor White
 Write-Host "    - Default (F key): Press F to feed" -ForegroundColor DarkGray

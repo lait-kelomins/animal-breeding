@@ -1,0 +1,123 @@
+{
+    "$Comment": "Add taming/feeding to all animals with LovedItems, including harvestable/mountable ones",
+    "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+    "InteractionInstruction": {
+        "Instructions": [
+            {
+                "$Comment": "Index 0: Modify harvestable block - add tame checks BEFORE harvest logic",
+                "_find": {
+                    "Enabled": {
+                        "Compute": "IsHarvestable"
+                    }
+                },
+                "_op": "addAfter",
+                "Enabled": {
+                    "Compute": "!isEmptyStringArray(LovedItems) && IsHarvestable"
+                },
+                "Instructions": [
+                    {
+                        "$Comment": "BLOCK 1: Taming Logic (Wild Animals)",
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Not",
+                                    "Sensor": {
+                                        "Type": "Tamed",
+                                        "Set": true
+                                    }
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": true
+                            }
+                        ]
+                    },
+                    {
+                        "Sensor": {
+                            "Type": "HasInteracted"
+                        },
+                        "Actions": [
+                            {
+                                "Type": "HyTameFeedInteraction"
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                "$Comment": "Index 1: Modify harvestable block - add feed checks BEFORE harvest logic",
+                "_find": {
+                    "Enabled": {
+                        "Compute": "!isEmptyStringArray(LovedItems) && IsHarvestable"
+                    }
+                },
+                "_op": "addAfter",
+                "Enabled": {
+                    "Compute": "IsHarvestable"
+                },
+                "Instructions": [
+                    {
+                        "$Comment": "BLOCK 2: Feeding Logic (Tamed Animals)",
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                {
+                                    "Type": "Tamed",
+                                    "Set": true
+                                },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [
+                                        {
+                                            "Type": "ItemInHand",
+                                            "Items": {
+                                                "Compute": "LovedItems"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            {
+                                "Type": "SetInteractable",
+                                "Interactable": true,
+                                "ShowPrompt": true
+                            }
+                        ]
+                    },
+                    {
+                        "Sensor": {
+                            "Type": "HasInteracted"
+                        },
+                        "Actions": [
+                            {
+                                "Type": "HyTameFeedInteraction"
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

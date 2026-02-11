@@ -1,0 +1,37 @@
+{
+    "$Comment": "[HYTAME] Tamed animals follow player holding LovedItems",
+    "_BaseAssetPath": "regex:Server/NPC/Roles/_Core/Templates/Template_.+\\.json",
+    "_priority": 90,
+    "Instructions": [
+        {
+            "_op": "add",
+            "_index": 0,
+            "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+            "$Comment": "[HYTAME] Tamed + player holds LovedItems = follow (no Continue — cuts chain, prevents detection/attack)",
+            "Sensor": {
+                "Type": "And",
+                "Sensors": [
+                    { "Type": "Tamed", "Set": true },
+                    {
+                        "Type": "Player",
+                        "Range": 30,
+                        "LockOnTarget": true,
+                        "Filters": [
+                            { "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }
+                        ]
+                    }
+                ]
+            },
+            "Actions": [
+                { "Type": "OverrideAttitude", "Attitude": "Friendly", "Duration": 10 }
+            ],
+            "HeadMotion": { "Type": "Watch" },
+            "BodyMotion": {
+                "Type": "Seek",
+                "SlowDownDistance": 3.5,
+                "StopDistance": 2,
+                "RelativeSpeed": 0.7
+            }
+        }
+    ]
+}

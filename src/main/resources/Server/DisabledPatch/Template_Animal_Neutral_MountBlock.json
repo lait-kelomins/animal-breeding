@@ -1,0 +1,54 @@
+{
+  "$Comment": "Block mounting when wild OR when player holds loved item",
+  "BaseAssetPath": "NPC/Roles/_Core/Templates/Template_Animal_Neutral",
+  "InteractionInstruction": {
+    "Instructions": [
+      {
+        "$Comment": "Find the mountable block by its Enabled condition",
+        "_find": {
+          "Enabled": { "Compute": "IsMountable" }
+        },
+        "Instructions": [
+          {
+            "$Comment": "Find and modify the HasInteracted -> Mount instruction",
+            "_find": {
+              "Sensor": { "Type": "HasInteracted" }
+            },
+            "Sensor": {
+              "Type": "And",
+              "Sensors": [
+                {
+                  "Type": "HasInteracted"
+                },
+                {
+                  "$Comment": "Must be tamed to mount",
+                  "Type": "Tamed",
+                  "Set": true
+                },
+                {
+                  "$Comment": "Only mount if player is NOT holding a loved item",
+                  "Type": "Not",
+                  "Sensor": {
+                    "Enabled": {
+                      "Compute": "!isEmptyStringArray(LovedItems)"
+                    },
+                    "Type": "Player",
+                    "Range": 5,
+                    "Filters": [
+                      {
+                        "Type": "ItemInHand",
+                        "Items": {
+                          "Compute": "LovedItems"
+                        }
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
