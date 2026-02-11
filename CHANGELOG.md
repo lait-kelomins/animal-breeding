@@ -4,9 +4,7 @@
 
 ### Fixed
 - **Patches now apply instantly on first install** - Patches are written during setup and loaded via LoadAssetEvent hook (no more 5-second delay)
-- **Correct patch format for livestock variants** - Animals with native LovedItems (sheep, cow, etc.) now use Modify with `$.LovedItems` replacement; others use Parameters
-- **Patches always written on first install** - Fixed needsSync() skipping patch creation when config matched enum defaults
-- **Server API updated** - Updated dependency to `2026.01.28-87d03be09` (old version removed from Maven)
+- **Correct patch format for livestock variants** - Animals with native LovedItems (sheep, cow, etc.) now override them (previously the original loved items couldn't be removed)
 
 ### Added
 - `/hytame debug sync` command to force re-sync all config patches
