@@ -755,16 +755,16 @@ public class ConfigManager {
      */
     public void reloadFromFile() {
         if (configFilePath == null) {
-            log("No config file path set, cannot reload");
+            logVerbose("No config file path set, cannot reload");
             return;
         }
 
         try {
             String json = Files.readString(configFilePath);
             loadFromJson(json);
-            log("Reloaded config from: " + configFilePath);
+            logVerbose("Reloaded config from: " + configFilePath);
         } catch (Exception e) {
-            log("Error reloading config: " + e.getMessage());
+            logVerbose("Error reloading config: " + e.getMessage());
         }
     }
 
@@ -992,6 +992,54 @@ public class ConfigManager {
             return true;
         } catch (Exception e) {
             logVerbose("Error saving preset: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Rename a preset file on disk.
+     * Cannot rename built-in presets. If the renamed preset is active, updates the active preset name.
+     * @param oldName Current preset name
+     * @param newName New preset name
+     * @return true if renamed successfully
+     */
+    public boolean renamePreset(String oldName, String newName) {
+        if (presetsDirectory == null) {
+            logVerbose("Presets directory not initialized");
+            return false;
+        }
+        if (isBuiltinPreset(oldName)) {
+            logVerbose("Cannot rename built-in preset: " + oldName);
+            return false;
+        }
+        if (!isValidPresetName(newName)) {
+            logVerbose("Invalid new preset name: " + newName);
+            return false;
+        }
+        try {
+            Path oldFile = presetsDirectory.resolve(oldName + ".json");
+            Path newFile = presetsDirectory.resolve(newName + ".json");
+            if (!oldFile.normalize().startsWith(presetsDirectory.normalize()) ||
+                !newFile.normalize().startsWith(presetsDirectory.normalize())) {
+                logVerbose("Security error: preset path escapes presets directory");
+                return false;
+            }
+            if (!Files.exists(oldFile)) {
+                logVerbose("Preset file not found: " + oldFile);
+                return false;
+            }
+            if (Files.exists(newFile)) {
+                logVerbose("Preset already exists: " + newName);
+                return false;
+            }
+            Files.move(oldFile, newFile);
+            if (oldName.equals(activePreset)) {
+                activePreset = newName;
+            }
+            logVerbose("Renamed preset: " + oldName + " -> " + newName);
+            return true;
+        } catch (Exception e) {
+            logVerbose("Error renaming preset: " + e.getMessage());
             return false;
         }
     }

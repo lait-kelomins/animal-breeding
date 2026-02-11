@@ -422,8 +422,31 @@ public class HytameCommand extends AbstractCommand {
         }
 
         private static void executeSettingsLogic(CommandContext ctx) {
-            ctx.sendMessage(Message.raw("This command is not yet available.").color("#FFFF55"));
-            ctx.sendMessage(Message.raw("By default, others CAN interact with your tamed animals.").color("#AAAAAA"));
+            if (!ctx.isPlayer()) {
+                ctx.sendMessage(Message.raw("This command can only be used by players").color("#FF5555"));
+                return;
+            }
+
+            Player player = (Player) ctx.sender();
+            World world = Universe.get().getDefaultWorld();
+            if (world == null) {
+                ctx.sendMessage(Message.raw("World not available").color("#FF5555"));
+                return;
+            }
+
+            world.execute(() -> {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Ref<EntityStore> playerEntityRef = (Ref<EntityStore>) player.getReference();
+                    Store<EntityStore> store = playerEntityRef.getStore();
+
+                    com.hytame.ui.ConfigPanelUIPage configPage =
+                        new com.hytame.ui.ConfigPanelUIPage(player.getPlayerRef());
+                    player.getPageManager().openCustomPage(playerEntityRef, store, configPage);
+                } catch (Exception e) {
+                    player.sendMessage(Message.raw("Failed to open config panel: " + e.getMessage()).color("#FF5555"));
+                }
+            });
         }
     }
 
