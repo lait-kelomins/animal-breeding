@@ -7,6 +7,7 @@ import com.hytame.models.AnimalType;
 import com.hytame.models.CustomAnimalConfig;
 import com.hypixel.hytale.common.plugin.PluginManifest;
 import com.hypixel.hytale.common.semver.Semver;
+import com.hypixel.hytale.assetstore.AssetPack;
 import com.hypixel.hytale.server.core.asset.AssetModule;
 import com.hypixel.hytale.server.core.plugin.PluginManager;
 
@@ -62,9 +63,23 @@ public class PatchSyncService {
             }
             """;
 
+    // Animals whose variant file already defines LovedItems in their Modify section.
+    // These need "Modify" patches; others need "Parameters" patches.
+    // Source: reverse-engineer/source/Assets/Server/NPC/Roles/ (grep for LovedItems)
+    private static final Set<String> HAS_NATIVE_LOVED_ITEMS = Set.of(
+        "Boar", "Boar_Piglet", "Bunny", "Camel", "Camel_Calf",
+        "Chicken", "Chicken_Chick", "Chicken_Desert", "Chicken_Desert_Chick",
+        "Cow", "Cow_Calf", "Goat", "Goat_Kid", "Horse", "Horse_Foal",
+        "Mosshorn", "Mosshorn_Plain", "Mouflon", "Mouflon_Lamb",
+        "Penguin", "Pig", "Pig_Piglet", "Pig_Wild", "Pig_Wild_Piglet",
+        "Rabbit", "Ram", "Ram_Lamb", "Sheep", "Sheep_Lamb",
+        "Skrill", "Skrill_Chick", "Turkey", "Turkey_Chick", "Warthog_Piglet"
+    );
+
     private Path assetPackRoot;
     private Path patchFolder;
     private ConfigManager configManager;
+    private boolean forceSyncAll = false;
 
     /**
      * Initialize the patch sync service.
@@ -95,6 +110,19 @@ public class PatchSyncService {
         syncAllPatchesInternal();
     }
 
+    /**
+     * Force sync all patches, ignoring needsSync check.
+     * Writes patches for ALL animals with configured foods.
+     */
+    public void forceSyncAllPatches() {
+        forceSyncAll = true;
+        try {
+            syncAllPatchesInternal();
+        } finally {
+            forceSyncAll = false;
+        }
+    }
+
     public void syncAllPatchesDeferred(int delaySeconds) {
         new Thread(() -> {
             try {
@@ -108,8 +136,8 @@ public class PatchSyncService {
     }
 
     /**
-     * Create the asset pack structure and register it with AssetModule
-     * so Hytalor discovers and hot-reloads patches from it.
+     * Create the asset pack directory structure and manifest.
+     * Does NOT register with AssetModule — call registerAssetPack() from start().
      */
     private void ensureAssetPackExists() {
         try {
@@ -122,9 +150,6 @@ public class PatchSyncService {
                 Files.writeString(manifestPath, MANIFEST_TEMPLATE);
                 logVerbose("Created asset pack manifest: " + manifestPath);
             }
-
-            // Register as an asset pack so Hytalor picks up Server/Patch/
-            registerAssetPack();
         } catch (IOException e) {
             logWarning("Failed to create asset pack structure: " + e.getMessage());
         }
@@ -135,8 +160,10 @@ public class PatchSyncService {
      * Hytalor iterates registered asset packs and loads patches from each pack's
      * Server/Patch/.
      * Without this registration, Hytalor doesn't know our patch directory exists.
+     *
+     * Must be called from start() — AssetModule is not ready during setup().
      */
-    private void registerAssetPack() {
+    public void registerAssetPack() {
         try {
             PluginManifest manifest = new PluginManifest(
                     "com.hytame",
@@ -239,20 +266,19 @@ public class PatchSyncService {
      * patch).
      */
     private boolean needsSync(AnimalType type, List<String> configFoods) {
+        if (forceSyncAll) return true;
+
         Path patchFile = patchFolder.resolve("NPC_" + type.getModelAssetId() + ".json");
 
         if (Files.exists(patchFile)) {
             // Compare against existing patch
             List<String> patchFoods = readLovedItemsFromPatch(patchFile);
             return !foodsMatch(configFoods, patchFoods);
-        } else {
-            // No patch exists - only create if config differs from enum default
-            String defaultFood = type.getDefaultBreedingFood();
-            if (configFoods.size() == 1 && configFoods.contains(defaultFood)) {
-                return false; // Config matches default, no patch needed
-            }
-            return true; // Config differs from default, need patch
         }
+
+        // No patch exists - always write one. HyTame's config foods
+        // likely differ from vanilla LovedItems, so a patch is needed.
+        return true;
     }
 
     /**
@@ -314,7 +340,7 @@ public class PatchSyncService {
         }
 
         Path patchFile = patchFolder.resolve("NPC_" + name + ".json");
-        String json = generateCombinedPatchJson(npcPath, lovedItems, breedCooldownMinutes, growthMinutes);
+        String json = generateCombinedPatchJson(name, npcPath, lovedItems, breedCooldownMinutes, growthMinutes);
 
         try {
             Files.writeString(patchFile, json);
@@ -345,44 +371,77 @@ public class PatchSyncService {
     }
 
     /**
-     * Generate combined patch JSON with LovedItems + optional Parameters.
+     * Generate combined patch JSON with LovedItems + optional timing parameters.
+     *
+     * Animals with native LovedItems (in their variant's Modify section) use:
+     *   "Modify": { "LovedItems": [...] }
+     * Others (no LovedItems in variant) use:
+     *   "Parameters": { "LovedItems": { "Value": [...] } }
      */
-    private String generateCombinedPatchJson(String npcPath, List<String> lovedItems,
-            double breedCooldownMinutes, double growthMinutes) {
+    private String generateCombinedPatchJson(String modelAssetId, String npcPath,
+            List<String> lovedItems, double breedCooldownMinutes, double growthMinutes) {
+        boolean useModify = HAS_NATIVE_LOVED_ITEMS.contains(modelAssetId);
+
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
         sb.append("    \"$Comment\": \"Auto-generated by HyTame - DO NOT EDIT\",\n");
         sb.append("    \"_BaseAssetPath\": \"Server/").append(npcPath).append(".json\",\n");
 
-        // Parameters section: LovedItems + optional BreedCooldownTimeout/GrowthTimeout
-        sb.append("    \"Parameters\": {\n");
-        sb.append("        \"LovedItems\": {\n");
-        sb.append("            \"Value\": [");
-        for (int i = 0; i < lovedItems.size(); i++) {
-            if (i > 0)
-                sb.append(", ");
-            sb.append("\"").append(lovedItems.get(i)).append("\"");
+        if (useModify) {
+            // Variant already defines LovedItems in Modify — use $.key to replace
+            sb.append("    \"Modify\": {\n");
+            sb.append("        \"$.LovedItems\": [");
+            for (int i = 0; i < lovedItems.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append("\"").append(lovedItems.get(i)).append("\"");
+            }
+            sb.append("]\n");
+            sb.append("    }");
+        } else {
+            // Template doesn't define LovedItems natively — use Parameters
+            sb.append("    \"Parameters\": {\n");
+            sb.append("        \"LovedItems\": {\n");
+            sb.append("            \"Value\": [");
+            for (int i = 0; i < lovedItems.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append("\"").append(lovedItems.get(i)).append("\"");
+            }
+            sb.append("]\n");
+            sb.append("        }");
         }
-        sb.append("]\n");
-        sb.append("        }");
 
+        // BreedCooldownTimeout and GrowthTimeout are always on the template, use Parameters
         boolean hasBreedCooldown = breedCooldownMinutes > 0;
         boolean hasGrowth = growthMinutes > 0;
-        if (hasBreedCooldown) {
-            sb.append(",\n");
-            String iso = minutesToIso(breedCooldownMinutes * REAL_TO_GAME_TIME_RATIO);
-            sb.append("        \"BreedCooldownTimeout\": {\n");
-            sb.append("            \"Value\": [\"").append(iso).append("\", \"").append(iso).append("\"]\n");
-            sb.append("        }");
+        if (hasBreedCooldown || hasGrowth) {
+            if (useModify) {
+                // Close Modify, open Parameters
+                sb.append(",\n    \"Parameters\": {\n");
+            } else {
+                sb.append(",\n");
+            }
+            boolean first = true;
+            if (hasBreedCooldown) {
+                String iso = minutesToIso(breedCooldownMinutes * REAL_TO_GAME_TIME_RATIO);
+                if (!first) sb.append(",\n");
+                sb.append("        \"BreedCooldownTimeout\": {\n");
+                sb.append("            \"Value\": [\"").append(iso).append("\", \"").append(iso).append("\"]\n");
+                sb.append("        }");
+                first = false;
+            }
+            if (hasGrowth) {
+                String iso = minutesToIso(growthMinutes * REAL_TO_GAME_TIME_RATIO);
+                if (!first) sb.append(",\n");
+                sb.append("        \"GrowthTimeout\": {\n");
+                sb.append("            \"Value\": [\"").append(iso).append("\", \"").append(iso).append("\"]\n");
+                sb.append("        }");
+            }
+            sb.append("\n    }");
+        } else if (!useModify) {
+            sb.append("\n    }");
+        } else {
+            sb.append("\n    }");
         }
-        if (hasGrowth) {
-            sb.append(",\n");
-            String iso = minutesToIso(growthMinutes * REAL_TO_GAME_TIME_RATIO);
-            sb.append("        \"GrowthTimeout\": {\n");
-            sb.append("            \"Value\": [\"").append(iso).append("\", \"").append(iso).append("\"]\n");
-            sb.append("        }");
-        }
-        sb.append("\n    }");
 
         sb.append("\n}\n");
         return sb.toString();

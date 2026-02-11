@@ -965,9 +965,11 @@ public class HyTamePlugin extends JavaPlugin {
             spawnDetector = null;
         }
 
-        // Start deferred patch sync (waits 10 seconds for server to fully initialize)
+        // Register asset pack with AssetModule (must be in start(), not setup())
+        // Then sync patches after a short delay to let Hytalor set up file watching
         if (patchSyncService != null) {
-            patchSyncService.syncAllPatchesDeferred(10);
+            patchSyncService.registerAssetPack();
+            patchSyncService.syncAllPatchesDeferred(5);
         }
 
         getLogger().atInfo().log("[HyTame] Plugin started! Command: /hytame");

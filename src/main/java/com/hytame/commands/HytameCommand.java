@@ -796,6 +796,7 @@ public class HytameCommand extends AbstractCommand {
             addSubCommand(new DebugClearSubCommand());
             addSubCommand(new DebugTameStatusCommand());
             addSubCommand(new DebugSpawnAllSubCommand());
+            addSubCommand(new DebugSyncSubCommand());
         }
 
         @Override
@@ -834,6 +835,8 @@ public class HytameCommand extends AbstractCommand {
                     .insert(Message.raw(" - Get target npcs tame status").color("#AAAAAA")));
             ctx.sendMessage(Message.raw("/hytame debug spawnAll").color("#FFFFFF")
                     .insert(Message.raw(" - Spawn all animal types near you (1s delay each)").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/hytame debug sync").color("#FFFFFF")
+                    .insert(Message.raw(" - Force sync all config patches to asset pack").color("#AAAAAA")));
         }
 
         // --- Debug: log ---
@@ -1120,6 +1123,32 @@ public class HytameCommand extends AbstractCommand {
         }
 
         // --- Debug: spawnAll ---
+        public static class DebugSyncSubCommand extends AbstractCommand {
+            public DebugSyncSubCommand() {
+                super("sync", "Force sync all config patches");
+            }
+
+            @Override
+            protected boolean canGeneratePermission() {
+                return false;
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
+                var plugin = HyTamePlugin.getInstance();
+                var patchSync = plugin.getPatchSyncService();
+                if (patchSync == null) {
+                    ctx.sendMessage(Message.raw("PatchSyncService not available!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+                ctx.sendMessage(Message.raw("Force syncing all patches...").color("#FF9900"));
+                patchSync.forceSyncAllPatches();
+                ctx.sendMessage(Message.raw("Patch sync complete!").color("#55FF55"));
+                return CompletableFuture.completedFuture(null);
+            }
+        }
+
         public static class DebugSpawnAllSubCommand extends AbstractCommand {
             public DebugSpawnAllSubCommand() {
                 super("spawnAll", "Spawn all animal types near you");
