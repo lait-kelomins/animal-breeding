@@ -83,8 +83,8 @@ public class PatchSyncService {
 
     /**
      * Initialize the patch sync service.
-     * Does NOT sync patches - call syncAllPatchesDeferred() from start() after
-     * server is ready.
+     * Creates directory structure, manifest, and writes ALL patch files immediately.
+     * Must be called during setup() so patches exist on disk before LoadAssetEvent fires.
      *
      * @param configManager The config manager instance
      */
@@ -95,7 +95,11 @@ public class PatchSyncService {
         this.configManager = configManager;
 
         ensureAssetPackExists();
-        // Don't sync here - called from start() after server is ready
+
+        // Write all patches immediately during setup(), before LoadAssetEvent fires.
+        // AssetModule loads all registered packs at LoadAssetEvent priority -16,
+        // so patches must be on disk before that.
+        syncAllPatchesInternal();
     }
 
     /**
@@ -156,12 +160,40 @@ public class PatchSyncService {
     }
 
     /**
-     * Register HyTameConfig as an asset pack with AssetModule.
-     * Hytalor iterates registered asset packs and loads patches from each pack's
-     * Server/Patch/.
-     * Without this registration, Hytalor doesn't know our patch directory exists.
+     * Ensure the Config_HyTame asset pack is registered with AssetModule.
+     * On returning installs, AssetModule.setup() already scanned MODS_PATH and found
+     * our directory. On first install, we need to register it manually.
      *
-     * Must be called from start() — AssetModule is not ready during setup().
+     * Called from LoadAssetEvent handler (priority -20, before AssetModule loads at -16).
+     * At this point hasLoaded is still false, so registerPack() just adds to the list
+     * and AssetModule will load it along with all other packs at priority -16.
+     */
+    public void ensurePackRegistered() {
+        try {
+            AssetModule assetModule = AssetModule.get();
+            if (assetModule == null) {
+                logWarning("AssetModule not available, cannot register pack");
+                return;
+            }
+
+            // Check if already registered (AssetModule scans MODS_PATH during its setup)
+            for (AssetPack pack : assetModule.getAssetPacks()) {
+                if (pack.getName().contains(ASSET_PACK_NAME)) {
+                    logVerbose("Pack already registered by AssetModule: " + pack.getName());
+                    return;
+                }
+            }
+
+            // First install: register the pack before AssetModule loads at -16
+            registerAssetPack();
+        } catch (Exception e) {
+            logWarning("Failed to ensure pack registered: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Register Config_HyTame as an asset pack with AssetModule.
+     * Adds the pack to AssetModule's list so it gets loaded during LoadAssetEvent.
      */
     public void registerAssetPack() {
         try {
@@ -287,8 +319,12 @@ public class PatchSyncService {
     private List<String> readLovedItemsFromPatch(Path patchFile) {
         try {
             String content = Files.readString(patchFile);
-            // Simple parsing - find "Value": [...] and extract items
+            // Try Parameters format first: "Value": [...]
             int valueStart = content.indexOf("\"Value\"");
+            if (valueStart == -1) {
+                // Try Modify format: "$.LovedItems": [...]
+                valueStart = content.indexOf("\"$.LovedItems\"");
+            }
             if (valueStart == -1)
                 return Collections.emptyList();
 

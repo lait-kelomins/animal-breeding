@@ -53,3 +53,15 @@ laits-animal-breeding-*.jar
 
 # Dev presets (local testing only)
 dev-presets/
+
+# Extracted JAR artifacts (from dependency inspection)
+META-INF/
+aix/
+darwin/
+freebsd/
+google/
+joptsimple/
+linux/
+migration/
+org/
+win/
