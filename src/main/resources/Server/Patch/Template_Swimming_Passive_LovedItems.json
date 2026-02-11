@@ -1,6 +1,7 @@
 {
     "$Comment": "Default LovedItems for passive swimming creatures",
     "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Swimming_Passive.json",
+    "_priority": 100,
     "Parameters": {
         "LovedItems": {
             "Value": ["Plant_Crop_Wheat_Item"]

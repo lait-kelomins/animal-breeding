@@ -139,6 +139,17 @@ public class BreedingConfigCommand extends AbstractCommand {
         }
     }
 
+    /**
+     * Sync all patches after bulk config changes (presets, enable/disable ALL/category).
+     */
+    private static void syncAllPatches() {
+        HyTamePlugin plugin = HyTamePlugin.getInstance();
+        if (plugin == null) return;
+        PatchSyncService patchSyncService = plugin.getPatchSyncService();
+        if (patchSyncService == null) return;
+        patchSyncService.syncAllPatches();
+    }
+
     private static void showConfigSummary(CommandContext ctx, ConfigManager config) {
         // Test different color formats to find what works
         ctx.sendMessage(Message.raw("=== Breeding Config ===").color("#FF9900")); // Hex color
@@ -469,6 +480,7 @@ public class BreedingConfigCommand extends AbstractCommand {
             }
             ctx.sendMessage(Message.raw(statusWord).color(statusColor)
                     .insert(Message.raw(featureText + "ALL animals (including custom).").color("#AAAAAA")));
+            syncAllPatches();
             // Rescan nearby animals to add Interactable component to existing entities
             if (enable) {
                 HyTamePlugin plugin = HyTamePlugin.getInstance();
@@ -496,6 +508,7 @@ public class BreedingConfigCommand extends AbstractCommand {
             ctx.sendMessage(Message.raw(statusWord).color(statusColor)
                     .insert(Message.raw(featureText + count + " " + cat.name() + " animals.")
                             .color("#AAAAAA")));
+            syncAllPatches();
             // Rescan nearby animals to add Interactable component to existing entities
             if (enable) {
                 HyTamePlugin plugin = HyTamePlugin.getInstance();
@@ -515,6 +528,7 @@ public class BreedingConfigCommand extends AbstractCommand {
             if (enable) {
                 config.setAnyAnimalTamingEnabled(target, true);
             }
+            syncPatchForAnimal(lookup);
             ctx.sendMessage(Message.raw(statusWord).color(statusColor)
                     .insert(Message.raw(featureText).color("#AAAAAA"))
                     .insert(Message.raw(lookup.getDisplayName()).color("#FFFFFF")));
@@ -613,6 +627,7 @@ public class BreedingConfigCommand extends AbstractCommand {
             }
             ctx.sendMessage(Message.raw(statusWord).color(statusColor)
                     .insert(Message.raw(" taming for ALL animals (including custom).").color("#AAAAAA")));
+            syncAllPatches();
             return;
         }
 
@@ -629,6 +644,7 @@ public class BreedingConfigCommand extends AbstractCommand {
             ctx.sendMessage(Message.raw(statusWord).color(statusColor)
                     .insert(Message.raw(" taming for " + count + " " + cat.name() + " animals.")
                             .color("#AAAAAA")));
+            syncAllPatches();
             return;
         } catch (IllegalArgumentException ignored) {
         }
@@ -637,6 +653,7 @@ public class BreedingConfigCommand extends AbstractCommand {
         ConfigManager.AnimalLookupResult lookup = config.lookupAnimal(target);
         if (lookup != null) {
             config.setAnyAnimalTamingEnabled(target, enable);
+            syncPatchForAnimal(lookup);
             ctx.sendMessage(Message.raw(statusWord).color(statusColor)
                     .insert(Message.raw(" taming for ").color("#AAAAAA"))
                     .insert(Message.raw(lookup.getDisplayName()).color("#FFFFFF")));
@@ -991,6 +1008,7 @@ public class BreedingConfigCommand extends AbstractCommand {
 
             String presetName = ctx.get(presetArg).toLowerCase();
             if (config.applyPreset(presetName)) {
+                syncAllPatches();
                 ctx.sendMessage(Message.raw("Applied preset: ").color("#55FF55")
                         .insert(Message.raw(presetName).color("#FFFFFF")));
                 ctx.sendMessage(Message.raw("Use ").color("#AAAAAA")

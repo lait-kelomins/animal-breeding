@@ -1,6 +1,7 @@
 {
     "$Comment": "Default LovedItems for edible critters",
     "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Edible_Critter.json",
+    "_priority": 100,
     "Parameters": {
         "LovedItems": {
             "Value": ["Plant_Fruit_Berries_Red"]

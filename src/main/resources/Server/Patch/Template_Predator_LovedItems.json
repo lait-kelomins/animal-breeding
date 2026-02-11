@@ -1,6 +1,7 @@
 {
     "$Comment": "Add LovedItems following behavior to predators with patience timer for wild wolves",
     "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Predator.json",
+    "_priority": 100,
 
     "Parameters": {
         "LovedItems": {

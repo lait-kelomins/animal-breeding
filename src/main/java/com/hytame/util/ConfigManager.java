@@ -263,16 +263,17 @@ public class ConfigManager {
      */
     private void loadDefaults() {
         for (AnimalType type : AnimalType.values()) {
-            boolean enabledByDefault = type.isLivestock();
             List<String> defaultFoods = new ArrayList<>();
             defaultFoods.add(type.getDefaultBreedingFood());
 
-            animalConfigs.put(type, new AnimalConfig(
-                enabledByDefault,
+            AnimalConfig config = new AnimalConfig(
+                type.isLivestock(),  // Only livestock can breed by default
                 defaultFoods,
                 defaultGrowthTimeMinutes,
                 defaultBreedCooldownMinutes
-            ));
+            );
+            config.tamingEnabled = true;  // All animals can be tamed
+            animalConfigs.put(type, config);
         }
     }
 
@@ -634,16 +635,19 @@ public class ConfigManager {
                             animalConfigs.put(type, config);
                         }
 
-                        // Load breedingEnabled (with fallback to legacy "enabled" field)
+                        // "enabled" is master toggle for both breeding and taming
+                        if (animalJson.has("enabled")) {
+                            boolean enabled = safeGetBoolean(animalJson, "enabled", true);
+                            config.breedingEnabled = enabled;
+                            config.tamingEnabled = enabled;
+                        }
+                        // Specific flags override the master toggle
                         if (animalJson.has("breedingEnabled")) {
                             config.breedingEnabled = safeGetBoolean(animalJson, "breedingEnabled", config.breedingEnabled);
-                        } else {
-                            // Legacy: "enabled" maps to breedingEnabled
-                            config.breedingEnabled = safeGetBoolean(animalJson, "enabled", config.breedingEnabled);
                         }
-
-                        // Load tamingEnabled (defaults to breedingEnabled if not specified for backwards compat)
-                        config.tamingEnabled = safeGetBoolean(animalJson, "tamingEnabled", config.breedingEnabled);
+                        if (animalJson.has("tamingEnabled")) {
+                            config.tamingEnabled = safeGetBoolean(animalJson, "tamingEnabled", config.tamingEnabled);
+                        }
 
                         // Support both single food (legacy) and multiple foods
                         if (animalJson.has("breedingFoods") && animalJson.get("breedingFoods").isJsonArray()) {
@@ -994,7 +998,8 @@ public class ConfigManager {
                 animalConfigs.put(type, config);
             }
 
-            // Only livestock enabled by default
+            // All animals can be tamed, only livestock can breed by default
+            config.tamingEnabled = true;
             config.breedingEnabled = type.isLivestock();
 
             // Single default food
@@ -1025,7 +1030,8 @@ public class ConfigManager {
         for (AnimalType type : AnimalType.values()) {
             AnimalConfig config = animalConfigs.get(type);
             if (config != null) {
-                // Only livestock enabled
+                // All animals can be tamed, only livestock can breed
+                config.tamingEnabled = true;
                 config.breedingEnabled = type.isLivestock();
                 // Default timings
                 config.growthTimeMinutes = defaultGrowthTimeMinutes;
@@ -1048,7 +1054,8 @@ public class ConfigManager {
                 animalConfigs.put(type, config);
             }
 
-            // Only livestock enabled
+            // All animals can be tamed, only livestock can breed
+            config.tamingEnabled = true;
             config.breedingEnabled = type.isLivestock();
             config.breedingFoods.clear();
 
@@ -1664,7 +1671,8 @@ public class ConfigManager {
             AnimalConfig config = animalConfigs.get(type);
             if (config != null) {
                 AnimalType.Category category = type.getCategory();
-                // Enable real animals, exclude fantasy/dangerous/pests
+                // All animals can be tamed; breed real animals, exclude fantasy/dangerous/pests
+                config.tamingEnabled = true;
                 config.breedingEnabled = category != AnimalType.Category.MYTHIC &&
                                  category != AnimalType.Category.VERMIN &&
                                  category != AnimalType.Category.BOSS;
@@ -1682,10 +1690,11 @@ public class ConfigManager {
         // Start with lait_curated values for foods and timing
         applyBuiltinLaitCuratedPreset();
 
-        // Enable ALL animals
+        // Enable ALL animals for taming and breeding
         for (AnimalType type : AnimalType.values()) {
             AnimalConfig config = animalConfigs.get(type);
             if (config != null) {
+                config.tamingEnabled = true;
                 config.breedingEnabled = true;
             }
         }

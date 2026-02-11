@@ -1,17 +1,18 @@
 {
-    "$Comment": "[HYTAME] Suppress player aggression for all tamed animals (except Animal_Neutral which has its own gate with $Harvest check)",
-    "_BaseAssetPath": "regex:Server/NPC/Roles/_Core/Templates/Template_(?!Animal_Neutral\\b).+\\.json",
+    "$Comment": "[HYTAME] Suppress player aggression for tamed Animal_Neutral - includes $Harvest check to preserve player target during milking/shearing",
+    "_BaseAssetPath": "Server/NPC/Roles/_Core/Templates/Template_Animal_Neutral.json",
     "_priority": 90,
     "Instructions": [
         {
             "_op": "add",
             "_index": 0,
             "Continue": true,
-            "$Comment": "[HYTAME] Tamed: release stale Friendly targets (player after LovedItems override)",
+            "$Comment": "[HYTAME] Tamed: release stale Friendly targets, but NOT during $Harvest (player target needed for bucket/shear checks)",
             "Sensor": {
                 "Type": "And",
                 "Sensors": [
                     { "Type": "Tamed", "Set": true },
+                    { "Type": "Not", "Sensor": { "Type": "State", "State": "$Harvest" } },
                     {
                         "Type": "Target",
                         "Filters": [

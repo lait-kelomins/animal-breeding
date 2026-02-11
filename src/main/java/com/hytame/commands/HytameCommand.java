@@ -14,7 +14,10 @@ import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.universe.Universe;
 import com.hypixel.hytale.server.core.universe.world.World;
 
+import com.hypixel.hytale.math.vector.Vector3d;
+import com.hypixel.hytale.math.vector.Vector3f;
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore;
+import com.hypixel.hytale.server.npc.NPCPlugin;
 import com.hypixel.hytale.server.npc.entities.NPCEntity;
 import com.hypixel.hytale.server.npc.role.Role;
 import com.hypixel.hytale.server.npc.role.support.WorldSupport;
@@ -23,6 +26,7 @@ import com.hytame.listeners.DetectTamedDeath;
 import com.hytame.managers.BreedingManager;
 import com.hytame.managers.PersistenceManager;
 import com.hytame.managers.TamingManager;
+import com.hytame.models.AnimalType;
 import com.hytame.models.TamedAnimalData;
 import com.hytame.util.ConfigManager;
 import com.hytame.tame.HyTameComponent;
@@ -791,6 +795,7 @@ public class HytameCommand extends AbstractCommand {
             addSubCommand(new DebugEventsSubCommand());
             addSubCommand(new DebugClearSubCommand());
             addSubCommand(new DebugTameStatusCommand());
+            addSubCommand(new DebugSpawnAllSubCommand());
         }
 
         @Override
@@ -827,6 +832,8 @@ public class HytameCommand extends AbstractCommand {
                     .insert(Message.raw(" - Clear tracked event UUIDs").color("#AAAAAA")));
             ctx.sendMessage(Message.raw("/hytame debug tameStatus").color("#FFFFFF")
                     .insert(Message.raw(" - Get target npcs tame status").color("#AAAAAA")));
+            ctx.sendMessage(Message.raw("/hytame debug spawnAll").color("#FFFFFF")
+                    .insert(Message.raw(" - Spawn all animal types near you (1s delay each)").color("#AAAAAA")));
         }
 
         // --- Debug: log ---
@@ -1111,5 +1118,113 @@ public class HytameCommand extends AbstractCommand {
                 }
             }
         }
+
+        // --- Debug: spawnAll ---
+        public static class DebugSpawnAllSubCommand extends AbstractCommand {
+            public DebugSpawnAllSubCommand() {
+                super("spawnAll", "Spawn all animal types near you");
+            }
+
+            @Override
+            protected boolean canGeneratePermission() {
+                return false;
+            }
+
+            @Override
+            protected CompletableFuture<Void> execute(CommandContext ctx) {
+                if (checkAdminDenied(ctx)) return CompletableFuture.completedFuture(null);
+
+                if (!(ctx.sender() instanceof Player player)) {
+                    ctx.sendMessage(Message.raw("Must be run by a player.").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                World world = Universe.get().getDefaultWorld();
+                if (world == null) {
+                    ctx.sendMessage(Message.raw("World not available!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                Vector3d playerPos = player.getTransformComponent().getPosition();
+                if (playerPos == null) {
+                    ctx.sendMessage(Message.raw("Could not get player position!").color("#FF5555"));
+                    return CompletableFuture.completedFuture(null);
+                }
+
+                // Collect all spawnable animal types
+                List<AnimalType> spawnable = new java.util.ArrayList<>();
+                for (AnimalType type : AnimalType.values()) {
+                    if (type.getAdultNpcRoleId() != null) {
+                        spawnable.add(type);
+                    }
+                }
+
+                ctx.sendMessage(Message.raw("Spawning " + spawnable.size() + " animal types (200ms delay each)...").color("#FF9900"));
+
+                // Spawn on background thread with delays, execute each spawn on world thread
+                final double baseX = playerPos.getX();
+                final double baseY = playerPos.getY();
+                final double baseZ = playerPos.getZ();
+
+                new Thread(() -> {
+                    int spawned = 0;
+                    int failed = 0;
+                    for (int i = 0; i < spawnable.size(); i++) {
+                        AnimalType type = spawnable.get(i);
+                        String roleId = type.getAdultNpcRoleId();
+
+                        // Spread animals in a grid pattern (5 blocks apart)
+                        int col = i % 10;
+                        int row = i / 10;
+                        double x = baseX + (col * 5) - 22.5;
+                        double z = baseZ + (row * 5) + 5;
+
+                        try {
+                            int roleIndex = NPCPlugin.get().getIndex(roleId);
+                            if (roleIndex < 0) {
+                                failed++;
+                                continue;
+                            }
+
+                            // Check if role is spawnable (not abstract)
+                            try {
+                                NPCPlugin.get().validateSpawnableRole(roleId);
+                            } catch (Exception e) {
+                                failed++;
+                                continue;
+                            }
+
+                            Vector3d spawnPos = new Vector3d(x, baseY, z);
+                            Vector3f rotation = new Vector3f(0, 0, 0);
+                            final int ri = roleIndex;
+
+                            world.execute(() -> {
+                                try {
+                                    NPCPlugin.get().spawnEntity(
+                                            world.getEntityStore().getStore(), ri, spawnPos, rotation, null, null);
+                                } catch (Exception e) {
+                                    ctx.sendMessage(Message.raw("  [FAIL] " + type.name() + ": " + e.getMessage()).color("#FF5555"));
+                                }
+                            });
+
+                            spawned++;
+                            ctx.sendMessage(Message.raw("  [" + (i + 1) + "/" + spawnable.size() + "] Spawned ").color("#AAAAAA")
+                                    .insert(Message.raw(type.name()).color("#55FF55")));
+
+                            Thread.sleep(200);
+                        } catch (Exception e) {
+                            ctx.sendMessage(Message.raw("  [FAIL] " + type.name() + ": " + e.getMessage()).color("#FF5555"));
+                            failed++;
+                        }
+                    }
+
+                    ctx.sendMessage(Message.raw("Done! Spawned " + spawned + " animals" +
+                            (failed > 0 ? ", " + failed + " failed" : "")).color("#FF9900"));
+                }, "HyTame-SpawnAll").start();
+
+                return CompletableFuture.completedFuture(null);
+            }
+        }
     }
 }
+
