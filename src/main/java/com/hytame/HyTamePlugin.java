@@ -17,6 +17,7 @@ import com.hypixel.hytale.server.core.entity.InteractionContext;
 import com.hypixel.hytale.server.core.entity.LivingEntity;
 import com.hypixel.hytale.server.core.entity.entities.Player;
 import com.hypixel.hytale.server.core.inventory.Inventory;
+import com.hypixel.hytale.server.core.asset.LoadAssetEvent;
 import com.hypixel.hytale.server.core.asset.type.soundevent.config.SoundEvent;
 import com.hypixel.hytale.server.core.asset.type.item.config.Item;
 import com.hypixel.hytale.server.core.modules.interaction.interaction.config.RootInteraction;
@@ -129,7 +130,7 @@ import java.util.function.BiConsumer;
  */
 public class HyTamePlugin extends JavaPlugin {
 
-    public static final String VERSION = "1.5.0-prerelease";
+    public static final String VERSION = "1.5.1-prerelease";
 
     private static HyTamePlugin instance;
     private static final HytaleLogger LOGGER = HytaleLogger.forEnclosingClassFull();
@@ -414,8 +415,17 @@ public class HyTamePlugin extends JavaPlugin {
         configManager.loadFromFile(configDirectory.resolve("config.json"));
 
         // Initialize patch sync service (syncs LovedItems from config to asset patches)
+        // initialize() writes all patch files immediately so they're on disk before loading
         patchSyncService = new PatchSyncService();
         patchSyncService.initialize(configManager);
+
+        // Register LoadAssetEvent handler to ensure our asset pack is registered
+        // before AssetModule loads all packs at priority -16.
+        // For returning users: AssetModule already found Config_HyTame in MODS_PATH scan.
+        // For new installs: we register it here so it's in the pack list before loading.
+        getEventRegistry().register((short) -20, LoadAssetEvent.class, event -> {
+            patchSyncService.ensurePackRegistered();
+        });
 
         breedingManager = new BreedingManager(configManager);
         growthManager = new GrowthManager(configManager, breedingManager);
@@ -965,10 +975,9 @@ public class HyTamePlugin extends JavaPlugin {
             spawnDetector = null;
         }
 
-        // Start deferred patch sync (waits 10 seconds for server to fully initialize)
-        if (patchSyncService != null) {
-            patchSyncService.syncAllPatchesDeferred(10);
-        }
+        // Note: Patch sync now happens during setup() + LoadAssetEvent (priority -20).
+        // Patches are written in setup() and the pack is registered before AssetModule
+        // loads at priority -16. No deferred sync needed.
 
         getLogger().atInfo().log("[HyTame] Plugin started! Command: /hytame");
     }

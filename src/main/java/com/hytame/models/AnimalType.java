@@ -53,15 +53,12 @@ public enum AnimalType {
     ARMADILLO(         Category.MAMMAL,     "Armadillo",        "Plant_Fruit_Berries_Red",          null,                   null),
     LEOPARD_SNOW(      Category.MAMMAL,     "Leopard_Snow",     "Food_Wildmeat_Raw",                null,                   null),
     MOSSHORN(          Category.MAMMAL,     "Mosshorn",         "Plant_Crop_Lettuce_Item",          null,                   null),
-    MOSSHORN_PLAIN(    Category.MAMMAL,     "Mosshorn_Plain",   "Plant_Crop_Lettuce_Item",          null,                   null),
     TIGER_SABERTOOTH(  Category.MAMMAL,     "Tiger_Sabertooth", "Food_Wildmeat_Raw",                null,                   null),
 
     // ===========================================
     // CRITTERS - Small creatures, use scaling
     // ===========================================
-    FROG_BLUE(         Category.CRITTER,    "Frog_Blue",        "Plant_Fruit_Berries_Red",          null,                   null),
-    FROG_GREEN(        Category.CRITTER,    "Frog_Green",       "Plant_Fruit_Berries_Red",          null,                   null),
-    FROG_ORANGE(       Category.CRITTER,    "Frog_Orange",      "Plant_Fruit_Berries_Red",          null,                   null),
+    FROG(              Category.CRITTER,    "Frog_Green",       "Plant_Fruit_Berries_Red",          null,                   null),
     GECKO(             Category.CRITTER,    "Gecko",            "Plant_Fruit_Berries_Red",          null,                   null),
     MEERKAT(           Category.CRITTER,    "Meerkat",          "Food_Wildmeat_Raw",                null,                   null),
     MOUSE(             Category.CRITTER,    "Mouse",            "Plant_Crop_Wheat_Item",            null,                   null),
@@ -183,45 +180,39 @@ public enum AnimalType {
     // ===========================================
     // UNDEAD - Skeletons, zombies, and undead creatures
     // ===========================================
-    SKELETON(          Category.UNDEAD,     "Skeleton",         "Bone",                             null,                   null),
-    SKELETON_BURNT(    Category.UNDEAD,     "Skeleton_Burnt",   "Bone",                             null,                   null),
-    SKELETON_FROST(    Category.UNDEAD,     "Skeleton_Frost",   "Bone",                             null,                   null),
-    SKELETON_SAND(     Category.UNDEAD,     "Skeleton_Sand",    "Bone",                             null,                   null),
-    SKELETON_PIRATE(   Category.UNDEAD,     "Skeleton_Pirate",  "Bone",                             null,                   null),
-    SKELETON_INCANDESCENT(Category.UNDEAD,  "Skeleton_Incandescent", "Bone",                        null,                   null),
+    SKELETON(          Category.UNDEAD,     "Skeleton",         "Ingredient_Bone_Fragment",         null,                   null),
     ZOMBIE(            Category.UNDEAD,     "Zombie",           "Food_Wildmeat_Raw",                null,                   null),
     ZOMBIE_BURNT(      Category.UNDEAD,     "Zombie_Burnt",     "Food_Wildmeat_Raw",                null,                   null),
     ZOMBIE_FROST(      Category.UNDEAD,     "Zombie_Frost",     "Food_Wildmeat_Raw",                null,                   null),
     ZOMBIE_SAND(       Category.UNDEAD,     "Zombie_Sand",      "Food_Wildmeat_Raw",                null,                   null),
     ZOMBIE_ABERRANT(   Category.UNDEAD,     "Zombie_Aberrant",  "Food_Wildmeat_Raw",                null,                   null),
     GHOUL(             Category.UNDEAD,     "Ghoul",            "Food_Wildmeat_Raw",                null,                   null),
-    WRAITH(            Category.UNDEAD,     "Wraith",           "Ectoplasm",                        null,                   null),
+    WRAITH(            Category.UNDEAD,     "Wraith",           "Ingredient_Void_Essence",          null,                   null),
     WEREWOLF(          Category.UNDEAD,     "Werewolf",         "Food_Wildmeat_Raw",                null,                   null),
-    SHADOW_KNIGHT(     Category.UNDEAD,     "Shadow_Knight",    "Bone",                             null,                   null),
-    HORSE_SKELETON(    Category.UNDEAD,     "Horse_Skeleton",   "Bone",                             null,                   null),
-    HOUND_BLEACHED(    Category.UNDEAD,     "Hound_Bleached",   "Bone",                             null,                   null),
-    CHICKEN_UNDEAD(    Category.UNDEAD,     "Chicken_Undead",   "Bone",                             null,                   null),
-    COW_UNDEAD(        Category.UNDEAD,     "Cow_Undead",       "Bone",                             null,                   null),
-    PIG_UNDEAD(        Category.UNDEAD,     "Pig_Undead",       "Bone",                             null,                   null),
+    SHADOW_KNIGHT(     Category.UNDEAD,     "Shadow_Knight",    "Ingredient_Bone_Fragment",         null,                   null),
+    HORSE_SKELETON(    Category.UNDEAD,     "Horse_Skeleton",   "Ingredient_Bone_Fragment",         null,                   null),
+    HOUND_BLEACHED(    Category.UNDEAD,     "Hound_Bleached",   "Ingredient_Bone_Fragment",         null,                   null),
+    CHICKEN_UNDEAD(    Category.UNDEAD,     "Chicken_Undead",   "Ingredient_Bone_Fragment",         null,                   null),
+    COW_UNDEAD(        Category.UNDEAD,     "Cow_Undead",       "Ingredient_Bone_Fragment",         null,                   null),
+    PIG_UNDEAD(        Category.UNDEAD,     "Pig_Undead",       "Ingredient_Bone_Fragment",         null,                   null),
 
     // ===========================================
     // GOLEM - Elemental golems
     // ===========================================
-    GOLEM_CRYSTAL_EARTH(Category.GOLEM,     "Golem_Crystal_Earth",   "Gem_Crystal",               null,                   null),
-    GOLEM_CRYSTAL_FLAME(Category.GOLEM,     "Golem_Crystal_Flame",   "Gem_Crystal",               null,                   null),
-    GOLEM_CRYSTAL_FROST(Category.GOLEM,     "Golem_Crystal_Frost",   "Gem_Crystal",               null,                   null),
-    GOLEM_CRYSTAL_SAND( Category.GOLEM,     "Golem_Crystal_Sand",    "Gem_Crystal",               null,                   null),
-    GOLEM_CRYSTAL_THUNDER(Category.GOLEM,   "Golem_Crystal_Thunder", "Gem_Crystal",               null,                   null),
-    GOLEM_FIRESTEEL(   Category.GOLEM,      "Golem_Firesteel",       "Ingot_Iron",                null,                   null),
-    GOLEM_GUARDIAN_VOID(Category.GOLEM,     "Golem_Guardian_Void",   "Void_Shard",                null,                   null),
+    GOLEM_CRYSTAL_EARTH(Category.GOLEM,     "Golem_Crystal_Earth",   "Ingredient_Crystal_Purple",               null,                   null),
+    GOLEM_CRYSTAL_FLAME(Category.GOLEM,     "Golem_Crystal_Flame",   "Ingredient_Crystal_Purple",               null,                   null),
+    GOLEM_CRYSTAL_FROST(Category.GOLEM,     "Golem_Crystal_Frost",   "Ingredient_Crystal_Purple",               null,                   null),
+    GOLEM_CRYSTAL_SAND( Category.GOLEM,     "Golem_Crystal_Sand",    "Ingredient_Crystal_Purple",               null,                   null),
+    GOLEM_CRYSTAL_THUNDER(Category.GOLEM,   "Golem_Crystal_Thunder", "Ingredient_Crystal_Purple",               null,                   null),
+    GOLEM_FIRESTEEL(   Category.GOLEM,      "Golem_Firesteel",       "Ingredient_Bar_Iron",                null,                   null),
 
     // ===========================================
     // SPIRIT - Elemental spirits
     // ===========================================
     SPIRIT_EMBER(      Category.SPIRIT,     "Spirit_Ember",     "Plant_Crop_Chilli_Item",           null,                   null),
-    SPIRIT_FROST(      Category.SPIRIT,     "Spirit_Frost",     "Snowball",                         null,                   null),
+    SPIRIT_FROST(      Category.SPIRIT,     "Spirit_Frost",     "Ingredient_Ice_Essence",                         null,                   null),
     SPIRIT_ROOT(       Category.SPIRIT,     "Spirit_Root",      "Plant_Fruit_Apple",                null,                   null),
-    SPIRIT_THUNDER(    Category.SPIRIT,     "Spirit_Thunder",   "Gem_Crystal",                      null,                   null),
+    SPIRIT_THUNDER(    Category.SPIRIT,     "Spirit_Thunder",   "Ingredient_Crystal_Purple",                      null,                   null),
 
     // ===========================================
     // GOBLIN - Goblin enemies
@@ -283,11 +274,11 @@ public enum AnimalType {
     // ===========================================
     // VOID - Void creatures
     // ===========================================
-    CRAWLER_VOID(      Category.VOID,       "Crawler_Void",     "Void_Shard",                       null,                   null),
-    EYE_VOID(          Category.VOID,       "Eye_Void",         "Void_Shard",                       null,                   null),
-    LARVA_VOID(        Category.VOID,       "Larva_Void",       "Void_Shard",                       null,                   null),
-    SPAWN_VOID(        Category.VOID,       "Spawn_Void",       "Void_Shard",                       null,                   null),
-    SPECTRE_VOID(      Category.VOID,       "Spectre_Void",     "Void_Shard",                       null,                   null),
+    CRAWLER_VOID(      Category.VOID,       "Crawler_Void",     "Ingredient_Void_Essence",          null,                   null),
+    EYE_VOID(          Category.VOID,       "Eye_Void",         "Ingredient_Void_Essence",          null,                   null),
+    LARVA_VOID(        Category.VOID,       "Larva_Void",       "Ingredient_Void_Essence",          null,                   null),
+    SPAWN_VOID(        Category.VOID,       "Spawn_Void",       "Ingredient_Void_Essence",          null,                   null),
+    SPECTRE_VOID(      Category.VOID,       "Spectre_Void",     "Ingredient_Void_Essence",          null,                   null),
 
     // ===========================================
     // MISC - Other creatures
@@ -542,13 +533,8 @@ public enum AnimalType {
             case WHALE_HUMPBACK:
                 return "NPC/Roles/Aquatic/Abyssal/" + modelAssetId;
 
-            // Undead have type-based subfolders
+            // Undead with subfolder structure (intelligent, many sub-variants)
             case SKELETON:
-            case SKELETON_BURNT:
-            case SKELETON_FROST:
-            case SKELETON_SAND:
-            case SKELETON_PIRATE:
-            case SKELETON_INCANDESCENT:
                 return "NPC/Roles/Undead/Skeleton/" + modelAssetId;
             case ZOMBIE:
             case ZOMBIE_BURNT:
@@ -556,24 +542,17 @@ public enum AnimalType {
             case ZOMBIE_SAND:
             case ZOMBIE_ABERRANT:
                 return "NPC/Roles/Undead/Zombie/" + modelAssetId;
+            // All other undead are directly under Undead/ (no subfolder)
             case GHOUL:
-                return "NPC/Roles/Undead/Ghoul/" + modelAssetId;
             case WRAITH:
-                return "NPC/Roles/Undead/Wraith/" + modelAssetId;
             case WEREWOLF:
-                return "NPC/Roles/Undead/Werewolf/" + modelAssetId;
             case SHADOW_KNIGHT:
-                return "NPC/Roles/Undead/Shadow_Knight/" + modelAssetId;
             case HORSE_SKELETON:
-                return "NPC/Roles/Undead/Horse_Skeleton/" + modelAssetId;
             case HOUND_BLEACHED:
-                return "NPC/Roles/Undead/Hound_Bleached/" + modelAssetId;
             case CHICKEN_UNDEAD:
-                return "NPC/Roles/Undead/Chicken_Undead/" + modelAssetId;
             case COW_UNDEAD:
-                return "NPC/Roles/Undead/Cow_Undead/" + modelAssetId;
             case PIG_UNDEAD:
-                return "NPC/Roles/Undead/Pig_Undead/" + modelAssetId;
+                return "NPC/Roles/Undead/" + modelAssetId;
 
             default:
                 // Use category-based path prefix

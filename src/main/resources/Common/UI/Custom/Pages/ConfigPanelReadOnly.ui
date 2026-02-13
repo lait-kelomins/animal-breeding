@@ -1,0 +1,102 @@
+$C = "../Common.ui";
+
+// Read-only view of Animal Breeding Configuration Panel
+// No preset manager or detail panel — full-width animal table
+
+Group {
+  LayoutMode: Center;
+
+  $C.@Container #mainPanel {
+    Anchor: (Width: 1100, Height: 960);
+
+    #Title {
+      $C.@Title #titleLabel {
+        @Text = "HYTAME CONFIGURATION  (Read Only)";
+      }
+    }
+
+    #Content {
+      LayoutMode: Left;
+      Padding: (Full: 16);
+
+      // ========== FULL WIDTH - Animal List ==========
+      Group #rightColumn {
+        LayoutMode: Top;
+        FlexWeight: 1;
+
+        // Section header
+        Label {
+          Text: "ANIMAL LIST";
+          Style: (FontSize: 14, RenderBold: true, TextColor: #ffaa00);
+          Anchor: (Height: 24, Bottom: 2);
+        }
+        Label {
+          Text: "Browse animal taming and breeding settings.";
+          Style: (FontSize: 11, TextColor: #666666);
+          Anchor: (Height: 16, Bottom: 6);
+        }
+
+        // Animal search
+        Group {
+          LayoutMode: Left;
+          Anchor: (Height: 36, Bottom: 8);
+
+          $C.@TextField #animalSearch {
+            FlexWeight: 1;
+            Anchor: (Height: 36, Right: 4);
+            PlaceholderText: "Search animals...";
+          }
+          $C.@SecondaryTextButton #animalSearchBtn {
+            @Anchor = (Width: 90, Height: 36);
+            Text: "GO";
+          }
+        }
+
+        // Table header + scrollable list
+        Group #animalListSide {
+          LayoutMode: Top;
+          FlexWeight: 1;
+
+          // Table header
+          Group #tableHeader {
+            LayoutMode: Left;
+            Anchor: (Height: 22, Bottom: 4);
+            Padding: (Horizontal: 8);
+
+            Label { Anchor: (Width: 50); Text: ""; Style: (FontSize: 11, TextColor: #888888); }
+            Label { Anchor: (Width: 154); Text: "NAME"; Style: (FontSize: 11, TextColor: #888888); }
+            Label { Anchor: (Width: 84); Text: "COOLDOWN"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
+            Label { Anchor: (Width: 84); Text: "GROWTH"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
+            Label { Anchor: (Width: 94); Text: "TAME"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
+            Label { Anchor: (Width: 102); Text: "BREED"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
+            Label { Anchor: (Width: 100); Text: "FOOD"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
+          }
+
+          // Scrollable animal list
+          Group #animalRows {
+            LayoutMode: TopScrolling;
+            ScrollbarStyle: $C.@DefaultScrollbarStyle;
+            FlexWeight: 1;
+            Background: $C.@InputBoxBackground;
+            Padding: (Horizontal: 8, Vertical: 6);
+          }
+        }
+
+        // Bottom bar — read-only indicator
+        Group {
+          Anchor: (Height: 40, Top: 8);
+          Background: #1a1a1a;
+          LayoutMode: Center;
+          Label {
+            Text: "READ ONLY";
+            Style: (FontSize: 13, RenderBold: true, TextColor: #666666);
+          }
+        }
+
+        // Hidden action fields
+        $C.@TextField #actionSearchAnimals { Anchor: (Width: 0, Height: 0); }
+      }
+    }
+  }
+
+}

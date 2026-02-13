@@ -18,7 +18,7 @@
     "Website": "",
     "Main": "com.hytame.HyTamePlugin",
     "ServerVersion": "*",
-    "Dependencies": {
+    "OptionalDependencies": {
         "com.hypersonicsharkz:Hytalor": "*"
     },
     "IncludesAssetPack": true

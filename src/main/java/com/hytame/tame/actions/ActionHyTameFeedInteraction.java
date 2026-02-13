@@ -326,6 +326,12 @@ public class ActionHyTameFeedInteraction extends ActionBase {
                     Debug.log("Could not get world name for taming: " + e.getMessage(), Level.WARNING);
                 }
 
+                // Fetch position now while ref is still valid (before role change)
+                Vector3d initialPos = getPositionFromRef(ref);
+                double initX = initialPos != null ? initialPos.getX() : 0;
+                double initY = initialPos != null ? initialPos.getY() : 0;
+                double initZ = initialPos != null ? initialPos.getZ() : 0;
+
                 // Use tameAnimal with full signature for proper persistence
                 plugin.getTamingManager().tameAnimal(
                         hyTame.getHytameId(), // hytameId
@@ -334,7 +340,7 @@ public class ActionHyTameFeedInteraction extends ActionBase {
                         NameplateUtil.UNDEFINED_NAME, // name (unnamed until player uses nametag)
                         animalType, // type
                         ref, // entityRef
-                        0, 0, 0, // position (will be updated later)
+                        initX, initY, initZ, // position captured before role change
                         com.hytame.models.GrowthStage.ADULT, // growthStage
                         worldName // worldName for multi-world support
                 );

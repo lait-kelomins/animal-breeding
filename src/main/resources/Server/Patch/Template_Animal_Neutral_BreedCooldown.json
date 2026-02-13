@@ -4,8 +4,8 @@
     "_priority": 100,
     "Parameters": {
         "BreedCooldownTimeout": {
-            "Value": ["PT3H", "PT3H"],
-            "Description": "Breed cooldown duration (ISO 8601, game time). Default 5 real min x 36x = PT3H"
+            "Value": ["PT2H30M", "PT2H30M"],
+            "Description": "Breed cooldown duration (ISO 8601 game-time, 30x real). Default 5 real min."
         }
     },
     "Instructions": [

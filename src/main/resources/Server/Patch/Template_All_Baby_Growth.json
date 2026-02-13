@@ -4,8 +4,8 @@
     "_priority": 100,
     "Parameters": {
         "GrowthTimeout": {
-            "Value": ["PT18H", "PT18H"],
-            "Description": "Time until baby grows (ISO 8601 duration)"
+            "Value": ["PT15H", "PT15H"],
+            "Description": "Time until baby grows (ISO 8601 game-time, 30x real). Default 30 real min."
         }
     },
     "Instructions": [

@@ -1,0 +1,28 @@
+$C = "../Common.ui";
+
+// Preset row for scrollable config panel sidebar
+// Appended dynamically via cmd.append("#presetList", "Pages/ConfigPresetRow.ui")
+
+Group {
+  LayoutMode: Left;
+  Anchor: (Height: 32, Bottom: 4);
+
+  // Clickable preset name button
+  TextButton #presetBtn {
+    FlexWeight: 1;
+    Anchor: (Height: 32, Right: 4);
+    Text: "";
+    Style: $C.@SecondaryTextButtonStyle;
+  }
+
+  // Copy preset button
+  TextButton #copyPresetBtn {
+    Anchor: (Width: 100, Height: 32);
+    Text: "COPY";
+    Style: $C.@SecondaryTextButtonStyle;
+  }
+
+  // Hidden action fields
+  $C.@TextField #presetAction { Anchor: (Width: 0, Height: 0); }
+  $C.@TextField #copyAction { Anchor: (Width: 0, Height: 0); }
+}

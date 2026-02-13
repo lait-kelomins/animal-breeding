@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'com.hytame'
-version = '1.5.0-prerelease'
+version = '1.5.1-prerelease'
 
 java {
     toolchain {

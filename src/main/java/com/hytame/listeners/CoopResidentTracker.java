@@ -14,6 +14,7 @@ import com.hypixel.hytale.component.Store;
 import com.hypixel.hytale.component.query.Query;
 import com.hypixel.hytale.component.system.RefSystem;
 import com.hypixel.hytale.math.util.ChunkUtil;
+import com.hypixel.hytale.math.vector.Vector3d;
 import com.hypixel.hytale.math.vector.Vector3i;
 import com.hypixel.hytale.server.core.entity.UUIDComponent;
 import com.hypixel.hytale.server.core.entity.reference.PersistentRef;
@@ -32,6 +33,7 @@ import com.hytame.models.AnimalType;
 import com.hytame.models.TamedAnimalData;
 import com.hytame.tame.HyTameComponent;
 import com.hytame.util.EcsReflectionUtil;
+import com.hytame.util.EntityUtil;
 import com.hytame.util.NameplateUtil;
 
 import javax.annotation.Nonnull;
@@ -202,10 +204,16 @@ public class CoopResidentTracker extends RefSystem<EntityStore> {
                     // Custom or unknown type
                 }
             }
+            // Fetch position from entity ref
+            Vector3d entityPos = EntityUtil.getPositionFromRef(ref);
+            double coopX = entityPos != null ? entityPos.getX() : 0;
+            double coopY = entityPos != null ? entityPos.getY() : 0;
+            double coopZ = entityPos != null ? entityPos.getZ() : 0;
+
             TamedAnimalData tamedData = tamingManager.tameAnimal(
                     data.getHytameId(), entityUuid, data.getOwnerUuid(),
                     customName != null ? customName : "Tamed Animal",
-                    type, ref, 0, 0, 0, null, null);
+                    type, ref, coopX, coopY, coopZ, null, null);
             if (tamedData != null) {
                 tamedData.setOwnerName(data.getOwnerName());
                 tamedData.setCaptured(false);
