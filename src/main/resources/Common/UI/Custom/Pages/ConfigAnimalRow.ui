@@ -1,0 +1,10 @@
+$C = "../Common.ui";
+
+// Row container for animal cells in config panel grid
+// Appended dynamically for each row of animals
+
+Group #animalRow {
+  LayoutMode: Left;
+  Anchor: (Height: 60, Bottom: 4);
+  // Animal cells appended dynamically
+}

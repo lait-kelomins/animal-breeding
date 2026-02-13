@@ -1,13 +1,24 @@
 # Changelog
 
-## v1.5.1 - Patch Sync Reliability
+## v1.5.1 - Config Panel & Preset Overhaul
+
+### Added
+- **Configuration panel** - `/hytame list` opens the configuration panel, a new easy way to manage presets, configure and list the animals and the foods they love! Shows a read only version for non-admin players.
+- **"Apply to All" buttons** in the config panel — click ALL next to Growth Time or Breed Cooldown to instantly apply that value to every animal
+- **Built-in preset badge** — builtin presets display with a `[HyTame]` prefix in the preset list for easy identification
+- **Restore built-in presets** — builtin presets show a RESTORE button instead of RENAME, resetting them to factory defaults
+
+### Changed
+- **Preset taming/breeding rules overhauled:**
+  - `default` — taming and breeding only for animals with baby variants (17 livestock)
+  - `default_extended` — taming for all except Other/Spirits/Bosses/Mythical; breeding for livestock, mammals, dinosaurs, and birds
+  - `lait_curated` — taming and breeding for all except Other/Spirits/Bosses/Mythical; horse breeding now enabled
+  - `zoo` — taming for all except Other/Spirits/Bosses/Mythical; breeding for livestock only
+  - `all` — taming and breeding for everything (unchanged)
 
 ### Fixed
 - **Patches now apply instantly on first install** - Patches are written during setup and loaded via LoadAssetEvent hook (no more 5-second delay)
 - **Correct patch format for livestock variants** - Animals with native LovedItems (sheep, cow, etc.) now override them (previously the original loved items couldn't be removed)
-
-### Added
-- `/hytame debug sync` command to force re-sync all config patches
 
 ---
 

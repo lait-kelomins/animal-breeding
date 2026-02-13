@@ -23,6 +23,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
@@ -37,6 +38,16 @@ public class ConfigManager {
     private static final int CURRENT_CONFIG_VERSION = 2;
     private int configVersion = 1;  // Will be upgraded on load if needed
 
+    // Item ID migrations: old invalid ID -> correct game ID
+    private static final Map<String, String> ITEM_MIGRATIONS = Map.of(
+        "Bone", "Ingredient_Bone_Fragment",
+        "Ectoplasm", "Ingredient_Void_Essence",
+        "Gem_Crystal", "Ingredient_Crystal_Purple",
+        "Ingot_Iron", "Ingredient_Bar_Iron",
+        "Snowball", "Ingredient_Ice_Essence",
+        "Void_Shard", "Ingredient_Void_Essence"
+    );
+
     // Config data
     private final Map<AnimalType, AnimalConfig> animalConfigs = new EnumMap<>(AnimalType.class);
     private final Map<String, CustomAnimalConfig> customAnimals = new HashMap<>();  // key = modelAssetId
@@ -44,7 +55,7 @@ public class ConfigManager {
     private double defaultBreedCooldownMinutes = 5.0;
     private boolean debugMode = false;
     private boolean growthEnabled = true;  // Can be disabled to freeze baby growth
-    private boolean persistenceEnabled = false;  // Tamed animal save/load/respawn (capture crate handles this instead)
+    private boolean persistenceEnabled = true;  // Tamed animal save/load/respawn
     private String activePreset = "default_extended";
     private int initializationGracePeriodSeconds = 15;  // Grace period after startup before respawning
 
@@ -475,6 +486,7 @@ public class ConfigManager {
             case "lait_curated": applyBuiltinLaitCuratedPreset(); break;
             case "zoo": applyBuiltinZooPreset(); break;
             case "all": applyBuiltinAllPreset(); break;
+            case "_debug": applyBuiltinDebugPreset(); break;
         }
 
         // Copy the preset configs
@@ -528,7 +540,8 @@ public class ConfigManager {
                presetName.equals("default_extended") ||
                presetName.equals("lait_curated") ||
                presetName.equals("zoo") ||
-               presetName.equals("all");
+               presetName.equals("all") ||
+               presetName.equals("_debug");
     }
 
     /**
@@ -560,6 +573,8 @@ public class ConfigManager {
             applyBuiltinZooPreset();
         } else if (presetName.equals("all")) {
             applyBuiltinAllPreset();
+        } else if (presetName.equals("_debug")) {
+            applyBuiltinDebugPreset();
         }
 
         // Generate JSON and save
@@ -728,6 +743,31 @@ public class ConfigManager {
         } catch (Exception e) {
             logVerbose("Error parsing config JSON: " + e.getMessage());
         }
+
+        migrateInvalidItemIds();
+    }
+
+    /**
+     * Replace invalid item IDs with correct game item IDs in all animal configs.
+     * Runs after loading config to fix persisted invalid items from older versions.
+     */
+    private void migrateInvalidItemIds() {
+        for (AnimalConfig config : animalConfigs.values()) {
+            migrateItemList(config.baseFoods);
+            migrateItemList(config.breedingFoods);
+            if (config.tamingFoods != null) {
+                migrateItemList(config.tamingFoods);
+            }
+        }
+    }
+
+    private void migrateItemList(List<String> foods) {
+        for (int i = 0; i < foods.size(); i++) {
+            String replacement = ITEM_MIGRATIONS.get(foods.get(i));
+            if (replacement != null) {
+                foods.set(i, replacement);
+            }
+        }
     }
 
     /**
@@ -746,6 +786,25 @@ public class ConfigManager {
             logVerbose("Saved config to: " + configFilePath);
         } catch (Exception e) {
             logVerbose("Error saving config: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Reload configuration from the stored file path.
+     * Does nothing if no file path was previously set.
+     */
+    public void reloadFromFile() {
+        if (configFilePath == null) {
+            logVerbose("No config file path set, cannot reload");
+            return;
+        }
+
+        try {
+            String json = Files.readString(configFilePath);
+            loadFromJson(json);
+            logVerbose("Reloaded config from: " + configFilePath);
+        } catch (Exception e) {
+            logVerbose("Error reloading config: " + e.getMessage());
         }
     }
 
@@ -913,6 +972,10 @@ public class ConfigManager {
                 applyBuiltinAllPreset();
                 activePreset = "all";
                 return true;
+            case "_debug":
+                applyBuiltinDebugPreset();
+                activePreset = "_debug";
+                return true;
             default:
                 logVerbose("Preset not found: " + presetName);
                 return false;
@@ -978,6 +1041,94 @@ public class ConfigManager {
     }
 
     /**
+     * Rename a preset file on disk.
+     * Cannot rename built-in presets. If the renamed preset is active, updates the active preset name.
+     * @param oldName Current preset name
+     * @param newName New preset name
+     * @return true if renamed successfully
+     */
+    public boolean renamePreset(String oldName, String newName) {
+        if (presetsDirectory == null) {
+            logVerbose("Presets directory not initialized");
+            return false;
+        }
+        if (isBuiltinPreset(oldName)) {
+            logVerbose("Cannot rename built-in preset: " + oldName);
+            return false;
+        }
+        if (!isValidPresetName(newName)) {
+            logVerbose("Invalid new preset name: " + newName);
+            return false;
+        }
+        try {
+            Path oldFile = presetsDirectory.resolve(oldName + ".json");
+            Path newFile = presetsDirectory.resolve(newName + ".json");
+            if (!oldFile.normalize().startsWith(presetsDirectory.normalize()) ||
+                !newFile.normalize().startsWith(presetsDirectory.normalize())) {
+                logVerbose("Security error: preset path escapes presets directory");
+                return false;
+            }
+            if (!Files.exists(oldFile)) {
+                logVerbose("Preset file not found: " + oldFile);
+                return false;
+            }
+            if (Files.exists(newFile)) {
+                logVerbose("Preset already exists: " + newName);
+                return false;
+            }
+            Files.move(oldFile, newFile);
+            if (oldName.equals(activePreset)) {
+                activePreset = newName;
+            }
+            logVerbose("Renamed preset: " + oldName + " -> " + newName);
+            return true;
+        } catch (Exception e) {
+            logVerbose("Error renaming preset: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Copy a preset file on disk under a new name.
+     * @param sourceName Preset to copy
+     * @param destName Name for the copy
+     * @return true if copied successfully
+     */
+    public boolean copyPreset(String sourceName, String destName) {
+        if (presetsDirectory == null) {
+            logVerbose("Presets directory not initialized");
+            return false;
+        }
+        if (!isValidPresetName(destName)) {
+            logVerbose("Invalid destination preset name: " + destName);
+            return false;
+        }
+        try {
+            Path srcFile = presetsDirectory.resolve(sourceName + ".json");
+            Path dstFile = presetsDirectory.resolve(destName + ".json");
+            if (!srcFile.normalize().startsWith(presetsDirectory.normalize()) ||
+                !dstFile.normalize().startsWith(presetsDirectory.normalize())) {
+                logVerbose("Security error: preset path escapes presets directory");
+                return false;
+            }
+            if (!Files.exists(srcFile)) {
+                logVerbose("Source preset not found: " + srcFile);
+                return false;
+            }
+            if (Files.exists(dstFile)) {
+                logVerbose("Destination preset already exists: " + destName);
+                return false;
+            }
+            Files.copy(srcFile, dstFile);
+            logVerbose("Copied preset: " + sourceName + " -> " + destName);
+            return true;
+        } catch (Exception e) {
+            logVerbose("Error copying preset: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Get the path to the presets directory.
      */
     public Path getPresetsDirectory() {
@@ -988,6 +1139,7 @@ public class ConfigManager {
      * Apply the built-in default preset - original game values.
      */
     private void applyBuiltinDefaultPreset() {
+        persistenceEnabled = true;
         defaultGrowthTimeMinutes = 30.0;
         defaultBreedCooldownMinutes = 5.0;
 
@@ -998,9 +1150,10 @@ public class ConfigManager {
                 animalConfigs.put(type, config);
             }
 
-            // All animals can be tamed, only livestock can breed by default
-            config.tamingEnabled = true;
-            config.breedingEnabled = type.isLivestock();
+            // Only animals with baby variants get taming + breeding
+            boolean hasBaby = type.hasBabyVariant();
+            config.tamingEnabled = hasBaby;
+            config.breedingEnabled = hasBaby;
 
             // Single default food
             config.breedingFoods.clear();
@@ -1016,6 +1169,7 @@ public class ConfigManager {
      * This is the recommended preset for most players.
      */
     private void applyBuiltinDefaultExtendedPreset() {
+        persistenceEnabled = true;
         // Use default timings
         defaultGrowthTimeMinutes = 30.0;
         defaultBreedCooldownMinutes = 5.0;
@@ -1030,9 +1184,17 @@ public class ConfigManager {
         for (AnimalType type : AnimalType.values()) {
             AnimalConfig config = animalConfigs.get(type);
             if (config != null) {
-                // All animals can be tamed, only livestock can breed
-                config.tamingEnabled = true;
-                config.breedingEnabled = type.isLivestock();
+                AnimalType.Category cat = type.getCategory();
+                boolean excluded = cat == AnimalType.Category.MISC ||
+                                   cat == AnimalType.Category.SPIRIT ||
+                                   cat == AnimalType.Category.BOSS ||
+                                   cat == AnimalType.Category.MYTHIC;
+                // Taming for all except excluded categories; breeding for livestock + mammals + dinosaurs + birds
+                config.tamingEnabled = !excluded;
+                config.breedingEnabled = type.isLivestock() ||
+                                         cat == AnimalType.Category.MAMMAL ||
+                                         cat == AnimalType.Category.DINOSAUR ||
+                                         cat == AnimalType.Category.AVIAN;
                 // Default timings
                 config.growthTimeMinutes = defaultGrowthTimeMinutes;
                 config.breedCooldownMinutes = defaultBreedCooldownMinutes;
@@ -1044,6 +1206,7 @@ public class ConfigManager {
      * Apply Lait's curated preset - more logical and diverse food options.
      */
     private void applyBuiltinLaitCuratedPreset() {
+        persistenceEnabled = true;
         defaultGrowthTimeMinutes = 20.0;  // Slightly faster growth
         defaultBreedCooldownMinutes = 3.0;  // Shorter cooldown
 
@@ -1054,9 +1217,14 @@ public class ConfigManager {
                 animalConfigs.put(type, config);
             }
 
-            // All animals can be tamed, only livestock can breed
-            config.tamingEnabled = true;
-            config.breedingEnabled = type.isLivestock();
+            AnimalType.Category cat = type.getCategory();
+            boolean excluded = cat == AnimalType.Category.MISC ||
+                               cat == AnimalType.Category.SPIRIT ||
+                               cat == AnimalType.Category.BOSS ||
+                               cat == AnimalType.Category.MYTHIC;
+            // Taming + breeding for all except excluded categories
+            config.tamingEnabled = !excluded;
+            config.breedingEnabled = !excluded;
             config.breedingFoods.clear();
 
             // Set curated foods per animal with multiple options
@@ -1127,7 +1295,6 @@ public class ConfigManager {
                     break;
 
                 case HORSE:
-                    config.breedingEnabled = false;
                     config.breedingFoods.addAll(Arrays.asList(
                         "Plant_Crop_Carrot_Item",  // Original - horses love carrots
                         "Plant_Fruit_Apple",       // Apples
@@ -1237,9 +1404,7 @@ public class ConfigManager {
                     break;
 
                 // === CRITTERS ===
-                case FROG_BLUE:
-                case FROG_GREEN:
-                case FROG_ORANGE:
+                case FROG:
                 case GECKO:
                 case LIZARD_SAND:
                     config.breedingFoods.add("Plant_Fruit_Berries_Red");
@@ -1408,7 +1573,6 @@ public class ConfigManager {
                     break;
 
                 case MOSSHORN:
-                case MOSSHORN_PLAIN:
                     config.breedingFoods.addAll(Arrays.asList(
                         "Plant_Crop_Wheat_Item",
                         "Plant_Crop_Lettuce_Item"
@@ -1663,6 +1827,7 @@ public class ConfigManager {
      * Excludes: MYTHIC (fantasy), VERMIN (pests), BOSS (epic creatures)
      */
     private void applyBuiltinZooPreset() {
+        persistenceEnabled = true;
         // Start with lait_curated values for foods and timing
         applyBuiltinLaitCuratedPreset();
 
@@ -1670,12 +1835,14 @@ public class ConfigManager {
         for (AnimalType type : AnimalType.values()) {
             AnimalConfig config = animalConfigs.get(type);
             if (config != null) {
-                AnimalType.Category category = type.getCategory();
-                // All animals can be tamed; breed real animals, exclude fantasy/dangerous/pests
-                config.tamingEnabled = true;
-                config.breedingEnabled = category != AnimalType.Category.MYTHIC &&
-                                 category != AnimalType.Category.VERMIN &&
-                                 category != AnimalType.Category.BOSS;
+                AnimalType.Category cat = type.getCategory();
+                boolean excluded = cat == AnimalType.Category.MISC ||
+                                   cat == AnimalType.Category.SPIRIT ||
+                                   cat == AnimalType.Category.BOSS ||
+                                   cat == AnimalType.Category.MYTHIC;
+                // Taming for all except excluded; breeding only for livestock
+                config.tamingEnabled = !excluded;
+                config.breedingEnabled = type.isLivestock();
             }
         }
     }
@@ -1687,6 +1854,7 @@ public class ConfigManager {
      *           VERMIN, AQUATIC, MYTHIC, DINOSAUR, BOSS)
      */
     private void applyBuiltinAllPreset() {
+        persistenceEnabled = true;
         // Start with lait_curated values for foods and timing
         applyBuiltinLaitCuratedPreset();
 
@@ -1697,6 +1865,23 @@ public class ConfigManager {
                 config.tamingEnabled = true;
                 config.breedingEnabled = true;
             }
+        }
+    }
+
+    /**
+     * Hidden debug preset - ALL creatures use wheat, fast timers.
+     * Not shown in UI or preset files. Activate via: /hytame preset _debug
+     */
+    private void applyBuiltinDebugPreset() {
+        persistenceEnabled = true;
+        String debugFood = "Plant_Crop_Wheat_Item";
+        for (AnimalType type : AnimalType.values()) {
+            AnimalConfig config = animalConfigs.computeIfAbsent(type, k -> new AnimalConfig());
+            config.breedingEnabled = true;
+            config.tamingEnabled = true;
+            config.breedingFoods = new ArrayList<>(List.of(debugFood));
+            config.growthTimeMinutes = 0.1;
+            config.breedCooldownMinutes = 0.1;
         }
     }
 
@@ -2363,6 +2548,20 @@ public class ConfigManager {
     }
 
     /**
+     * Get default growth time in minutes.
+     */
+    public double getDefaultGrowthTimeMinutes() {
+        return defaultGrowthTimeMinutes;
+    }
+
+    /**
+     * Get default breeding cooldown in minutes.
+     */
+    public double getDefaultBreedCooldownMinutes() {
+        return defaultBreedCooldownMinutes;
+    }
+
+    /**
      * Set default growth time for all animals.
      */
     public void setDefaultGrowthTime(double minutes) {
@@ -2701,5 +2900,52 @@ public class ConfigManager {
 
     private String formatMessage(String message) {
         return message.replace("&", "\u00A7");
+    }
+
+    // ==================== TOOLTIP TRACKING ====================
+
+    private Set<UUID> tooltipSeenPlayers;
+
+    private Path getTooltipFile() {
+        return configFilePath != null ? configFilePath.getParent().resolve("tooltip_seen.txt") : null;
+    }
+
+    private void loadTooltipSeen() {
+        if (tooltipSeenPlayers != null) return;
+        tooltipSeenPlayers = new HashSet<>();
+        Path file = getTooltipFile();
+        if (file == null || !Files.exists(file)) return;
+        try {
+            for (String line : Files.readAllLines(file)) {
+                String trimmed = line.trim();
+                if (!trimmed.isEmpty()) {
+                    tooltipSeenPlayers.add(UUID.fromString(trimmed));
+                }
+            }
+        } catch (Exception e) {
+            logVerbose("Error loading tooltip seen file: " + e.getMessage());
+        }
+    }
+
+    public boolean hasSeenTooltip(UUID playerUuid) {
+        loadTooltipSeen();
+        return tooltipSeenPlayers.contains(playerUuid);
+    }
+
+    public void markTooltipSeen(UUID playerUuid) {
+        loadTooltipSeen();
+        if (tooltipSeenPlayers.add(playerUuid)) {
+            Path file = getTooltipFile();
+            if (file == null) return;
+            try {
+                List<String> lines = new ArrayList<>();
+                for (UUID uuid : tooltipSeenPlayers) {
+                    lines.add(uuid.toString());
+                }
+                Files.write(file, lines);
+            } catch (Exception e) {
+                logVerbose("Error saving tooltip seen file: " + e.getMessage());
+            }
+        }
     }
 }

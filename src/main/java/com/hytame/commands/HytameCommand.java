@@ -41,7 +41,7 @@ import java.util.concurrent.CompletableFuture;
 /**
  * Unified command for all HyTame functionality.
  * Usage: /hytame [subcommand]
- * Subcommands: help, status, config, growth, tame, untame, info, settings, custom, scan, debug
+ * Subcommands: help, status, config, growth, tame, untame, info, list, custom, scan, debug
  *
  * Note: /breed is kept as a deprecated alias.
  */
@@ -183,8 +183,8 @@ public class HytameCommand extends AbstractCommand {
                 .insert(Message.raw(" - Prepare to tame an animal").color("#AAAAAA")));
         ctx.sendMessage(Message.raw("/hytame untame").color("#FFFFFF")
                 .insert(Message.raw(" - Release a tamed animal").color("#AAAAAA")));
-        ctx.sendMessage(Message.raw("/hytame settings").color("#FFFFFF")
-                .insert(Message.raw(" - Taming settings").color("#AAAAAA")));
+        ctx.sendMessage(Message.raw("/hytame list").color("#FFFFFF")
+                .insert(Message.raw(" - Browse taming & breeding settings").color("#AAAAAA")));
         ctx.sendMessage(Message.raw("/hytame scan").color("#FFFFFF")
                 .insert(Message.raw(" - Scan for untracked babies").color("#AAAAAA")));
         ctx.sendMessage(Message.raw("/hytame config info <animal>").color("#FFFFFF")
@@ -397,10 +397,10 @@ public class HytameCommand extends AbstractCommand {
         }
     }
 
-    // --- Subcommand: settings --- Public, no permission required
+    // --- Subcommand: list --- Public, no permission required
     public static class HytameSettingsSubCommand extends AbstractCommand {
         public HytameSettingsSubCommand() {
-            super("settings", "Taming settings");
+            super("list", "Browse taming & breeding settings");
         }
 
         @Override
@@ -422,8 +422,32 @@ public class HytameCommand extends AbstractCommand {
         }
 
         private static void executeSettingsLogic(CommandContext ctx) {
-            ctx.sendMessage(Message.raw("This command is not yet available.").color("#FFFF55"));
-            ctx.sendMessage(Message.raw("By default, others CAN interact with your tamed animals.").color("#AAAAAA"));
+            if (!ctx.isPlayer()) {
+                ctx.sendMessage(Message.raw("This command can only be used by players").color("#FF5555"));
+                return;
+            }
+
+            Player player = (Player) ctx.sender();
+            World world = Universe.get().getDefaultWorld();
+            if (world == null) {
+                ctx.sendMessage(Message.raw("World not available").color("#FF5555"));
+                return;
+            }
+
+            boolean isAdmin = HytamePermissions.hasAdminAccess(player);
+            world.execute(() -> {
+                try {
+                    @SuppressWarnings("unchecked")
+                    Ref<EntityStore> playerEntityRef = (Ref<EntityStore>) player.getReference();
+                    Store<EntityStore> store = playerEntityRef.getStore();
+
+                    com.hytame.ui.ConfigPanelUIPage configPage =
+                        new com.hytame.ui.ConfigPanelUIPage(player.getPlayerRef(), !isAdmin);
+                    player.getPageManager().openCustomPage(playerEntityRef, store, configPage);
+                } catch (Exception e) {
+                    player.sendMessage(Message.raw("Failed to open config panel: " + e.getMessage()).color("#FF5555"));
+                }
+            });
         }
     }
 

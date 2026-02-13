@@ -95,7 +95,12 @@ public class HyTameSystems {
             WorldSupport worldSupport = role.getWorldSupport();
 
             AttitudeGroup attitudeGroup = AttitudeGroup.getAssetMap().getAsset(worldSupport.getAttitudeGroup());
-            if (attitudeGroup == null || !validGroups.contains(attitudeGroup.getId())) return;
+            boolean groupMatch = attitudeGroup != null && validGroups.contains(attitudeGroup.getId());
+            if (!groupMatch) {
+                // Fallback: check if it's a known AnimalType (covers hostile creatures like Void, Undead, Golems, etc.)
+                String appearance = npcEntity.getRoleName();
+                if (AnimalType.fromModelAssetId(appearance) == null) return;
+            }
 
             // Setup taming - ensure HyTameComponent exists
             HyTameComponent hyTameComponent = holder.ensureAndGetComponent(this.hyTameComponentType);

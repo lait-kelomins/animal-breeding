@@ -1,0 +1,107 @@
+$C = "../Common.ui";
+
+// Admin list view — full-width animal table with tab bar
+// Used when admin is on the "List" tab
+
+Group {
+  LayoutMode: Center;
+
+  $C.@Container #mainPanel {
+    Anchor: (Width: 1100, Height: 960);
+
+    #Title {
+      $C.@Title #titleLabel {
+        @Text = "HYTAME CONFIGURATION";
+      }
+    }
+
+    #Content {
+      LayoutMode: Left;
+      Padding: (Full: 16);
+
+      Group #rightColumn {
+        LayoutMode: Top;
+        FlexWeight: 1;
+
+        // Tab bar
+        Group #tabBar {
+          LayoutMode: Left;
+          Anchor: (Height: 36, Bottom: 8);
+
+          TextButton #tabListBtn {
+            Anchor: (Width: 120, Height: 32, Right: 4);
+            Text: "LIST";
+            Style: $C.@SecondaryTextButtonStyle;
+          }
+          TextButton #tabEditBtn {
+            Anchor: (Width: 120, Height: 32);
+            Text: "EDIT";
+            Style: $C.@SecondaryTextButtonStyle;
+          }
+        }
+
+        // Section header
+        Label {
+          Text: "ANIMAL LIST";
+          Style: (FontSize: 14, RenderBold: true, TextColor: #ffaa00);
+          Anchor: (Height: 24, Bottom: 2);
+        }
+        Label {
+          Text: "Browse animal taming and breeding settings.";
+          Style: (FontSize: 11, TextColor: #666666);
+          Anchor: (Height: 16, Bottom: 6);
+        }
+
+        // Animal search
+        Group {
+          LayoutMode: Left;
+          Anchor: (Height: 36, Bottom: 8);
+
+          $C.@TextField #animalSearch {
+            FlexWeight: 1;
+            Anchor: (Height: 36, Right: 4);
+            PlaceholderText: "Search animals...";
+          }
+          $C.@SecondaryTextButton #animalSearchBtn {
+            @Anchor = (Width: 90, Height: 36);
+            Text: "GO";
+          }
+        }
+
+        // Table header + scrollable list
+        Group #animalListSide {
+          LayoutMode: Top;
+          FlexWeight: 1;
+
+          Group #tableHeader {
+            LayoutMode: Left;
+            Anchor: (Height: 22, Bottom: 4);
+            Padding: (Horizontal: 8);
+
+            Label { Anchor: (Width: 50); Text: ""; Style: (FontSize: 11, TextColor: #888888); }
+            Label { Anchor: (Width: 154); Text: "NAME"; Style: (FontSize: 11, TextColor: #888888); }
+            Label { Anchor: (Width: 84); Text: "COOLDOWN"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
+            Label { Anchor: (Width: 84); Text: "GROWTH"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
+            Label { Anchor: (Width: 94); Text: "TAME"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
+            Label { Anchor: (Width: 102); Text: "BREED"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
+            Label { Anchor: (Width: 100); Text: "FOOD"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
+          }
+
+          Group #animalRows {
+            LayoutMode: TopScrolling;
+            ScrollbarStyle: $C.@DefaultScrollbarStyle;
+            FlexWeight: 1;
+            Background: $C.@InputBoxBackground;
+            Padding: (Horizontal: 8, Vertical: 6);
+          }
+        }
+
+        // Hidden action fields
+        $C.@TextField #actionSearchAnimals { Anchor: (Width: 0, Height: 0); }
+        $C.@TextField #actionSwitchToList { Anchor: (Width: 0, Height: 0); }
+        $C.@TextField #actionSwitchToEdit { Anchor: (Width: 0, Height: 0); }
+      }
+    }
+  }
+
+}

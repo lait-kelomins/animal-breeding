@@ -1,0 +1,22 @@
+$C = "../Common.ui";
+
+// Animal cell button for config panel grid
+// Appended dynamically for each animal
+
+Group #animalCell {
+  LayoutMode: Center;
+  Anchor: (Width: 56, Height: 56, Right: 4, Bottom: 4);
+  Background: #333333;
+  Padding: (Full: 2);
+
+  // Animal name at bottom
+  Label #cellLabel {
+    Text: "Animal";
+    Style: (FontSize: 8, TextColor: #cccccc, HorizontalAlignment: Center);
+  }
+
+  // Hidden field to store animal ID for event binding
+  $C.@TextField #animalIdField {
+    Anchor: (Width: 0, Height: 0);
+  }
+}

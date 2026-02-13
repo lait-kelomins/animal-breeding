@@ -340,6 +340,14 @@ public class RespawnManager {
 
                                 if (npcEntity != null && !npcEntity.isDespawning() && despawnComp == null) {
                                     entityExists = true;
+                                    // Update position if it's still at origin (0,0,0)
+                                    if (positionGetter != null && tamedData.getLastX() == 0
+                                            && tamedData.getLastY() == 0 && tamedData.getLastZ() == 0) {
+                                        Vector3d refPos = positionGetter.apply(tamedRef);
+                                        if (refPos != null) {
+                                            tamedData.setLastPosition(refPos.getX(), refPos.getY(), refPos.getZ());
+                                        }
+                                    }
                                 }
                             } catch (ArrayIndexOutOfBoundsException e) {
                                 // Entity ref became stale between validity check and access - treat as not
@@ -356,6 +364,14 @@ public class RespawnManager {
                                     tamedData.setEntityRef(foundRef);
                                     entityExists = true;
                                     logVerbose("[RespawnCheck] Found entity by HytameId: " + tamedData.getCustomName());
+
+                                    // Update position immediately when linking entity
+                                    if (positionGetter != null) {
+                                        Vector3d linkPos = positionGetter.apply(foundRef);
+                                        if (linkPos != null) {
+                                            tamedData.setLastPosition(linkPos.getX(), linkPos.getY(), linkPos.getZ());
+                                        }
+                                    }
 
                                     var uuidComp = store.getComponent(foundRef, EcsReflectionUtil.UUID_TYPE);
                                     if (uuidComp != null) {

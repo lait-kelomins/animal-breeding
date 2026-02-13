@@ -31,6 +31,7 @@ import com.hytame.models.BreedingData;
 import com.hytame.models.TamedAnimalData;
 import com.hytame.ui.NametagUIPage;
 import com.hytame.util.EcsReflectionUtil;
+import com.hytame.util.EntityUtil;
 import com.hytame.util.TameHelper;
 import com.hypixel.hytale.server.core.universe.PlayerRef;
 
@@ -195,6 +196,12 @@ public class NameAnimalInteraction extends SimpleInteraction {
                     // Get world name for multi-world support
                     String worldName = getWorldNameFromRef(targetRef);
 
+                    // Fetch position from entity ref
+                    Vector3d syncPos = EntityUtil.getPositionFromRef(targetRef);
+                    double syncX = syncPos != null ? syncPos.getX() : 0;
+                    double syncY = syncPos != null ? syncPos.getY() : 0;
+                    double syncZ = syncPos != null ? syncPos.getZ() : 0;
+
                     tamingManager.tameAnimal(
                         hytameId,
                         animalUuid,
@@ -202,7 +209,7 @@ public class NameAnimalInteraction extends SimpleInteraction {
                         defaultName,
                         animalType,
                         targetRef,
-                        0, 0, 0, // Position will be updated later
+                        syncX, syncY, syncZ,
                         com.hytame.models.GrowthStage.ADULT,
                         worldName
                     );

@@ -47,6 +47,7 @@ import com.hytame.models.AnimalType;
 import com.hytame.models.TamedAnimalData;
 import com.hytame.tame.HyTameComponent;
 import com.hytame.util.EcsReflectionUtil;
+import com.hytame.util.EntityUtil;
 import com.hytame.util.NameplateUtil;
 
 import javax.annotation.Nonnull;
@@ -499,10 +500,16 @@ public class HyTameCaptureInteraction extends SimpleBlockInteraction {
                 }
             }
 
+            // Fetch position from entity ref
+            Vector3d capPos = EntityUtil.getPositionFromRef(npcRef);
+            double capX = capPos != null ? capPos.getX() : 0;
+            double capY = capPos != null ? capPos.getY() : 0;
+            double capZ = capPos != null ? capPos.getZ() : 0;
+
             TamedAnimalData data = tamingManager.tameAnimal(
                     hytameId, entityUuid, ownerUuid,
                     customName != null ? customName : (ownerName + "'s pet"),
-                    type, npcRef, 0, 0, 0, null, null);
+                    type, npcRef, capX, capY, capZ, null, null);
 
             if (data != null) {
                 data.setCaptured(false);

@@ -31,10 +31,10 @@
             "Continue": true,
             "$Comment": "[HYTAME] Tamed + no target: override player to Friendly. Children nesting prevents LockOnTarget from hijacking prey targets.",
             "Sensor": { "Type": "Tamed", "Set": true },
-            "Children": [
+            "Instructions": [
                 {
                     "Sensor": { "Type": "Not", "Sensor": { "Type": "Target" } },
-                    "Children": [
+                    "Instructions": [
                         {
                             "Sensor": { "Type": "Player", "Range": 30, "LockOnTarget": true },
                             "Actions": [
