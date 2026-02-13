@@ -55,7 +55,7 @@ public class ConfigManager {
     private double defaultBreedCooldownMinutes = 5.0;
     private boolean debugMode = false;
     private boolean growthEnabled = true;  // Can be disabled to freeze baby growth
-    private boolean persistenceEnabled = false;  // Tamed animal save/load/respawn (capture crate handles this instead)
+    private boolean persistenceEnabled = true;  // Tamed animal save/load/respawn
     private String activePreset = "default_extended";
     private int initializationGracePeriodSeconds = 15;  // Grace period after startup before respawning
 
@@ -1139,7 +1139,7 @@ public class ConfigManager {
      * Apply the built-in default preset - original game values.
      */
     private void applyBuiltinDefaultPreset() {
-        persistenceEnabled = false;
+        persistenceEnabled = true;
         defaultGrowthTimeMinutes = 30.0;
         defaultBreedCooldownMinutes = 5.0;
 
@@ -1169,7 +1169,7 @@ public class ConfigManager {
      * This is the recommended preset for most players.
      */
     private void applyBuiltinDefaultExtendedPreset() {
-        persistenceEnabled = false;
+        persistenceEnabled = true;
         // Use default timings
         defaultGrowthTimeMinutes = 30.0;
         defaultBreedCooldownMinutes = 5.0;
@@ -1206,7 +1206,7 @@ public class ConfigManager {
      * Apply Lait's curated preset - more logical and diverse food options.
      */
     private void applyBuiltinLaitCuratedPreset() {
-        persistenceEnabled = false;
+        persistenceEnabled = true;
         defaultGrowthTimeMinutes = 20.0;  // Slightly faster growth
         defaultBreedCooldownMinutes = 3.0;  // Shorter cooldown
 
@@ -1827,7 +1827,7 @@ public class ConfigManager {
      * Excludes: MYTHIC (fantasy), VERMIN (pests), BOSS (epic creatures)
      */
     private void applyBuiltinZooPreset() {
-        persistenceEnabled = false;
+        persistenceEnabled = true;
         // Start with lait_curated values for foods and timing
         applyBuiltinLaitCuratedPreset();
 
@@ -1854,7 +1854,7 @@ public class ConfigManager {
      *           VERMIN, AQUATIC, MYTHIC, DINOSAUR, BOSS)
      */
     private void applyBuiltinAllPreset() {
-        persistenceEnabled = false;
+        persistenceEnabled = true;
         // Start with lait_curated values for foods and timing
         applyBuiltinLaitCuratedPreset();
 
@@ -1873,7 +1873,7 @@ public class ConfigManager {
      * Not shown in UI or preset files. Activate via: /hytame preset _debug
      */
     private void applyBuiltinDebugPreset() {
-        persistenceEnabled = false;
+        persistenceEnabled = true;
         String debugFood = "Plant_Crop_Wheat_Item";
         for (AnimalType type : AnimalType.values()) {
             AnimalConfig config = animalConfigs.computeIfAbsent(type, k -> new AnimalConfig());

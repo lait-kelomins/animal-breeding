@@ -32,9 +32,10 @@ This mod is actively being developed. For issues or suggestions, click on one of
 
 ***
 
-## What's New in v1.5.2
+## What's New in v1.5.1
 
-**Config Panel Improvements**
+**Configuration Panel**
+*   Configuration panel - `/hytame list` opens the configuration panel, a new easy way to manage presets, configure and list the animals and the foods they love! Shows a read only version for non-admin players
 *   "Apply to All" buttons next to Growth Time and Breed Cooldown — instantly apply a value to every animal
 *   Built-in presets now show a `[HyTame]` badge and a RESTORE button to reset them to factory defaults
 *   Built-in presets can no longer be overwritten — "Save as Preset" creates a new preset instead
@@ -45,7 +46,6 @@ This mod is actively being developed. For issues or suggestions, click on one of
 *   `lait_curated` — taming and breeding for most animals (horse breeding now enabled)
 *   `zoo` — taming for most animals; breeding for livestock only
 *   `all` — everything enabled (unchanged)
-*   Persistence disabled by default in all presets
 
 ***
 

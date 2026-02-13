@@ -68,6 +68,13 @@ Group {
           Style: $C.@SecondaryTextButtonStyle;
         }
 
+        // Restore Presets button
+        TextButton #restorePresetsBtn {
+          Anchor: (Height: 36, Top: 6);
+          Text: "RESTORE ALL PRESETS";
+          Style: $C.@SecondaryTextButtonStyle;
+        }
+
         // Preset settings section
         Group #presetSettingsPanel {
           LayoutMode: Top;
@@ -162,6 +169,7 @@ Group {
         $C.@TextField #actionAddPreset { Anchor: (Width: 0, Height: 0); }
         $C.@TextField #actionApplyGrowthAll { Anchor: (Width: 0, Height: 0); }
         $C.@TextField #actionApplyCooldownAll { Anchor: (Width: 0, Height: 0); }
+        $C.@TextField #actionRestorePresets { Anchor: (Width: 0, Height: 0); }
       }
 
       // Vertical separator (outer group stretches, inner group is the line)

@@ -727,6 +727,7 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
             // actionRenamePreset value set dynamically in populatePresetSettings()
             cmd.set("#actionApplyGrowthAll.Value", "APPLY_GROWTH_ALL");
             cmd.set("#actionApplyCooldownAll.Value", "APPLY_COOLDOWN_ALL");
+            cmd.set("#actionRestorePresets.Value", "RESTORE_ALL_PRESETS");
         }
 
         // Mutating controls — skip bindings in list/read-only mode
@@ -791,6 +792,13 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
             events.addEventBinding(CustomUIEventBindingType.Activating, "#addPresetBtn",
                 new EventData()
                     .append("@action", "#actionAddPreset.Value")
+                    .append("@presetSearch", "#presetSearch.Value")
+                    .append("@animalSearch", "#animalSearch.Value"));
+
+            // Restore all presets button
+            events.addEventBinding(CustomUIEventBindingType.Activating, "#restorePresetsBtn",
+                new EventData()
+                    .append("@action", "#actionRestorePresets.Value")
                     .append("@presetSearch", "#presetSearch.Value")
                     .append("@animalSearch", "#animalSearch.Value"));
 
@@ -1446,6 +1454,26 @@ public class ConfigPanelUIPage extends InteractiveCustomUIPage<ConfigPanelUIPage
                     if (player != null) {
                         player.sendMessage(Message.raw("Failed to create preset.").color("#FF5555"));
                     }
+                }
+                reopenPage(player, ref, store);
+                return;
+            }
+
+            // --- Restore all builtin presets ---
+            if (action.equals("RESTORE_ALL_PRESETS")) {
+                String[] builtins = {"default", "default_extended", "lait_curated", "zoo", "all"};
+                int restored = 0;
+                for (String name : builtins) {
+                    if (config.restorePreset(name)) restored++;
+                }
+                if (player != null) {
+                    player.sendMessage(Message.raw("Restored " + restored + " built-in presets to defaults.").color("#55FF55"));
+                }
+                // Re-apply active preset if it was a builtin
+                String active = config.getActivePreset();
+                if (active != null && config.isBuiltinPreset(active)) {
+                    config.applyPreset(active);
+                    dirty = false;
                 }
                 reopenPage(player, ref, store);
                 return;

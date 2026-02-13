@@ -30,9 +30,9 @@ import java.util.*;
  */
 public class PatchSyncService {
 
-    // Hytale in-game time runs ~36x faster than real time
-    // Empirically verified: 0.1 real min → 6 real sec at ratio 36
-    private static final double REAL_TO_GAME_TIME_RATIO = 36.0;
+    // Game time runs at ~30x real time for alarm purposes.
+    // Config real-minutes × 30 = game-time minutes for ISO 8601 alarm durations.
+    private static final double REAL_TO_GAME_TIME_RATIO = 30.0;
 
     private static final String ASSET_PACK_NAME = "Config_HyTame";
     private static final String MANIFEST_TEMPLATE = """
@@ -280,23 +280,26 @@ public class PatchSyncService {
                 continue;
             }
 
-            // Check if patch needs to be written
-            if (!needsSync(type, configFoods)) {
+            // Check if NPC_ patch needs to be written
+            boolean npcNeedsSync = needsSync(type, configFoods);
+
+            if (npcNeedsSync) {
+                ConfigManager.AnimalConfig ac = configManager.getAnimalConfig(type);
+                double breedCooldown = ac.breedCooldownMinutes;
+                // Include growth in adult patch only for non-baby-variant (scaled babies)
+                double growthForAdult = type.hasBabyVariant() ? -1 : ac.growthTimeMinutes;
+
+                syncCreaturePatch(type.getModelAssetId(), npcPath, configFoods, breedCooldown, growthForAdult);
+                synced++;
+            } else {
                 skipped++;
-                continue;
             }
 
-            ConfigManager.AnimalConfig ac = configManager.getAnimalConfig(type);
-            double breedCooldown = ac.breedCooldownMinutes;
-            // Include growth in adult patch only for non-baby-variant (scaled babies)
-            double growthForAdult = type.hasBabyVariant() ? -1 : ac.growthTimeMinutes;
-
-            syncCreaturePatch(type.getModelAssetId(), npcPath, configFoods, breedCooldown, growthForAdult);
-            synced++;
-
-            // Baby-variant animals need a separate growth patch targeting the baby role
+            // Baby-variant animals: always check Growth_ patch separately
             if (type.hasBabyVariant()) {
-                syncGrowthForAnimal(type);
+                if (npcNeedsSync || needsGrowthSync(type)) {
+                    syncGrowthForAnimal(type);
+                }
             }
         }
 
@@ -340,6 +343,17 @@ public class PatchSyncService {
                 boolean hasModify = content.contains("\"Modify\"");
                 if (needsModify && !hasModify) return true;   // Needs Modify but has Parameters
                 if (!needsModify && hasModify) return true;   // Has Modify but needs Parameters
+
+                // Check timing values match config
+                ConfigManager.AnimalConfig ac = configManager.getAnimalConfig(type);
+                String expectedCooldownIso = minutesToIso(ac.breedCooldownMinutes * REAL_TO_GAME_TIME_RATIO);
+                if (ac.breedCooldownMinutes > 0 && !content.contains(expectedCooldownIso)) return true;
+
+                double growthForAdult = type.hasBabyVariant() ? -1 : ac.growthTimeMinutes;
+                if (growthForAdult > 0) {
+                    String expectedGrowthIso = minutesToIso(growthForAdult * REAL_TO_GAME_TIME_RATIO);
+                    if (!content.contains(expectedGrowthIso)) return true;
+                }
             } catch (IOException ignored) {}
 
             return false;
@@ -348,6 +362,28 @@ public class PatchSyncService {
         // No patch exists - always write one. HyTame's config foods
         // likely differ from vanilla LovedItems, so a patch is needed.
         return true;
+    }
+
+    /**
+     * Check if the Growth_ patch for a baby-variant animal needs rewriting.
+     * Compares the growth time ISO value in the existing patch against config.
+     */
+    private boolean needsGrowthSync(AnimalType type) {
+        if (forceSyncAll) return true;
+
+        Path patchFile = patchFolder.resolve("Growth_" + type.getModelAssetId() + ".json");
+        if (!Files.exists(patchFile)) return true;
+
+        try {
+            String content = Files.readString(patchFile);
+            ConfigManager.AnimalConfig ac = configManager.getAnimalConfig(type);
+            String expectedIso = minutesToIso(ac.growthTimeMinutes * REAL_TO_GAME_TIME_RATIO);
+            if (!content.contains(expectedIso)) return true;
+            // Also check format: should use Modify, not Parameters
+            if (content.contains("\"Parameters\"")) return true;
+        } catch (IOException ignored) {}
+
+        return false;
     }
 
     /**
@@ -488,7 +524,7 @@ public class PatchSyncService {
         sb.append("    \"_BaseAssetPath\": \"Server/").append(npcPath).append(".json\",\n");
 
         if (useModify) {
-            // Variant role — use Modify so LovedItems reaches Enabled: Compute
+            // Variant role — use Modify so values reach Compute expressions (memory rule #19)
             sb.append("    \"Modify\": {\n");
             // $.LovedItems = replace existing override; LovedItems = set from template default
             boolean hasNative = HAS_NATIVE_LOVED_ITEMS.contains(modelAssetId);
@@ -498,10 +534,19 @@ public class PatchSyncService {
                 if (i > 0) sb.append(", ");
                 sb.append("\"").append(lovedItems.get(i)).append("\"");
             }
-            sb.append("]\n");
-            sb.append("    }");
+            sb.append("]");
+            // Timing values also go into Modify for Variant roles
+            if (breedCooldownMinutes > 0) {
+                String iso = minutesToIso(breedCooldownMinutes * REAL_TO_GAME_TIME_RATIO);
+                sb.append(",\n        \"BreedCooldownTimeout\": [\"").append(iso).append("\", \"").append(iso).append("\"]");
+            }
+            if (growthMinutes > 0) {
+                String iso = minutesToIso(growthMinutes * REAL_TO_GAME_TIME_RATIO);
+                sb.append(",\n        \"GrowthTimeout\": [\"").append(iso).append("\", \"").append(iso).append("\"]");
+            }
+            sb.append("\n    }");
         } else {
-            // No native LovedItems — create via Parameters
+            // Non-variant — use Parameters for everything
             sb.append("    \"Parameters\": {\n");
             sb.append("        \"LovedItems\": {\n");
             sb.append("            \"Value\": [");
@@ -511,36 +556,18 @@ public class PatchSyncService {
             }
             sb.append("]\n");
             sb.append("        }");
-        }
-
-        // Timing parameters use Parameters section (no Enabled compute dependency)
-        boolean hasBreedCooldown = breedCooldownMinutes > 0;
-        boolean hasGrowth = growthMinutes > 0;
-        if (hasBreedCooldown || hasGrowth) {
-            if (!useModify) {
-                // Already in Parameters block, just continue
-                sb.append(",\n");
-            } else {
-                sb.append(",\n    \"Parameters\": {\n");
-            }
-            boolean first = true;
-            if (hasBreedCooldown) {
+            if (breedCooldownMinutes > 0) {
                 String iso = minutesToIso(breedCooldownMinutes * REAL_TO_GAME_TIME_RATIO);
-                sb.append("        \"BreedCooldownTimeout\": {\n");
+                sb.append(",\n        \"BreedCooldownTimeout\": {\n");
                 sb.append("            \"Value\": [\"").append(iso).append("\", \"").append(iso).append("\"]\n");
                 sb.append("        }");
-                first = false;
             }
-            if (hasGrowth) {
+            if (growthMinutes > 0) {
                 String iso = minutesToIso(growthMinutes * REAL_TO_GAME_TIME_RATIO);
-                if (!first) sb.append(",\n");
-                sb.append("        \"GrowthTimeout\": {\n");
+                sb.append(",\n        \"GrowthTimeout\": {\n");
                 sb.append("            \"Value\": [\"").append(iso).append("\", \"").append(iso).append("\"]\n");
                 sb.append("        }");
             }
-            sb.append("\n    }");
-        } else if (!useModify) {
-            // Close the Parameters block opened for LovedItems
             sb.append("\n    }");
         }
 
@@ -629,10 +656,10 @@ public class PatchSyncService {
         sb.append("{\n");
         sb.append("    \"$Comment\": \"Auto-generated by HyTame - DO NOT EDIT\",\n");
         sb.append("    \"_BaseAssetPath\": \"Server/").append(npcPath).append(".json\",\n");
-        sb.append("    \"Parameters\": {\n");
-        sb.append("        \"GrowthTimeout\": {\n");
-        sb.append("            \"Value\": [\"").append(iso).append("\", \"").append(iso).append("\"]\n");
-        sb.append("        }\n");
+        // Baby roles are Variants of Template_Animal_Neutral — Parameters from patches
+        // don't reach Compute expressions in the template. Use Modify instead.
+        sb.append("    \"Modify\": {\n");
+        sb.append("        \"GrowthTimeout\": [\"").append(iso).append("\", \"").append(iso).append("\"]\n");
         sb.append("    }\n");
         sb.append("}\n");
         return sb.toString();
