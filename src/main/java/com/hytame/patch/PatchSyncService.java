@@ -63,8 +63,29 @@ public class PatchSyncService {
             }
             """;
 
-    // Animals whose variant file already defines LovedItems in their Modify section.
-    // These need "Modify" patches; others need "Parameters" patches.
+    // All Variant roles of Template_Animal_Neutral need Modify for LovedItems
+    // to reach Enabled: Compute during role compilation (memory rule #19).
+    // Only Template_Animal_Neutral defines LovedItems in its Parameters.
+    // Source: docs/npc-inheritance-existing.md
+    private static final Set<String> ANIMAL_NEUTRAL_VARIANTS = Set.of(
+        // Livestock (adults)
+        "Boar", "Bison", "Camel", "Chicken", "Chicken_Desert", "Cow", "Goat",
+        "Horse", "Mouflon", "Pig", "Pig_Wild", "Rabbit", "Ram", "Sheep",
+        "Skrill", "Turkey", "Warthog",
+        // Livestock (babies)
+        "Boar_Piglet", "Bison_Calf", "Bunny", "Camel_Calf", "Chicken_Chick",
+        "Chicken_Desert_Chick", "Cow_Calf", "Goat_Kid", "Horse_Foal",
+        "Mouflon_Lamb", "Pig_Piglet", "Pig_Wild_Piglet", "Ram_Lamb",
+        "Sheep_Lamb", "Skrill_Chick", "Turkey_Chick", "Warthog_Piglet",
+        // Mammals
+        "Antelope", "Armadillo", "Deer_Doe", "Deer_Stag",
+        "Moose_Bull", "Moose_Cow", "Mosshorn", "Mosshorn_Plain",
+        // Others
+        "Crab", "Flamingo", "Penguin", "Tetrabird", "Tortoise"
+    );
+
+    // Subset: animals whose vanilla Modify section already overrides LovedItems.
+    // These need "$.LovedItems" (replace) vs just "LovedItems" (add) in Modify.
     // Source: reverse-engineer/source/Assets/Server/NPC/Roles/ (grep for LovedItems)
     private static final Set<String> HAS_NATIVE_LOVED_ITEMS = Set.of(
         "Boar", "Boar_Piglet", "Bunny", "Camel", "Camel_Calf",
@@ -303,9 +324,25 @@ public class PatchSyncService {
         Path patchFile = patchFolder.resolve("NPC_" + type.getModelAssetId() + ".json");
 
         if (Files.exists(patchFile)) {
-            // Compare against existing patch
+            // Compare foods
             List<String> patchFoods = readLovedItemsFromPatch(patchFile);
-            return !foodsMatch(configFoods, patchFoods);
+            if (!foodsMatch(configFoods, patchFoods)) return true;
+
+            // Compare path (may have changed due to path fixes)
+            String expectedPath = "Server/" + type.getNpcRolePath() + ".json";
+            String existingPath = readBaseAssetPathFromPatch(patchFile);
+            if (!expectedPath.equals(existingPath)) return true;
+
+            // Check format: Animal_Neutral variants need Modify, others need Parameters
+            try {
+                String content = Files.readString(patchFile);
+                boolean needsModify = ANIMAL_NEUTRAL_VARIANTS.contains(type.getModelAssetId());
+                boolean hasModify = content.contains("\"Modify\"");
+                if (needsModify && !hasModify) return true;   // Needs Modify but has Parameters
+                if (!needsModify && hasModify) return true;   // Has Modify but needs Parameters
+            } catch (IOException ignored) {}
+
+            return false;
         }
 
         // No patch exists - always write one. HyTame's config foods
@@ -322,8 +359,11 @@ public class PatchSyncService {
             // Try Parameters format first: "Value": [...]
             int valueStart = content.indexOf("\"Value\"");
             if (valueStart == -1) {
-                // Try Modify format: "$.LovedItems": [...]
+                // Try Modify format: "$.LovedItems": [...] (replace) or "LovedItems": [...] (set)
                 valueStart = content.indexOf("\"$.LovedItems\"");
+            }
+            if (valueStart == -1) {
+                valueStart = content.indexOf("\"LovedItems\"");
             }
             if (valueStart == -1)
                 return Collections.emptyList();
@@ -344,6 +384,26 @@ public class PatchSyncService {
             return foods;
         } catch (IOException e) {
             return Collections.emptyList();
+        }
+    }
+
+    /**
+     * Read _BaseAssetPath from an existing patch file.
+     */
+    private String readBaseAssetPathFromPatch(Path patchFile) {
+        try {
+            String content = Files.readString(patchFile);
+            String key = "\"_BaseAssetPath\"";
+            int keyIdx = content.indexOf(key);
+            if (keyIdx == -1) return "";
+            int colonIdx = content.indexOf(":", keyIdx + key.length());
+            if (colonIdx == -1) return "";
+            int quoteStart = content.indexOf("\"", colonIdx + 1);
+            int quoteEnd = content.indexOf("\"", quoteStart + 1);
+            if (quoteStart == -1 || quoteEnd == -1) return "";
+            return content.substring(quoteStart + 1, quoteEnd);
+        } catch (IOException e) {
+            return "";
         }
     }
 
@@ -409,14 +469,18 @@ public class PatchSyncService {
     /**
      * Generate combined patch JSON with LovedItems + optional timing parameters.
      *
-     * Animals with native LovedItems (in their variant's Modify section) use:
-     *   "Modify": { "LovedItems": [...] }
-     * Others (no LovedItems in variant) use:
-     *   "Parameters": { "LovedItems": { "Value": [...] } }
+     * LovedItems placement depends on the template chain:
+     * - Template_Animal_Neutral variants: use Modify so LovedItems reaches Enabled: Compute.
+     *   "$.LovedItems" if vanilla Modify already overrides it, "LovedItems" otherwise.
+     * - All other roles: use Parameters (no Enabled compute dependency on LovedItems).
+     *
+     * Timing parameters always use Parameters section (no Enabled compute dependency).
      */
     private String generateCombinedPatchJson(String modelAssetId, String npcPath,
             List<String> lovedItems, double breedCooldownMinutes, double growthMinutes) {
-        boolean useModify = HAS_NATIVE_LOVED_ITEMS.contains(modelAssetId);
+        // Template_Animal_Neutral variants need Modify for LovedItems to reach
+        // Enabled: Compute (memory rule #19). All other roles use Parameters.
+        boolean useModify = ANIMAL_NEUTRAL_VARIANTS.contains(modelAssetId);
 
         StringBuilder sb = new StringBuilder();
         sb.append("{\n");
@@ -424,9 +488,12 @@ public class PatchSyncService {
         sb.append("    \"_BaseAssetPath\": \"Server/").append(npcPath).append(".json\",\n");
 
         if (useModify) {
-            // Variant already defines LovedItems in Modify — use $.key to replace
+            // Variant role — use Modify so LovedItems reaches Enabled: Compute
             sb.append("    \"Modify\": {\n");
-            sb.append("        \"$.LovedItems\": [");
+            // $.LovedItems = replace existing override; LovedItems = set from template default
+            boolean hasNative = HAS_NATIVE_LOVED_ITEMS.contains(modelAssetId);
+            String modifyKey = hasNative ? "$.LovedItems" : "LovedItems";
+            sb.append("        \"").append(modifyKey).append("\": [");
             for (int i = 0; i < lovedItems.size(); i++) {
                 if (i > 0) sb.append(", ");
                 sb.append("\"").append(lovedItems.get(i)).append("\"");
@@ -434,7 +501,7 @@ public class PatchSyncService {
             sb.append("]\n");
             sb.append("    }");
         } else {
-            // Template doesn't define LovedItems natively — use Parameters
+            // No native LovedItems — create via Parameters
             sb.append("    \"Parameters\": {\n");
             sb.append("        \"LovedItems\": {\n");
             sb.append("            \"Value\": [");
@@ -446,20 +513,19 @@ public class PatchSyncService {
             sb.append("        }");
         }
 
-        // BreedCooldownTimeout and GrowthTimeout are always on the template, use Parameters
+        // Timing parameters use Parameters section (no Enabled compute dependency)
         boolean hasBreedCooldown = breedCooldownMinutes > 0;
         boolean hasGrowth = growthMinutes > 0;
         if (hasBreedCooldown || hasGrowth) {
-            if (useModify) {
-                // Close Modify, open Parameters
-                sb.append(",\n    \"Parameters\": {\n");
-            } else {
+            if (!useModify) {
+                // Already in Parameters block, just continue
                 sb.append(",\n");
+            } else {
+                sb.append(",\n    \"Parameters\": {\n");
             }
             boolean first = true;
             if (hasBreedCooldown) {
                 String iso = minutesToIso(breedCooldownMinutes * REAL_TO_GAME_TIME_RATIO);
-                if (!first) sb.append(",\n");
                 sb.append("        \"BreedCooldownTimeout\": {\n");
                 sb.append("            \"Value\": [\"").append(iso).append("\", \"").append(iso).append("\"]\n");
                 sb.append("        }");
@@ -474,8 +540,7 @@ public class PatchSyncService {
             }
             sb.append("\n    }");
         } else if (!useModify) {
-            sb.append("\n    }");
-        } else {
+            // Close the Parameters block opened for LovedItems
             sb.append("\n    }");
         }
 

@@ -32,24 +32,20 @@ This mod is actively being developed. For issues or suggestions, click on one of
 
 ***
 
-## What's New in v1.5.0
+## What's New in v1.5.2
 
-**Tamed Animal Behaviors**
-*   Tamed animals no longer attack or flee from players — works for all animal types including wolves, bears, predators, livestock, critters, etc.
-*   Hold a tamed animal's favorite food to have it follow you indefinitely
-*   Hold meat near a wild wolf or bear to temporarily calm and lure it closer for taming
-*   Changing taming foods in config now updates which foods make animals follow you
+**Config Panel Improvements**
+*   "Apply to All" buttons next to Growth Time and Breed Cooldown — instantly apply a value to every animal
+*   Built-in presets now show a `[HyTame]` badge and a RESTORE button to reset them to factory defaults
+*   Built-in presets can no longer be overwritten — "Save as Preset" creates a new preset instead
 
-**Better Mod Compatibility**
-*   Now uses HyTalor to surgically edit game assets instead of replacing them entirely, making HyTame compatible with more mods
-*   HyTalor is now a required dependency — a clear warning is shown if it's missing
-
-**Quality of Life**
-*   Nametags are now applied by pressing the F key (or Use hotkey)
-*   Horse mounting works properly as long as you don't have a loved food in hand
-*   Milking and shearing work properly
-*   Dead animals are now automatically removed from tamed_animals.json
-*   Various crash and freeze fixes — server initialization may take a moment to refresh assets
+**Preset Overhaul**
+*   `default` — taming and breeding only for animals with dedicated baby variants (17 livestock)
+*   `default_extended` — taming for most animals; breeding for livestock, mammals, dinosaurs, and birds
+*   `lait_curated` — taming and breeding for most animals (horse breeding now enabled)
+*   `zoo` — taming for most animals; breeding for livestock only
+*   `all` — everything enabled (unchanged)
+*   Persistence disabled by default in all presets
 
 ***
 
@@ -105,15 +101,15 @@ Can be enabled via config or the `zoo` preset. These spawn as small adults and g
 
 Presets are editable JSON files stored in `%AppData%/Roaming/Hytale/UserData/Saves/{YourSaveName}/mods/presets/`.
 
-**`default_extended`** (NEW DEFAULT) - Best of both worlds. Default timings (30 min growth, 5 min cooldown) with multiple food options from `lait_curated`. Recommended for most players.
+**`default_extended`** (DEFAULT) - Best of both worlds. Default timings (30 min growth, 5 min cooldown) with multiple food options from `lait_curated`. Taming for all animals except Other/Spirits/Bosses/Mythical. Breeding for livestock, mammals, dinosaurs, and birds. Recommended for most players.
 
-**`default`** - Streamlined experience with original game values. Single food per animal, 30 min growth, 5 min cooldown. Only livestock enabled.
+**`default`** - Minimal experience. Single food per animal, 30 min growth, 5 min cooldown. Taming and breeding only for the 17 livestock animals that have dedicated baby variants.
 
-**`lait_curated`** - Organic, natural experience. Multiple foods per animal, logical growth times (chickens 10 min, horses 30 min), balanced cooldowns. Rabbits breed fast (1 min cooldown), large animals need more rest.
+**`lait_curated`** - Organic, natural experience. Multiple foods per animal, logical growth times (chickens 10 min, horses 30 min), balanced cooldowns. Taming and breeding for all animals except Other/Spirits/Bosses/Mythical. Rabbits breed fast (1 min cooldown), large animals need more rest.
 
-**`zoo`** - All real-world animals enabled. Includes livestock, mammals, critters, birds, and reptiles. Excludes mythic creatures. Uses lait\_curated values.
+**`zoo`** - Taming for all animals except Other/Spirits/Bosses/Mythical. Breeding for livestock only. Uses lait\_curated food and timing values.
 
-**`all`** - EVERYTHING enabled. All 119 animals across all 10 categories including mythic creatures, vermin, aquatic, and boss dragons. Uses lait\_curated values. For the ultimate breeding experience.
+**`all`** - EVERYTHING enabled. Taming and breeding for all animals across all categories including mythic creatures, vermin, aquatic, and boss dragons. Uses lait\_curated values. For the ultimate breeding experience.
 
 ### Preset Commands
 

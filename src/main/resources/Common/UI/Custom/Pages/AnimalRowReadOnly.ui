@@ -1,0 +1,51 @@
+$C = "../Common.ui";
+
+// Read-only animal row with cooldown + growth columns
+// Layout: [icon 36+8] [name 150] [cooldown 80] [growth 80] [tame 90] [breed 90] [food flex]
+
+Group {
+  LayoutMode: Left;
+  Anchor: (Height: 40, Bottom: 2);
+
+  // Icon
+  Group #icon { Anchor: (Width: 36, Height: 36, Right: 14); }
+
+  // Name label
+  Label #selectBtn {
+    Anchor: (Width: 150, Height: 34, Right: 4);
+    Text: "";
+    Style: (FontSize: 12, TextColor: #cccccc, VerticalAlignment: Center);
+  }
+
+  // Breed cooldown
+  Label #cooldownLabel {
+    Anchor: (Width: 80, Height: 34, Right: 4);
+    Text: "-";
+    Style: (FontSize: 12, TextColor: #aaaaaa, Alignment: Center);
+  }
+
+  // Growth time
+  Label #growthLabel {
+    Anchor: (Width: 80, Height: 34, Right: 4);
+    Text: "-";
+    Style: (FontSize: 12, TextColor: #aaaaaa, Alignment: Center);
+  }
+
+  // Tame status
+  Label #tameToggle { Anchor: (Width: 90, Height: 34, Right: 4); Text: "OFF"; Style: (FontSize: 12, TextColor: #aaaaaa, Alignment: Center); }
+
+  // Breed status
+  Label #breedToggle { Anchor: (Width: 90, Height: 34, Right: 12); Text: "OFF"; Style: (FontSize: 12, TextColor: #aaaaaa, Alignment: Center); }
+
+  // Food icons (fills remaining space)
+  Group #foodIcons {
+    LayoutMode: Left;
+    FlexWeight: 1;
+    Anchor: (Height: 34);
+  }
+
+  // Hidden action fields
+  $C.@TextField #selectAction { Anchor: (Width: 0, Height: 0); }
+  $C.@TextField #breedAction { Anchor: (Width: 0, Height: 0); }
+  $C.@TextField #tameAction { Anchor: (Width: 0, Height: 0); }
+}

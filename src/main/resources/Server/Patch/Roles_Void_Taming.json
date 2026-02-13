@@ -1,0 +1,179 @@
+{
+    "$Comment": "Add taming/feeding support to Void creatures (Generic roles without template inheritance)",
+    "_BaseAssetPath": "regex:Server/NPC/Roles/Void/.+\\.json",
+    "_priority": 100,
+    "Parameters": {
+        "LovedItems": {
+            "Value": [],
+            "TypeHint": "String",
+            "Description": "Items that can be used to tame/feed this creature"
+        }
+    },
+    "Instructions": [
+        {
+            "_op": "add",
+            "_index": 0,
+            "$Comment": "[HYTAME] Tamed + player holds LovedItems = follow (no Continue — cuts chain, prevents detection/attack)",
+            "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+            "Sensor": {
+                "Type": "And",
+                "Sensors": [
+                    { "Type": "Tamed", "Set": true },
+                    {
+                        "Type": "Player",
+                        "Range": 30,
+                        "LockOnTarget": true,
+                        "Filters": [
+                            { "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }
+                        ]
+                    }
+                ]
+            },
+            "Actions": [
+                { "Type": "OverrideAttitude", "Attitude": "Friendly", "Duration": 10 }
+            ],
+            "HeadMotion": { "Type": "Watch" },
+            "BodyMotion": { "Type": "Seek", "SlowDownDistance": 3.5, "StopDistance": 2, "RelativeSpeed": 0.7 }
+        },
+        {
+            "_op": "add",
+            "_index": 1,
+            "Continue": true,
+            "$Comment": "[HYTAME] Tamed gate phase 1: release stale Friendly targets (player after LovedItems override)",
+            "Sensor": {
+                "Type": "And",
+                "Sensors": [
+                    { "Type": "Tamed", "Set": true },
+                    {
+                        "Type": "Target",
+                        "Filters": [
+                            { "Type": "Attitude", "Attitudes": ["Friendly"] }
+                        ]
+                    }
+                ]
+            },
+            "Actions": [
+                { "Type": "ReleaseTarget" }
+            ]
+        },
+        {
+            "_op": "add",
+            "_index": 2,
+            "Continue": true,
+            "$Comment": "[HYTAME] Tamed gate phase 2: override player to Friendly. Children nesting prevents LockOnTarget from hijacking prey targets.",
+            "Sensor": { "Type": "Tamed", "Set": true },
+            "Instructions": [
+                {
+                    "Sensor": { "Type": "Not", "Sensor": { "Type": "Target" } },
+                    "Instructions": [
+                        {
+                            "Sensor": { "Type": "Player", "Range": 30, "LockOnTarget": true },
+                            "Actions": [
+                                { "Type": "OverrideAttitude", "Attitude": "Friendly", "Duration": 300 },
+                                { "Type": "ReleaseTarget" }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "_op": "add",
+            "_index": 3,
+            "$Comment": "[HYTAME] Tamed catch-all: friendly override + wander + cut chain. Void state machines ignore attitude, so we must prevent them from running when tamed.",
+            "Sensor": { "Type": "Tamed", "Set": true },
+            "Actions": [
+                { "Type": "ReleaseTarget" }
+            ],
+            "BodyMotion": { "Type": "Wander" }
+        },
+        {
+            "_op": "add",
+            "_index": 4,
+            "$Comment": "[HYTAME] Void Taming: Untamed + player holds LovedItems = follow & calm. No Continue cuts chain, prevents combat instructions from running.",
+            "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+            "Sensor": {
+                "Type": "And",
+                "Sensors": [
+                    { "Type": "Not", "Sensor": { "Type": "Tamed", "Set": true } },
+                    {
+                        "Type": "Player",
+                        "Range": 8,
+                        "LockOnTarget": true,
+                        "Filters": [
+                            { "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }
+                        ]
+                    }
+                ]
+            },
+            "Actions": [
+                { "Type": "OverrideAttitude", "Attitude": "Friendly", "Duration": 10 }
+            ],
+            "HeadMotion": { "Type": "Watch" },
+            "BodyMotion": { "Type": "Seek", "SlowDownDistance": 3.5, "StopDistance": 2, "RelativeSpeed": 0.5 }
+        }
+    ],
+    "InteractionInstruction": {
+        "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+        "Instructions": [
+            {
+                "$Comment": "Block for Void creatures taming/breeding",
+                "Enabled": { "Compute": "!isEmptyStringArray(LovedItems)" },
+                "Instructions": [
+                    {
+                        "$Comment": "Always create Interactable component (required for interaction system)",
+                        "Continue": true,
+                        "Sensor": { "Type": "Any" },
+                        "Actions": [
+                            { "Type": "SetInteractable", "Interactable": true, "ShowPrompt": true }
+                        ]
+                    },
+                    {
+                        "$Comment": "Taming hint: Wild + IsTameable + player has LovedItems",
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                { "Type": "IsTameable", "Set": true },
+                                { "Type": "Not", "Sensor": { "Type": "Tamed", "Set": true } },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [{ "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            { "Type": "SetInteractable", "Interactable": true, "ShowPrompt": true }
+                        ]
+                    },
+                    {
+                        "$Comment": "Breeding hint: Tamed + player has LovedItems",
+                        "Continue": true,
+                        "Sensor": {
+                            "Type": "And",
+                            "Sensors": [
+                                { "Type": "Tamed", "Set": true },
+                                {
+                                    "Type": "Player",
+                                    "Range": 5,
+                                    "Filters": [{ "Type": "ItemInHand", "Items": { "Compute": "LovedItems" } }]
+                                }
+                            ]
+                        },
+                        "Actions": [
+                            { "Type": "SetInteractable", "Interactable": true, "ShowPrompt": true }
+                        ]
+                    },
+                    {
+                        "$Comment": "Execute taming/breeding action on F-key",
+                        "Sensor": { "Type": "HasInteracted" },
+                        "Actions": [
+                            { "Type": "HyTameFeedInteraction" }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}

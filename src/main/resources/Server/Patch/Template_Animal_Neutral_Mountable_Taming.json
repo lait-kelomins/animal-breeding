@@ -15,6 +15,9 @@
                         "_op": "add",
                         "_index": 2,
                         "$Comment": "[HYTAME] Harvestable Taming: Reset interaction state (handles case where player interacted without loved item on untamed animal",
+                        "Enabled": {
+                            "Compute": "!isEmptyStringArray(LovedItems)"
+                        },
                         "Sensor": {
                             "Type": "And",
                             "Sensors": [

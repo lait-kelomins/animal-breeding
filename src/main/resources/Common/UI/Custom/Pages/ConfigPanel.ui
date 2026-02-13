@@ -11,7 +11,7 @@ Group {
 
     #Title {
       $C.@Title #titleLabel {
-        @Text = "ANIMAL BREEDING CONFIGURATION";
+        @Text = "HYTAME CONFIGURATION";
       }
     }
 
@@ -19,11 +19,22 @@ Group {
       LayoutMode: Left;
       Padding: (Full: 16);
 
-      // ========== LEFT COLUMN - Preset List + Settings ==========
+      // ========== LEFT COLUMN - Preset Manager ==========
       Group #leftColumn {
         LayoutMode: Top;
-        Anchor: (Width: 500);
-        Padding: (Right: 16);
+        Anchor: (Width: 490);
+
+        // Section header
+        Label {
+          Text: "PRESET MANAGER";
+          Style: (FontSize: 14, RenderBold: true, TextColor: #ffaa00);
+          Anchor: (Height: 24, Bottom: 2);
+        }
+        Label {
+          Text: "Load, save, and manage configuration presets.";
+          Style: (FontSize: 11, TextColor: #666666);
+          Anchor: (Height: 16, Bottom: 6);
+        }
 
         // Preset search
         Group {
@@ -50,10 +61,11 @@ Group {
           Padding: (Full: 6);
         }
 
-        // Add preset button
-        $C.@SecondaryTextButton #addPresetBtn {
-          @Anchor = (Top: 8, Height: 36);
+        // Add Preset button (fixed below scroll list)
+        TextButton #addPresetBtn {
+          Anchor: (Height: 36, Top: 6);
           Text: "+ ADD PRESET";
+          Style: $C.@SecondaryTextButtonStyle;
         }
 
         // Preset settings section
@@ -104,25 +116,10 @@ Group {
             }
           }
 
-          // Default growth time
-          Group {
-            LayoutMode: Left;
-            Anchor: (Height: 40, Bottom: 10);
-
-            Label {
-              Text: "Growth Time (min)";
-              Style: (FontSize: 13, TextColor: #cccccc);
-              FlexWeight: 1;
-            }
-            $C.@TextField #growthTimeInput {
-              Anchor: (Width: 80, Height: 34);
-            }
-          }
-
           // Default cooldown
           Group {
             LayoutMode: Left;
-            Anchor: (Height: 40);
+            Anchor: (Height: 40, Bottom: 10);
 
             Label {
               Text: "Breed Cooldown (min)";
@@ -130,22 +127,83 @@ Group {
               FlexWeight: 1;
             }
             $C.@TextField #cooldownInput {
-              Anchor: (Width: 80, Height: 34);
+              Anchor: (Width: 80, Height: 34, Right: 4);
+            }
+            $C.@SecondaryTextButton #applyCooldownAllBtn {
+              @Anchor = (Width: 80, Height: 34);
+              Text: "ALL";
+            }
+          }
+
+          // Default growth time
+          Group {
+            LayoutMode: Left;
+            Anchor: (Height: 40);
+
+            Label {
+              Text: "Growth Time (min)";
+              Style: (FontSize: 13, TextColor: #cccccc);
+              FlexWeight: 1;
+            }
+            $C.@TextField #growthTimeInput {
+              Anchor: (Width: 80, Height: 34, Right: 4);
+            }
+            $C.@SecondaryTextButton #applyGrowthAllBtn {
+              @Anchor = (Width: 80, Height: 34);
+              Text: "ALL";
             }
           }
         }
 
         // Hidden action fields for left column buttons
-        $C.@TextField #actionAddPreset { Anchor: (Width: 0, Height: 0); }
         $C.@TextField #actionToggleGrowth { Anchor: (Width: 0, Height: 0); }
         $C.@TextField #actionSearchPresets { Anchor: (Width: 0, Height: 0); }
         $C.@TextField #actionRenamePreset { Anchor: (Width: 0, Height: 0); }
+        $C.@TextField #actionAddPreset { Anchor: (Width: 0, Height: 0); }
+        $C.@TextField #actionApplyGrowthAll { Anchor: (Width: 0, Height: 0); }
+        $C.@TextField #actionApplyCooldownAll { Anchor: (Width: 0, Height: 0); }
       }
 
-      // ========== RIGHT COLUMN - Animal Table ==========
+      // Vertical separator (outer group stretches, inner group is the line)
+      Group #separator {
+        Anchor: (Width: 28);
+        Padding: (Horizontal: 10);
+        Group { Background: #4a4a5a; }
+      }
+
+      // ========== RIGHT COLUMN - Animal List + Detail ==========
       Group #rightColumn {
         LayoutMode: Top;
         FlexWeight: 1;
+
+        // Tab bar
+        Group #tabBar {
+          LayoutMode: Left;
+          Anchor: (Height: 36, Bottom: 8);
+
+          TextButton #tabListBtn {
+            Anchor: (Width: 120, Height: 32, Right: 4);
+            Text: "LIST";
+            Style: $C.@SecondaryTextButtonStyle;
+          }
+          TextButton #tabEditBtn {
+            Anchor: (Width: 120, Height: 32);
+            Text: "EDIT";
+            Style: $C.@SecondaryTextButtonStyle;
+          }
+        }
+
+        // Section header
+        Label {
+          Text: "ANIMAL LIST";
+          Style: (FontSize: 14, RenderBold: true, TextColor: #ffaa00);
+          Anchor: (Height: 24, Bottom: 2);
+        }
+        Label {
+          Text: "Click an animal to edit its details. Toggle taming and breeding per animal.";
+          Style: (FontSize: 11, TextColor: #666666);
+          Anchor: (Height: 16, Bottom: 6);
+        }
 
         // Animal search
         Group {
@@ -181,7 +239,8 @@ Group {
               Padding: (Horizontal: 8);
 
               Label { Anchor: (Width: 40); Text: ""; Style: (FontSize: 11, TextColor: #888888); }
-              Label { FlexWeight: 1; Text: ""; Style: (FontSize: 11, TextColor: #888888); }
+              Label { FlexWeight: 1; Text: "NAME"; Style: (FontSize: 11, TextColor: #888888); }
+              Label { Anchor: (Width: 100); Text: "FOOD"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
               Label { Anchor: (Width: 94); Text: "TAME"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
               Label { Anchor: (Width: 90); Text: "BREED"; Style: (FontSize: 11, TextColor: #888888, Alignment: Center); }
             }
@@ -227,18 +286,32 @@ Group {
           }
         }
 
-        // Save button
-        $C.@TextButton #saveBtn {
-          @Anchor = (Height: 40, Top: 8);
-          Text: "SAVE TO FILE";
+        // Save buttons row
+        Group {
+          LayoutMode: Left;
+          Anchor: (Height: 40, Top: 8);
+
+          $C.@SecondaryTextButton #saveAsPresetBtn {
+            @Anchor = (Width: 380, Height: 40, Right: 8);
+            Text: "SAVE AS PRESET";
+          }
+          $C.@TextButton #saveBtn {
+            @Anchor = (Height: 40);
+            FlexWeight: 1;
+            Text: "SAVE AS CURRENT CONFIG";
+          }
         }
 
         // Hidden action fields
         $C.@TextField #actionSave { Anchor: (Width: 0, Height: 0); }
+        $C.@TextField #actionSaveAsPreset { Anchor: (Width: 0, Height: 0); }
+        $C.@TextField #actionCurrentConfig { Anchor: (Width: 0, Height: 0); }
         $C.@TextField #actionSearchAnimals { Anchor: (Width: 0, Height: 0); }
         $C.@TextField #actionSearchFoods { Anchor: (Width: 0, Height: 0); }
-        $C.@TextField #actionDetailChanged { Anchor: (Width: 0, Height: 0); }
+        $C.@TextField #actionSwitchToList { Anchor: (Width: 0, Height: 0); }
+        $C.@TextField #actionSwitchToEdit { Anchor: (Width: 0, Height: 0); }
       }
     }
   }
+
 }

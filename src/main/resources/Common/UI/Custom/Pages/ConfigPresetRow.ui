@@ -10,11 +10,19 @@ Group {
   // Clickable preset name button
   TextButton #presetBtn {
     FlexWeight: 1;
-    Anchor: (Height: 32);
+    Anchor: (Height: 32, Right: 4);
     Text: "";
     Style: $C.@SecondaryTextButtonStyle;
   }
 
-  // Hidden action field
+  // Copy preset button
+  TextButton #copyPresetBtn {
+    Anchor: (Width: 100, Height: 32);
+    Text: "COPY";
+    Style: $C.@SecondaryTextButtonStyle;
+  }
+
+  // Hidden action fields
   $C.@TextField #presetAction { Anchor: (Width: 0, Height: 0); }
+  $C.@TextField #copyAction { Anchor: (Width: 0, Height: 0); }
 }

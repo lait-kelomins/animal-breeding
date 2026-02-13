@@ -294,15 +294,6 @@
             "growthTimeMinutes": 35.0,
             "breedCooldownMinutes": 5.0
         },
-        "MOSSHORN_PLAIN": {
-            "enabled": false,
-            "breedingFoods": [
-                "Plant_Crop_Lettuce_Item",
-                "Plant_Crop_Wheat_Item"
-            ],
-            "growthTimeMinutes": 35.0,
-            "breedCooldownMinutes": 5.0
-        },
         "TIGER_SABERTOOTH": {
             "enabled": false,
             "breedingFoods": [
@@ -312,23 +303,7 @@
             "growthTimeMinutes": 40.0,
             "breedCooldownMinutes": 10.0
         },
-        "FROG_BLUE": {
-            "enabled": false,
-            "breedingFoods": [
-                "Plant_Fruit_Berries_Red"
-            ],
-            "growthTimeMinutes": 5.0,
-            "breedCooldownMinutes": 1.0
-        },
-        "FROG_GREEN": {
-            "enabled": false,
-            "breedingFoods": [
-                "Plant_Fruit_Berries_Red"
-            ],
-            "growthTimeMinutes": 5.0,
-            "breedCooldownMinutes": 1.0
-        },
-        "FROG_ORANGE": {
+        "FROG": {
             "enabled": false,
             "breedingFoods": [
                 "Plant_Fruit_Berries_Red"

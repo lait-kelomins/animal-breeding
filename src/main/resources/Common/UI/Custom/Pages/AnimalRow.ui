@@ -19,11 +19,17 @@ Group {
     Style: $C.@SecondaryTextButtonStyle;
   }
 
-  // Tame toggle (first)
-  $C.@SecondaryTextButton #tameToggle { @Anchor = (Width: 90, Height: 34, Right: 4); Text: "OFF"; }
+  // Food icons (up to 3 + overflow indicator)
+  Group #foodIcons {
+    LayoutMode: Left;
+    Anchor: (Width: 100, Height: 34, Right: 4);
+  }
 
-  // Breed toggle (second)
-  $C.@SecondaryTextButton #breedToggle { @Anchor = (Width: 90, Height: 34); Text: "OFF"; }
+  // Tame toggle
+  TextButton #tameToggle { Anchor: (Width: 90, Height: 34, Right: 4); Text: "OFF"; Style: $C.@SecondaryTextButtonStyle; }
+
+  // Breed toggle
+  TextButton #breedToggle { Anchor: (Width: 90, Height: 34); Text: "OFF"; Style: $C.@SecondaryTextButtonStyle; }
 
   // Hidden action fields (one per interactive element)
   $C.@TextField #selectAction { Anchor: (Width: 0, Height: 0); }
